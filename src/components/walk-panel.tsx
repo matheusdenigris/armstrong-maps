@@ -25,6 +25,8 @@ type WalkSummaryProps = {
 type WalkDetailsProps = {
   walk: WalkEvaluation;
   stops: number;
+  /** A walk is in progress: the route cannot be changed. */
+  locked?: boolean;
   onUndo: () => void;
   onClear: () => void;
 };
@@ -82,10 +84,10 @@ export function WalkSummary({ walk, stops, collapsible, expanded, onToggle }: Wa
 }
 
 /** Why the verdict is what it is, the numbers behind it, and what was assumed. */
-export function WalkDetails({ walk, stops, onUndo, onClear }: WalkDetailsProps) {
+export function WalkDetails({ walk, stops, locked, onUndo, onClear }: WalkDetailsProps) {
   const verdict = VERDICT[walk.verdict];
   const a = WALK_ASSUMPTIONS;
-  const empty = stops === 0;
+  const empty = stops === 0 || locked === true;
   const used = Math.min(1, walk.lifeSupportUsed);
 
   return (

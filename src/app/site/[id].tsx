@@ -14,6 +14,7 @@ import {
   type MapPath,
   type MapRing,
 } from '@/components/surface-map';
+import { WalkControls } from '@/components/walk-controls';
 import { WalkDetails, WalkSummary } from '@/components/walk-panel';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { imageSearchUrl, parseImageSearch } from '@/data/image-library';
@@ -30,12 +31,15 @@ import {
 } from '@/data/space-weather';
 import { REMS_FEED, parseWeather } from '@/data/weather';
 import type { MapView } from '@/mission/camera';
+import { elapsedSeconds } from '@/mission/clock';
 import { formatLatLon } from '@/mission/format';
 import { distance } from '@/mission/geo';
+import { walkProgress } from '@/mission/progress';
 import { TILE_PIXELS, tileSpan } from '@/mission/tiles';
 import { WALK_ASSUMPTIONS, evaluateWalk } from '@/mission/walk';
 import { useMission, useRoute } from '@/state/mission';
 import { useFeed } from '@/state/use-feed';
+import { useNow } from '@/state/use-now';
 
 /** One page per site in the static web export. */
 export function generateStaticParams() {
@@ -88,6 +92,30 @@ function SiteMap({ site }: { site: Site }) {
   const overlays = useMission((state) => state.overlays);
   const toggleOverlay = useMission((state) => state.toggleOverlay);
   const setOverlayOpacity = useMission((state) => state.setOverlayOpacity);
+  const clock = useMission((state) => state.clocks[site.id]) ?? null;
+  const startWalk = useMission((state) => state.startWalk);
+  const pauseWalk = useMission((state) => state.pauseWalk);
+  const resumeWalk = useMission((state) => state.resumeWalk);
+  const setWalkRate = useMission((state) => state.setWalkRate);
+  const endWalk = useMission((state) => state.endWalk);
+  // The walk in progress, if there is one. Its position is simulated from the plan.
+  const now = useNow(clock?.running ?? false);
+  const progress = walkProgress(
+    site.landing,
+    route,
+    clock ? elapsedSeconds(clock, now) / 3600 : 0,
+    SURFACE_RADIATION.msvPerDay,
+  );
+  // The same object while the astronaut stands still, so the map is not rebuilt on every frame.
+  const astronautLat = clock ? progress.position.lat : null;
+  const astronautLon = clock ? progress.position.lon : null;
+  const astronaut = useMemo(
+    () =>
+      astronautLat === null || astronautLon === null
+        ? null
+        : { lat: astronautLat, lon: astronautLon },
+    [astronautLat, astronautLon],
+  );
   const [expanded, setExpanded] = useState(false);
   const [tab, setTab] = useState<Tab>('walk');
 
@@ -98,12 +126,12 @@ function SiteMap({ site }: { site: Site }) {
   const weather = useFeed(tab === 'site' ? REMS_FEED : null, parseWeather);
   // Space weather changes the verdict, so the CME forecast is asked for at once. The addresses
   // only change once a day, and each is asked for once per visit.
-  const [now] = useState(() => new Date());
-  const donki = useMemo(() => donkiUrls(now), [now]);
+  const [visitStart] = useState(() => new Date());
+  const donki = useMemo(() => donkiUrls(visitStart), [visitStart]);
   const arrivals = useFeed(donki.enlil, parseMarsArrivals);
   const sep = useFeed(tab === 'site' ? donki.sep : null, parseSepEvents);
   const cmeAtMars =
-    arrivals.status === 'ready' && marsSpaceWeather(arrivals.data, now).level !== 'quiet';
+    arrivals.status === 'ready' && marsSpaceWeather(arrivals.data, visitStart).level !== 'quiet';
   // Pictures wait for their tab.
   const rawImages = useFeed(
     tab === 'photos' && site.rover ? rawImagesUrl(site.rover) : null,
@@ -162,6 +190,9 @@ function SiteMap({ site }: { site: Site }) {
         color: Colors.text,
       });
     }
+    if (astronaut) {
+      pins.push({ id: 'astronaut', point: astronaut, label: 'EV1 · simulated', color: Colors.go });
+    }
     // The real traverse goes under the planned route.
     const lines: MapPath[] = driven
       ? [{ id: 'traverse', points: driven.path, color: Colors.text, width: 2 }]
@@ -194,7 +225,7 @@ function SiteMap({ site }: { site: Site }) {
       paths: lines,
       rings: circles,
     };
-  }, [site, route, rover, track, cmeAtMars]);
+  }, [site, route, rover, track, astronaut, cmeAtMars]);
 
   const open = sideBySide || expanded;
   const panel = (
@@ -219,12 +250,26 @@ function SiteMap({ site }: { site: Site }) {
             <TabButton label="Photos" selected={tab === 'photos'} onPress={() => setTab('photos')} />
           </View>
           {tab === 'walk' ? (
-            <WalkDetails
-              walk={walk}
-              stops={route.length}
-              onUndo={() => removeLastWaypoint(site.id)}
-              onClear={() => clearRoute(site.id)}
-            />
+            <>
+              <WalkControls
+                siteId={site.id}
+                stops={route.length}
+                clock={clock}
+                progress={progress}
+                onStart={() => startWalk(site.id)}
+                onPause={() => pauseWalk(site.id)}
+                onResume={() => resumeWalk(site.id)}
+                onEnd={() => endWalk(site.id)}
+                onRate={(rate) => setWalkRate(site.id, rate)}
+              />
+              <WalkDetails
+                walk={walk}
+                stops={route.length}
+                locked={clock !== null}
+                onUndo={() => removeLastWaypoint(site.id)}
+                onClear={() => clearRoute(site.id)}
+              />
+            </>
           ) : null}
           {tab === 'layers' ? (
             <LayerPanel
@@ -241,7 +286,7 @@ function SiteMap({ site }: { site: Site }) {
               distanceFromGaleM={distance(site.landing, GALE)}
               weather={weather}
               rover={rover ? { name: rover.name, track } : null}
-              space={{ arrivals, sep, now }}
+              space={{ arrivals, sep, now: visitStart }}
             />
           ) : null}
           {tab === 'photos' ? (

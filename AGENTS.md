@@ -69,8 +69,15 @@ screen needs a source or a "simulated" or "assumption" label.
 - Respect reduced-motion settings and keep touch targets at 44 pt or more.
 - Check every screen change at phone width (375 pt) and at desktop width on the web export. The
   web version is what is shown first, so mouse, wheel and keyboard must work as well as touch.
-- Routes live in `src/app`: `/` lists the landing sites and `/site/<id>` is the map of one. A
-  dynamic route exports `generateStaticParams` so the web export has a page for each address.
+- Routes live in `src/app`: `/` is the globe and the list of sites, `/site/<id>` is the ship
+  console of one, and `/visor/<id>` is the astronaut's visor. A dynamic route exports
+  `generateStaticParams` so the web export has a page for each address.
+- **The ship owns the walk.** Only the console starts, pauses or ends it; the visor reads the
+  state. The clock (`src/mission/clock.ts`) stores an anchor instead of ticking, so every tab
+  works out the same time. Tabs follow each other through the saved state and the browser's
+  `storage` event (`src/app/_layout.tsx`).
+- **The photograph in the visor is an image, not a texture**, and only the clean `window` of it
+  in `src/data/panoramas.ts` is shown. Its framing is illustrative and the visor has to say so.
 - Do not add `src/app/+html.tsx` without checking the export: a custom shell dropped the style
   sheet and the script tags from every page. Set titles with `Head` from `expo-router/head`.
 - **Pages are rendered ahead of time, without a window.** `useWindowDimensions` is 0 there, and a

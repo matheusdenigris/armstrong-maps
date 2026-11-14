@@ -6,6 +6,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import {
+  pauseClock,
+  resumeClock,
+  startClock,
+  withRate,
+  type WalkClock,
+} from '@/mission/clock';
 import type { LatLon } from '@/mission/geo';
 
 type MissionState = {
@@ -18,6 +25,16 @@ type MissionState = {
   overlays: Record<string, number>;
   toggleOverlay: (layerId: string) => void;
   setOverlayOpacity: (layerId: string, opacity: number) => void;
+  /**
+   * The clock of the walk in progress at each site. The ship console is the only screen that
+   * changes it; the visor reads it. A site without a walk has no entry.
+   */
+  clocks: Record<string, WalkClock>;
+  startWalk: (siteId: string) => void;
+  pauseWalk: (siteId: string) => void;
+  resumeWalk: (siteId: string) => void;
+  setWalkRate: (siteId: string, rate: number) => void;
+  endWalk: (siteId: string) => void;
 };
 
 /** An overlay comes on see-through enough to keep the ground visible under it. */
@@ -35,15 +52,53 @@ export const useMission = create<MissionState>()(
       addWaypoint: (siteId, point) =>
         set((state) => {
           const route = state.routes[siteId] ?? [];
-          if (route.length >= MAX_WAYPOINTS) return state;
+          // The route is locked while somebody is walking it.
+          if (state.clocks[siteId] || route.length >= MAX_WAYPOINTS) return state;
           return { routes: { ...state.routes, [siteId]: [...route, point] } };
         }),
       removeLastWaypoint: (siteId) =>
-        set((state) => ({
-          routes: { ...state.routes, [siteId]: (state.routes[siteId] ?? []).slice(0, -1) },
-        })),
+        set((state) =>
+          state.clocks[siteId]
+            ? state
+            : { routes: { ...state.routes, [siteId]: (state.routes[siteId] ?? []).slice(0, -1) } },
+        ),
       clearRoute: (siteId) =>
-        set((state) => ({ routes: { ...state.routes, [siteId]: [] } })),
+        set((state) =>
+          state.clocks[siteId] ? state : { routes: { ...state.routes, [siteId]: [] } },
+        ),
+      clocks: {},
+      startWalk: (siteId) =>
+        set((state) =>
+          (state.routes[siteId] ?? []).length === 0
+            ? state
+            : { clocks: { ...state.clocks, [siteId]: startClock(Date.now()) } },
+        ),
+      pauseWalk: (siteId) =>
+        set((state) => {
+          const clock = state.clocks[siteId];
+          return clock
+            ? { clocks: { ...state.clocks, [siteId]: pauseClock(clock, Date.now()) } }
+            : state;
+        }),
+      resumeWalk: (siteId) =>
+        set((state) => {
+          const clock = state.clocks[siteId];
+          return clock
+            ? { clocks: { ...state.clocks, [siteId]: resumeClock(clock, Date.now()) } }
+            : state;
+        }),
+      setWalkRate: (siteId, rate) =>
+        set((state) => {
+          const clock = state.clocks[siteId];
+          return clock
+            ? { clocks: { ...state.clocks, [siteId]: withRate(clock, rate, Date.now()) } }
+            : state;
+        }),
+      endWalk: (siteId) =>
+        set((state) => {
+          const { [siteId]: _ended, ...others } = state.clocks;
+          return { clocks: others };
+        }),
       overlays: {},
       toggleOverlay: (layerId) =>
         set((state) => {
@@ -59,16 +114,23 @@ export const useMission = create<MissionState>()(
         })),
     }),
     {
-      name: 'armstrong-maps.mission',
+      name: 'armstrong-maps.mission', // MISSION_STORAGE_KEY
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ routes: state.routes, overlays: state.overlays }),
+      partialize: (state) => ({
+        routes: state.routes,
+        overlays: state.overlays,
+        clocks: state.clocks,
+      }),
       // The saved plan is read after the first render, in the root layout, so the page that was
       // rendered ahead of time and the first render in the browser are the same.
       skipHydration: true,
     },
   ),
 );
+
+/** The name the state is saved under. Other tabs watch this key to follow the ship. */
+export const MISSION_STORAGE_KEY = 'armstrong-maps.mission';
 
 /** The waypoints of one site. The empty list is always the same object, so nothing re-renders. */
 export function useRoute(siteId: string): readonly LatLon[] {
