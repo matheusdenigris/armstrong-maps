@@ -1,6 +1,6 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, LinearTransition, ReduceMotion } from 'react-native-reanimated';
@@ -470,9 +470,7 @@ function ConsoleHeader({
           <Text style={styles.siteName} numberOfLines={1}>
             {site.name}
           </Text>
-          <Text style={styles.siteMission} numberOfLines={1}>
-            {site.mission}
-          </Text>
+          <MissionLabel mission={site.mission} />
         </View>
         {showScience ? (
           <Text style={styles.science} numberOfLines={2}>
@@ -483,6 +481,37 @@ function ConsoleHeader({
       </View>
       {desktop ? null : telemetry}
     </View>
+  );
+}
+
+/** The full mission name stays available when the compact console header has to truncate it. */
+function MissionLabel({ mission }: { mission: string }) {
+  const [truncated, setTruncated] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const label = useRef<ComponentRef<typeof Text>>(null);
+
+  const measureTruncation = () => {
+    // React Native Web gives Text a DOM element, whose scroll width includes the clipped text.
+    // Native does not show hover tooltips, so it deliberately leaves this false there.
+    const element = label.current as unknown as { clientWidth?: number; scrollWidth?: number } | null;
+    const { clientWidth = 0, scrollWidth = 0 } = element ?? {};
+    setTruncated(clientWidth > 0 && scrollWidth > clientWidth);
+  };
+
+  return (
+    <Pressable
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      style={styles.siteMissionTrigger}>
+      <Text ref={label} onLayout={measureTruncation} style={styles.siteMission} numberOfLines={1}>
+        {mission}
+      </Text>
+      {hovered && truncated ? (
+        <View pointerEvents="none" style={styles.siteMissionTooltip}>
+          <Text style={styles.siteMissionTooltipText}>{mission}</Text>
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -865,6 +894,30 @@ const styles = StyleSheet.create({
     color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 12,
+  },
+  siteMissionTrigger: {
+    position: 'relative',
+    alignSelf: 'stretch',
+  },
+  siteMissionTooltip: {
+    position: 'absolute',
+    zIndex: 20,
+    top: '100%',
+    left: 0,
+    maxWidth: 320,
+    marginTop: Spacing.one,
+    paddingHorizontal: Spacing.two + Spacing.one,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.glassStrong,
+  },
+  siteMissionTooltipText: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    lineHeight: 18,
   },
   science: {
     flex: 1,
