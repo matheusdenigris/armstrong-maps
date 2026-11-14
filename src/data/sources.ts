@@ -8,6 +8,7 @@
  */
 import { IMAGE_LIBRARY_API } from './image-library';
 import { SURFACE_RADIATION } from './radiation';
+import { PANORAMAS } from './panoramas';
 import { RAW_IMAGE_FEEDS } from './rover-images';
 import { ROVERS } from './rover';
 import { DONKI_BASE } from './space-weather';
@@ -144,15 +145,17 @@ export const SOURCES: readonly DataSource[] = [
   {
     id: 'visor-photographs',
     name: 'Visor panoramas',
-    publisher: 'NASA/JPL-Caltech/MSSS (and ASU for Perseverance), NASA Image and Video Library',
+    publisher: 'NASA/JPL-Caltech and the camera teams, NASA Image and Video Library',
     nasa: true,
     kind: 'catalogue',
-    gives: 'The real rover panoramas behind the astronaut visor: PIA25176 (Curiosity) and PIA24264 (Perseverance).',
-    usedIn: 'The astronaut visor.',
-    endpoint: 'https://images.nasa.gov/details/PIA25176\nhttps://images.nasa.gov/details/PIA24264',
+    gives: `The real 360-degree rover panoramas the astronaut stands in: ${PANORAMAS.map((panorama) => panorama.nasaId).join(', ')}.`,
+    usedIn: 'The astronaut visor, which switches to the panorama taken nearest to the astronaut.',
+    endpoint: PANORAMAS.map((panorama) => `https://images.nasa.gov/details/${panorama.nasaId}`).join(
+      '\n',
+    ),
     key: 'None',
-    notes: 'Taken from one fixed spot, so the framing does not follow the real heading. Sites without their own photograph borrow one.',
-    reference: 'https://images.nasa.gov/details/PIA25176',
+    notes: 'Each was taken from one fixed spot, so the view does not move forward between two photographs. Listed in src/data/panoramas.ts.',
+    reference: 'https://images.nasa.gov',
   },
   {
     id: 'rems-weather',

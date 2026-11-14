@@ -70,16 +70,31 @@ raise it for hours or days.
 
 ## Illustrative
 
-- The photograph in the visor is real (see the sources below), but it was taken from one fixed
-  spot. It slides sideways as the astronaut turns; it does not show what is really in that
-  direction. Only its clean part is shown: the mosaics have black gaps and the rover's deck.
-- Gale and Jezero have their own photograph. At the other sites the visor borrows the one from
-  Gale and says so.
+- The photographs in the visor are real 360-degree mosaics (see the table below), each taken
+  from one fixed spot. The visor shows the one taken nearest to the astronaut's simulated position
+  and says how far away that was. Between two photographs nothing moves forward: there is no
+  video of a walk on Mars, and the app does not fake one.
+- Only one photograph has a caption that says where north is (PIA20840). The others are not lined
+  up with the compass: turning turns the view by the right amount, but what is ahead in the
+  picture is not what is ahead on the ground. The visor says which case it is.
+- Three things were set by eye for each photograph: the row of the horizon, the band that is free
+  of the black gaps at the top and bottom of the mosaic, and the colour that continues the sky
+  above that band. Black areas inside the band are where the camera took no frame.
+- Gale, Jezero and Gusev have their own photographs. Meridiani and Elysium borrow one from Gale,
+  and the visor says so.
 
-| Photograph | Source |
-|---|---|
-| Curiosity Mastcam 360-degree panorama on Greenheugh, sol 3423 (2022) | [PIA25176](https://images.nasa.gov/details/PIA25176), NASA/JPL-Caltech/MSSS |
-| Perseverance Mastcam-Z first 360-degree panorama, sol 3 (2021) | [PIA24264](https://images.nasa.gov/details/PIA24264), NASA/JPL-Caltech/MSSS/ASU |
+| Photograph | Where and when | Source |
+|---|---|---|
+| Curiosity Mastcam, the landing site with Mount Sharp | Gale, Bradbury Landing, August 2012 | [PIA16101](https://images.nasa.gov/details/PIA16101), NASA/JPL-Caltech/MSSS |
+| Curiosity Mastcam amid the Murray Buttes | Gale, sol 1451 (2016) | [PIA20840](https://images.nasa.gov/details/PIA20840), NASA/JPL-Caltech/MSSS |
+| Curiosity Mastcam on Vera Rubin Ridge | Gale, sol 2137 (2018) | [PIA22545](https://images.nasa.gov/details/PIA22545), NASA/JPL-Caltech/MSSS |
+| Curiosity Mastcam below Gediz Vallis Ridge | Gale, sol 3928 (2023) | [PIA26019](https://images.nasa.gov/details/PIA26019), NASA/JPL-Caltech/MSSS |
+| Perseverance Mastcam-Z, first 360-degree panorama | Jezero, landing site, sol 3 (2021) | [PIA24264](https://images.nasa.gov/details/PIA24264), NASA/JPL-Caltech/MSSS/ASU |
+| Perseverance Mastcam-Z at Bright Angel | Jezero, sol 1178 (2024) | [PIA26369](https://images.nasa.gov/details/PIA26369), NASA/JPL-Caltech/ASU/MSSS |
+| Spirit Pancam, the McMurdo panorama | Gusev, Low Ridge, 2006 | [PIA16440](https://images.nasa.gov/details/PIA16440), NASA/JPL-Caltech/Cornell |
+
+The place of each Gale and Jezero photograph is the rover's published position on the sol it was
+taken.
 
 ## Decoration
 
