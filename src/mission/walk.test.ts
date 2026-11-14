@@ -71,6 +71,27 @@ describe('evaluateWalk', () => {
     expect(walk.reasons).toEqual(['into-reserve']);
   });
 
+  it('refuses a route over ground steeper than the no-go slope', () => {
+    const walk = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, { maxSlopeDeg: 27 });
+    expect(walk.verdict).toBe('no-go');
+    expect(walk.reasons).toEqual(['too-steep']);
+  });
+
+  it('warns about steep ground and dune fields', () => {
+    const walk = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, {
+      maxSlopeDeg: 18,
+      crossesDunes: true,
+    });
+    expect(walk.verdict).toBe('caution');
+    expect(walk.reasons).toEqual(['steep-ground', 'dune-field']);
+  });
+
+  it('says nothing about the ground when the model has not answered', () => {
+    const walk = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, { maxSlopeDeg: null });
+    expect(walk.reasons).toEqual([]);
+    expect(evaluateWalk(BASE, [], DOSE_RATE, WALK_ASSUMPTIONS, { maxSlopeDeg: 40 }).verdict).toBe('go');
+  });
+
   it('adds a caution when a CME is at Mars', () => {
     const walk = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, { cmeAtMars: true });
     expect(walk.verdict).toBe('caution');
