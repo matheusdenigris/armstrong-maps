@@ -76,6 +76,11 @@ screen needs a source or a "simulated" or "assumption" label.
   state. The clock (`src/mission/clock.ts`) stores an anchor instead of ticking, so every tab
   works out the same time. Tabs follow each other through the saved state and the browser's
   `storage` event (`src/app/_layout.tsx`).
+- **The visor is the astronaut's helmet, and it is a mission tool.** What goes on its display is
+  what keeps the astronaut alive and the mission on course: life support, the way back, the next
+  waypoint, alerts. Safety numbers and alert codes come from `src/mission/safety.ts`; the screen
+  only writes the sentences. The lower rim of the helmet holds the instruments and hides the
+  bottom of the photograph, where the rover that took it shows.
 - **The visor shows real photographs, not a drawn scene.** A 3D terrain with a painted sky was
   tried and rejected as game-like: do not bring it back. `src/components/panorama-view.web.tsx`
   wraps a real 360-degree mosaic round the astronaut with plain strips, because the NASA image

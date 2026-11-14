@@ -40,6 +40,23 @@ Daylight and weather do not change the verdict yet. The dose stays the published
 only adds a caution, because DONKI forecasts its arrival, not the dose it brings. When DONKI does
 not answer, the verdict leaves space weather out and the Site tab says so.
 
+## Alerts during the walk
+
+While the walk runs, `walkSafety` in `src/mission/safety.ts` works out the time to spare: the
+life support left, minus the reserve, minus the time to walk straight back to the base from where
+the astronaut is. The helmet display raises:
+
+| Alert | When | Level |
+|---|---|---|
+| Life support exhausted | Nothing is left | Warning |
+| Turn back now | The time to spare is zero or less | Warning |
+| Beyond the walk-back limit | The astronaut is farther from the base than the limit | Warning |
+| Turn back within a given time | Less than 30 minutes to spare | Caution |
+| Into the reserve | Life support is below the reserve | Caution |
+| Near the walk-back limit | Past 80% of the limit | Caution |
+
+The way back is a straight line at the assumed walking speed, like the return leg of the plan.
+
 ## Measured data
 
 | What | Value | Source |
@@ -66,8 +83,10 @@ raise it for hours or days.
 
 The visor can play wind recorded on Mars: the SuperCam microphone of Perseverance, at Jezero
 crater, on sol 4 (22 February 2021). The file in `public/audio` is the MP3 that NASA publishes,
-unchanged, played on a loop at the volume it was published with. It was recorded at Jezero; at
-the other sites the visor plays the same recording and says it was not recorded there.
+unchanged. The app plays it on a loop and six times louder than published, through a limiter so
+the gusts do not distort: the recording is faint, as wind is in air a hundredth as dense as
+Earth's. It was recorded at Jezero; at the other sites the visor plays the same recording and
+says it was not recorded there.
 
 Source: [Perseverance Rover's SuperCam Records Wind on Mars](https://science.nasa.gov/resource/perseverance-rovers-supercam-records-wind-on-mars/),
 NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero.
