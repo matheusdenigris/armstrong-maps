@@ -16,7 +16,7 @@ import {
   type MapRing,
 } from '@/components/surface-map';
 import { WalkControls } from '@/components/walk-controls';
-import { WalkDetails, WalkSummary } from '@/components/walk-panel';
+import { RouteActions, WalkDetails, WalkSummary } from '@/components/walk-panel';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { imageSearchUrl, parseImageSearch } from '@/data/image-library';
 import { GLOBAL_LAYERS, VIKING_GLOBAL } from '@/data/layers';
@@ -47,8 +47,11 @@ export function generateStaticParams() {
   return SITES.map((site) => ({ id: site.id }));
 }
 
-/** The map opens about 30 km across on a phone: the landing point with its surroundings. */
-const OPENING_PIXELS_PER_DEGREE = 700;
+/**
+ * The map opens about 11 km across on a phone: the landing point with the 5 km walk-back ring
+ * just inside the screen, which is the ground a walk can cover.
+ */
+const OPENING_PIXELS_PER_DEGREE = 2000;
 /** The whole planet fits on a small screen at this scale. */
 const WIDEST_PIXELS_PER_DEGREE = 2;
 /** The full three-column ship console starts here. */
@@ -273,6 +276,12 @@ function SiteMap({ site }: { site: Site }) {
         expanded
         onToggle={() => undefined}
       />
+      <RouteActions
+        stops={route.length}
+        locked={clock !== null}
+        onUndo={() => removeLastWaypoint(site.id)}
+        onClear={() => clearRoute(site.id)}
+      />
       <WalkControls
         siteId={site.id}
         stops={route.length}
@@ -284,13 +293,7 @@ function SiteMap({ site }: { site: Site }) {
         onEnd={() => endWalk(site.id)}
         onRate={(rate) => setWalkRate(site.id, rate)}
       />
-      <WalkDetails
-        walk={walk}
-        stops={route.length}
-        locked={clock !== null}
-        onUndo={() => removeLastWaypoint(site.id)}
-        onClear={() => clearRoute(site.id)}
-      />
+      <WalkDetails walk={walk} stops={route.length} />
       <View style={styles.dataDivider} />
       <EnvironmentPanel
         siteName={site.name}

@@ -25,6 +25,10 @@ type WalkSummaryProps = {
 type WalkDetailsProps = {
   walk: WalkEvaluation;
   stops: number;
+};
+
+type RouteActionsProps = {
+  stops: number;
   /** A walk is in progress: the route cannot be changed. */
   locked?: boolean;
   onUndo: () => void;
@@ -85,11 +89,34 @@ export function WalkSummary({ walk, stops, collapsible, expanded, onToggle }: Wa
   );
 }
 
+/**
+ * Takes the last waypoint off the route, or all of them. It comes first in the panel: a tap in
+ * the wrong place on the map is the commonest thing to put right.
+ */
+export function RouteActions({ stops, locked, onUndo, onClear }: RouteActionsProps) {
+  const empty = stops === 0 || locked === true;
+  return (
+    <View style={styles.routeActions}>
+      <PanelButton
+        label="Remove the last waypoint"
+        text="Undo"
+        onPress={onUndo}
+        disabled={empty}
+      />
+      <PanelButton
+        label="Remove every waypoint"
+        text="Clear"
+        onPress={onClear}
+        disabled={empty}
+      />
+    </View>
+  );
+}
+
 /** Why the verdict is what it is, the numbers behind it, and what was assumed. */
-export function WalkDetails({ walk, stops, locked, onUndo, onClear }: WalkDetailsProps) {
+export function WalkDetails({ walk, stops }: WalkDetailsProps) {
   const verdict = VERDICT[walk.verdict];
   const a = WALK_ASSUMPTIONS;
-  const empty = stops === 0 || locked === true;
   const used = Math.min(1, walk.lifeSupportUsed);
 
   return (
@@ -145,21 +172,6 @@ export function WalkDetails({ walk, stops, locked, onUndo, onClear }: WalkDetail
           {/* Where the reserve starts. */}
           <View style={[styles.meterMark, { left: `${(1 - a.reserveFraction) * 100}%` }]} />
         </View>
-      </View>
-
-      <View style={styles.actions}>
-        <PanelButton
-          label="Remove the last waypoint"
-          text="Undo"
-          onPress={onUndo}
-          disabled={empty}
-        />
-        <PanelButton
-          label="Remove every waypoint"
-          text="Clear"
-          onPress={onClear}
-          disabled={empty}
-        />
       </View>
 
       <View style={styles.assumptions}>
@@ -369,9 +381,11 @@ const styles = StyleSheet.create({
     width: 2,
     backgroundColor: Colors.text,
   },
-  actions: {
+  routeActions: {
     flexDirection: 'row',
     gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingBottom: Spacing.two,
   },
   button: {
     flex: 1,
