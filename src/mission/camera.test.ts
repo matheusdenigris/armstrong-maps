@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  clampScale,
   clampView,
   hasDrifted,
   limitsForSurfaceFrame,
@@ -66,6 +67,26 @@ describe('clampView', () => {
   it('keeps the centre on the planet', () => {
     const lost = clampView({ lat: 120, lon: -400, pixelsPerDegree: 10 }, limits);
     expect(lost).toEqual({ lat: 90, lon: -180, pixelsPerDegree: 10 });
+  });
+});
+
+describe('clampScale', () => {
+  it('keeps a requested zoom scale inside its limits before camera coordinates are calculated', () => {
+    const limits = { min: 2, max: 5000 };
+    expect(clampScale(0.1, limits)).toBe(2);
+    expect(clampScale(9e9, limits)).toBe(5000);
+    expect(clampScale(1000, limits)).toBe(1000);
+  });
+
+  it('leaves the camera in place when zooming out past its minimum around the pointer', () => {
+    const limits = { min: 2, max: 5000 };
+    const minimum = { ...view, pixelsPerDegree: limits.min };
+    const pointer = { x: 90, y: 150 };
+    const anchor = unproject(minimum, size, pointer);
+    const after = viewAround(anchor, pointer, clampScale(1, limits), size);
+    expect(after.lat).toBeCloseTo(minimum.lat, 12);
+    expect(after.lon).toBeCloseTo(minimum.lon, 12);
+    expect(after.pixelsPerDegree).toBe(minimum.pixelsPerDegree);
   });
 });
 

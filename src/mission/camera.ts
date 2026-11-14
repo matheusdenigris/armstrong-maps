@@ -72,12 +72,16 @@ export function viewAround(
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
+/** Keeps a requested map scale inside its allowed range before it affects the camera position. */
+export const clampScale = (pixelsPerDegree: number, limits: ScaleLimits) =>
+  clamp(pixelsPerDegree, limits.min, limits.max);
+
 /** Keeps the centre on the planet and the scale inside its limits. */
 export function clampView(view: MapView, limits: ScaleLimits): MapView {
   return {
     lat: clamp(view.lat, -90, 90),
     lon: clamp(view.lon, -180, 180),
-    pixelsPerDegree: clamp(view.pixelsPerDegree, limits.min, limits.max),
+    pixelsPerDegree: clampScale(view.pixelsPerDegree, limits),
   };
 }
 
