@@ -36,6 +36,14 @@ export function formatDuration(hours: number): string {
   return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')} min`;
 }
 
+/** A mission clock: hours, minutes and seconds, "01:05:09". */
+export function formatClock(hours: number): string {
+  // A hair is added before rounding down: 3909 seconds written as hours comes back as 3908.9999.
+  const seconds = Math.max(0, Math.floor(hours * 3600 + 1e-6));
+  const two = (value: number) => String(value).padStart(2, '0');
+  return `${two(Math.floor(seconds / 3600))}:${two(Math.floor(seconds / 60) % 60)}:${two(seconds % 60)}`;
+}
+
 /** A share as a whole percentage: 0.142 is "14%". */
 export function formatShare(fraction: number): string {
   return `${Math.round(fraction * 100)}%`;

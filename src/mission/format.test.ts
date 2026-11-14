@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  formatClock,
   formatDistance,
   formatDose,
   formatDuration,
@@ -51,6 +52,18 @@ describe('formatDuration', () => {
     expect(formatDuration(1)).toBe('1 h 00 min');
     expect(formatDuration(1 + 5 / 60)).toBe('1 h 05 min');
     expect(formatDuration(7.999)).toBe('8 h 00 min');
+  });
+});
+
+describe('formatClock', () => {
+  it('writes hours, minutes and seconds with two digits each', () => {
+    expect(formatClock(0)).toBe('00:00:00');
+    expect(formatClock(1 + 5 / 60 + 9 / 3600)).toBe('01:05:09');
+    expect(formatClock(12.5)).toBe('12:30:00');
+  });
+
+  it('does not go below zero', () => {
+    expect(formatClock(-1)).toBe('00:00:00');
   });
 });
 
