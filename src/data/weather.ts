@@ -30,6 +30,25 @@ export type SolWeather = {
   sunset: string | null;
 };
 
+/** From this many days on, a reading is called out as old: it is not the weather of today. */
+export const STALE_AFTER_DAYS = 7;
+
+/**
+ * How many whole Earth days before `now` a reading was taken, or null when its date cannot be
+ * read. The feed is not kept up to date sol by sol, so the age is shown with the reading.
+ */
+export function readingAgeDays(earthDate: string, now: Date): number | null {
+  const taken = Date.parse(`${earthDate}T00:00:00Z`);
+  if (!Number.isFinite(taken)) return null;
+  return Math.max(0, Math.floor((now.getTime() - taken) / 86_400_000));
+}
+
+/** "today", "yesterday" or "81 days ago". */
+export function describeAge(days: number): string {
+  if (days <= 0) return 'today';
+  return days === 1 ? 'yesterday' : `${days} days ago`;
+}
+
 /** The feed writes every value as text and a missing one as "--". */
 const number = (value: unknown): number | null => {
   if (typeof value !== 'string' || value.trim() === '' || value === '--') return null;

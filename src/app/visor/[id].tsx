@@ -23,7 +23,7 @@ import { panoramaUrl, sceneForWalk, sceneStretch, scenesOf } from '@/data/panora
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { SITES, findSite, type Site } from '@/data/sites';
 import { MARS_WIND } from '@/data/sounds';
-import { REMS_CREDIT, REMS_FEED, parseWeather } from '@/data/weather';
+import { describeAge, readingAgeDays, REMS_CREDIT, REMS_FEED, parseWeather } from '@/data/weather';
 import { elapsedSeconds } from '@/mission/clock';
 import {
   formatClock,
@@ -330,6 +330,8 @@ function Visor({ site }: { site: Site }) {
     </Instrument>
   );
 
+  const weatherAge = latest ? readingAgeDays(latest.earthDate, new Date(now)) : null;
+
   const environment = (
     <Instrument title="ENVIRONMENT">
       <Reading label="Radiation dose" value={formatDose(progress.doseMsv)} />
@@ -348,6 +350,8 @@ function Visor({ site }: { site: Site }) {
         label="Pressure"
         value={latest && latest.pressurePa !== null ? `${latest.pressurePa} Pa` : 'No reading'}
       />
+      {/* The weather is the last the station sent, which can be months old: the display says so. */}
+      {weatherAge !== null ? <Reading label="Weather read" value={describeAge(weatherAge)} /> : null}
     </Instrument>
   );
 

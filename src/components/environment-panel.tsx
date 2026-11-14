@@ -11,7 +11,13 @@ import {
   type MarsArrival,
   type SepEvent,
 } from '@/data/space-weather';
-import { REMS_CREDIT, type SolWeather } from '@/data/weather';
+import {
+  REMS_CREDIT,
+  STALE_AFTER_DAYS,
+  describeAge,
+  readingAgeDays,
+  type SolWeather,
+} from '@/data/weather';
 import { formatDistance, formatLatLon } from '@/mission/format';
 import type { Feed } from '@/state/use-feed';
 
@@ -41,6 +47,9 @@ export function EnvironmentPanel({
   // Within a few kilometres of Bradbury Landing the readings are local.
   const local = distanceFromGaleM < 50_000;
   const latest = weather.status === 'ready' ? weather.data[0] : undefined;
+  // The feed can stop for months: how old the reading is belongs beside the reading.
+  const age = latest ? readingAgeDays(latest.earthDate, space.now) : null;
+  const stale = age !== null && age > STALE_AFTER_DAYS;
 
   return (
     <View style={styles.panel}>
@@ -66,6 +75,18 @@ export function EnvironmentPanel({
           <Text style={styles.cardTitle}>
             Sol {latest.sol} · {latest.earthDate} on Earth
           </Text>
+          {age !== null ? (
+            <View style={styles.age}>
+              <View
+                style={[styles.ageDot, { backgroundColor: stale ? Colors.caution : Colors.go }]}
+              />
+              <Text style={[styles.ageText, stale && styles.ageTextStale]}>
+                {stale
+                  ? `Measured ${describeAge(age)}: not the weather of today`
+                  : `Measured ${describeAge(age)}`}
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.grid}>
             <Reading label="Air temperature" value={range(latest.minAirC, latest.maxAirC)} />
             <Reading label="Ground temperature" value={range(latest.minGroundC, latest.maxGroundC)} />
@@ -83,7 +104,8 @@ export function EnvironmentPanel({
             />
           </View>
           <Text style={styles.source}>
-            {REMS_CREDIT}. The latest sol the feed has; it can be weeks behind today.
+            {REMS_CREDIT}. The latest sol the feed has
+            {age === null ? '; it can be weeks behind today.' : '.'}
           </Text>
         </View>
       ) : null}
@@ -313,6 +335,26 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 15,
     lineHeight: 20,
+  },
+  age: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  ageDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  ageText: {
+    flex: 1,
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  ageTextStale: {
+    color: Colors.caution,
   },
   grid: {
     flexDirection: 'row',

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ROVERS, parseRoverTrack } from './rover';
-import { REMS_FEED, parseWeather } from './weather';
+import { REMS_FEED, describeAge, parseWeather, readingAgeDays } from './weather';
 
 /** A waypoint shaped like the ones in the feed. */
 const waypoint = (sol: number, lat: number, lon: number, km: number) => ({
@@ -68,6 +68,28 @@ describe('parseRoverTrack', () => {
   it('knows a feed for each rover', () => {
     expect(ROVERS.curiosity.feed).toMatch(/^https:\/\/mars\.nasa\.gov\/.+MSL_waypoints\.json$/);
     expect(ROVERS.perseverance.feed).toMatch(/^https:\/\/mars\.nasa\.gov\/.+M20_waypoints\.json$/);
+  });
+});
+
+describe('the age of a weather reading', () => {
+  const now = new Date('2026-11-14T20:00:00Z');
+
+  it('counts whole Earth days since the day of the reading', () => {
+    expect(readingAgeDays('2026-08-25', now)).toBe(81);
+    expect(readingAgeDays('2026-11-14', now)).toBe(0);
+    expect(readingAgeDays('2026-11-13', now)).toBe(1);
+  });
+
+  it('is never negative, and null for a date that cannot be read', () => {
+    expect(readingAgeDays('2026-11-20', now)).toBe(0);
+    expect(readingAgeDays('', now)).toBeNull();
+    expect(readingAgeDays('soon', now)).toBeNull();
+  });
+
+  it('is said in plain words', () => {
+    expect(describeAge(0)).toBe('today');
+    expect(describeAge(1)).toBe('yesterday');
+    expect(describeAge(81)).toBe('81 days ago');
   });
 });
 
