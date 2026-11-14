@@ -182,9 +182,13 @@ export function PanoramaView({ panorama, heading, pitch, size, sway = 0 }: Panor
             <Cylinder
               panorama={picture}
               radius={radius}
-              wideScreen={wideScreen && sharp === picture.nasaId}
+              wideScreen={false}
               fading={layer === 1 && shown.previous !== null}
             />
+            {/* The full picture fades in over the light one, which stays until it is painted. */}
+            {wideScreen && sharp === picture.nasaId ? (
+              <Cylinder panorama={picture} radius={radius} wideScreen fading />
+            ) : null}
           </div>
         ) : null,
       )}
