@@ -87,9 +87,10 @@ screen needs a source or a "simulated" or "assumption" label.
   library does not let its files be used as WebGL textures. Each picture in
   `src/data/panoramas.ts` has a `band` that keeps the black gaps of the mosaic out of view. The
   visor has to say where the photograph was taken and whether it is lined up with the compass.
-- **The sense of walking comes from changing scenes.** `sceneForWalk` moves through the real
-  photographs of the site as the astronaut covers ground, and `PanoramaView` joins two of them
-  with a short cut (a stride into drawn dust). Add a photograph by adding it to the catalogue,
+- **The sense of walking comes from depth and from changing scenes.** Within a scene
+  `PanoramaView` moves the view into the photograph by its `advance` (0 to 1 through the
+  stretch). `sceneForWalk` moves through the real photographs of the site as the astronaut covers
+  ground, and `PanoramaView` joins two of them with a short cut (a stride into drawn dust). Add a photograph by adding it to the catalogue,
   with its sol and the rover's position on that sol; view it first, and pick ones whose sky has
   no black gaps where the terrain rises.
 - Do not add `src/app/+html.tsx` without checking the export: a custom shell dropped the style

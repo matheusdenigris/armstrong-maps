@@ -106,6 +106,10 @@ NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero.
   the walk is played fast, so that a scene stays at least eight seconds). The photographs are real
   and from that site, but they were not taken on the planned route: the Sources panel says how far
   from the simulated position each one was taken.
+- Within a scene the view moves slowly into the photograph as the astronaut covers the stretch,
+  until what is ahead is about one and a half times larger. It gives the walk depth, but it is a
+  move into a still picture: nothing in the photograph shifts against anything else, as it would
+  if the ground were really being covered.
 - The change of scene is a short cut: the view strides forward into a gust of dust, which clears
   on the next photograph. The dust and the stride are drawn.
 - Only one photograph has a caption that says where north is (PIA20840). The others are not lined
