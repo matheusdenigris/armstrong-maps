@@ -118,6 +118,10 @@ screen needs a source or a "simulated" or "assumption" label.
 - **`main` is the live site.** Every push deploys to https://www.armstrongmaps.us. Before pushing a
   change to a screen or to the web shell, run `npm run build:web` and open the export in a browser;
   tests and lint do not see a page that fails to start.
+- **Deployments are rationed.** The Vercel plan allows a fixed number a day, and when it runs out
+  nothing reaches the live site until the next day. Only `main` deploys (`vercel.json`); a branch
+  is checked by CI and by a local export instead. Push finished work in one go, not commit by
+  commit: each push to `main` is one deployment.
 
 ## Expo has changed — do not trust your training data
 
