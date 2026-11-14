@@ -1,197 +1,348 @@
-import { Link, type Href } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useRef, useState, useSyncExternalStore, type ComponentRef } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { BlockView } from '@/components/docs/blocks';
+import { Icon, IconTile } from '@/components/docs/icon';
+import { Logo } from '@/components/logo';
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import {
-  KIND_LABELS,
-  NASA_SOURCES,
-  OTHER_SOURCES,
-  SOURCES,
-  type DataSource,
-} from '@/data/sources';
-import { CME_WINDOW, DONKI_WINDOW_DAYS } from '@/data/space-weather';
-import { WALK_ASSUMPTIONS } from '@/mission/walk';
+  DOC_PAGES,
+  DOC_TABS,
+  docGroups,
+  findDocPage,
+  type DocPage,
+} from '@/data/docs-pages';
 
 const DESCRIPTION =
   'How Armstrong Maps works: every NASA API and data source it reads, what it takes from each, and what is measured, assumed or simulated.';
 
-const SOFTWARE: readonly { name: string; use: string; url: string }[] = [
-  { name: 'Expo and React Native', use: 'The app on Android, iOS and the web', url: 'https://expo.dev/' },
-  { name: 'Expo Router', use: 'The screens and their addresses', url: 'https://docs.expo.dev/router/introduction/' },
-  { name: 'three.js', use: 'The globe, on WebGL', url: 'https://threejs.org/' },
-  { name: 'Zustand', use: 'The mission state, saved on the device', url: 'https://zustand.docs.pmnd.rs/' },
-];
+/** From this width the navigation sits beside the page instead of behind a menu button. */
+const SIDEBAR_FROM = 960;
+/** From this width the page also shows its own table of contents on the right. */
+const CONTENTS_FROM = 1240;
+const SIDEBAR_WIDTH = 272;
+const CONTENTS_WIDTH = 220;
 
-/** The docs: what the app is, every API and source it reads, and how far to trust each number. */
+/**
+ * Scroll bars on the web in the style of the landing page: a Mars-coloured thumb on a clear track,
+ * slimmer here because the docs have two scrolling columns. The thumb sits inside a margin so it
+ * never touches the edge, and brightens while the pointer is over it. Phones draw their own.
+ */
+const SCROLLBAR_CSS = `
+  /* Firefox only: in Chrome these two properties would replace the shaped thumb below. */
+  @supports (-moz-appearance: none) {
+    #docs-main, #docs-nav {
+      scrollbar-width: thin;
+      scrollbar-color: ${Colors.mars} transparent;
+    }
+  }
+  #docs-main::-webkit-scrollbar, #docs-nav::-webkit-scrollbar {
+    width: 10px;
+    background: transparent;
+  }
+  #docs-main::-webkit-scrollbar-track, #docs-nav::-webkit-scrollbar-track {
+    background: transparent;
+    margin: 6px 0;
+  }
+  #docs-main::-webkit-scrollbar-thumb, #docs-nav::-webkit-scrollbar-thumb {
+    background: ${Colors.mars};
+    border: 3px solid ${Colors.background};
+    border-radius: ${Radius.large}px;
+    min-height: 48px;
+  }
+  #docs-main::-webkit-scrollbar-thumb:hover, #docs-nav::-webkit-scrollbar-thumb:hover {
+    background: ${Colors.marsLight};
+    border-width: 2px;
+  }
+`;
+
+/** False on the page rendered ahead of time, which does not know the size of the window. */
+function useHydrated() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+}
+
+/** The docs, laid out like a documentation site: tabs, a grouped navigation and the page. */
 export default function DocsScreen() {
-  const a = WALK_ASSUMPTIONS;
+  const { page: pageId } = useLocalSearchParams<{ page?: string }>();
+  const page = findDocPage(pageId);
+  const { width } = useWindowDimensions();
+  const hydrated = useHydrated();
+  const withSidebar = hydrated && width >= SIDEBAR_FROM;
+  const withContents = hydrated && width >= CONTENTS_FROM;
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const sectionTops = useRef<Record<string, number>>({});
+
+  const open = (id: string) => {
+    setMenuOpen(false);
+    router.setParams({ page: id });
+    scroll.current?.scrollTo({ y: 0, animated: false });
+  };
+
+  // Previous and next in reading order, within the tab.
+  const { previous, next } = useMemo(() => {
+    const inTab = DOC_PAGES.filter((item) => item.tab === page.tab);
+    const index = inTab.indexOf(page);
+    return { previous: inTab[index - 1], next: inTab[index + 1] };
+  }, [page]);
+
+  const navigation = (
+    <Navigation
+      current={page}
+      query={query}
+      onQuery={setQuery}
+      onOpen={open}
+    />
+  );
+
   return (
     <SafeAreaView style={styles.screen}>
       <Head>
-        <title>Docs | Armstrong Maps</title>
+        <title>{`${page.title} | Armstrong Maps docs`}</title>
         <meta name="description" content={DESCRIPTION} />
+        <style>{SCROLLBAR_CSS}</style>
       </Head>
 
-      <ScrollView contentContainerStyle={styles.page}>
-        <View style={styles.header}>
-          <Link href="/" style={styles.back} accessibilityRole="link" accessibilityLabel="Back to the sites">
-            {'‹'} Sites
+      <View style={styles.topBar}>
+        <View style={styles.brandRow}>
+          {!withSidebar ? (
+            <Pressable
+              onPress={() => setMenuOpen((value) => !value)}
+              accessibilityRole="button"
+              accessibilityLabel={menuOpen ? 'Close the menu' : 'Open the menu'}
+              style={styles.iconButton}>
+              <Icon name={menuOpen ? 'close' : 'menu'} size={22} color={Colors.text} />
+            </Pressable>
+          ) : null}
+          <Link href="/" accessibilityRole="link" accessibilityLabel="Armstrong Maps, back to the sites">
+            <View style={styles.brand}>
+              <Logo size={26} />
+              <Text style={styles.brandName}>ARMSTRONG MAPS</Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>DOCS</Text>
+              </View>
+            </View>
           </Link>
-          <Text style={styles.title} accessibilityRole="header">
-            DOCS
-          </Text>
         </View>
+        <Link
+          href="/"
+          style={styles.openMap}
+          accessibilityRole="link"
+          accessibilityLabel="Open the map">
+          {withSidebar ? 'Open the map' : 'Map'}
+        </Link>
+      </View>
 
-        <Text style={styles.lead}>
-          Armstrong Maps puts NASA data about Mars in layers on a map and turns a tapped route into a
-          go, caution or no-go verdict. This page lists every source the app reads, the address it
-          calls, and where each one shows up.
-        </Text>
+      <View style={styles.tabs} accessibilityRole="tablist">
+        {DOC_TABS.map((tab) => {
+          const selected = page.tab === tab.id;
+          const first = DOC_PAGES.find((item) => item.tab === tab.id)!;
+          return (
+            <Pressable
+              key={tab.id}
+              onPress={() => open(first.id)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              style={[styles.tab, selected && styles.tabSelected]}>
+              <Text style={[styles.tabText, selected && styles.tabTextSelected]}>{tab.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
-        <View style={styles.counts}>
-          <Count value={NASA_SOURCES.length} label="NASA sources" accent />
-          <Count value={SOURCES.filter((s) => s.kind === 'live').length} label="read live" />
-          <Count value={OTHER_SOURCES.length} label="other reference" />
-        </View>
+      <View style={styles.body}>
+        {withSidebar ? <View style={styles.sidebar}>{navigation}</View> : null}
 
-        <Text style={styles.section} accessibilityRole="header">
-          NASA DATA AND APIS
-        </Text>
-        <Text style={styles.body}>
-          NASA sources carry the most weight in the app: the map, the rover traverses and pictures,
-          the space weather and the radiation figure all come from NASA missions and services. They
-          are listed first, and each one is credited where it appears.
-        </Text>
-        {NASA_SOURCES.map((source) => (
-          <SourceCard key={source.id} source={source} />
-        ))}
+        <ScrollView
+          ref={scroll}
+          nativeID="docs-main"
+          style={styles.main}
+          contentContainerStyle={styles.mainContent}>
+          {!withSidebar ? (
+            <View style={styles.breadcrumb}>
+              <Text style={styles.breadcrumbText}>{page.group}</Text>
+              <Icon name="chevron" size={14} color={Colors.textMuted} />
+              <Text style={[styles.breadcrumbText, styles.breadcrumbCurrent]} numberOfLines={1}>
+                {page.title}
+              </Text>
+            </View>
+          ) : null}
 
-        <Text style={styles.section} accessibilityRole="header">
-          OTHER REFERENCES
-        </Text>
-        {OTHER_SOURCES.map((source) => (
-          <SourceCard key={source.id} source={source} />
-        ))}
+          <View style={styles.article}>
+            <View style={styles.header}>
+              <Text style={[styles.eyebrow, { color: page.nasa ? Colors.nasa : Colors.nav }]}>
+                {page.nasa ? 'NASA source' : page.group}
+              </Text>
+              <Text style={styles.title} accessibilityRole="header">
+                {page.title}
+              </Text>
+              <Text style={styles.lead}>{page.lead}</Text>
+            </View>
 
-        <Text style={styles.section} accessibilityRole="header">
-          USING THE NASA KEY
-        </Text>
-        <Text style={styles.body}>
-          Only DONKI, on api.nasa.gov, takes a key. The app reads it from{' '}
-          <Text style={styles.code}>EXPO_PUBLIC_NASA_API_KEY</Text> when it is built and falls back
-          to the shared <Text style={styles.code}>DEMO_KEY</Text>, whose limit is counted per
-          visitor. The web app is a static export, so a key set there is visible in the page: use a
-          key made for this app only. Every other source needs no key. The app asks DONKI for the
-          last {DONKI_WINDOW_DAYS} days, once per visit.
-        </Text>
+            {page.sections.map((section) => (
+              <View
+                key={section.id}
+                style={styles.section}
+                onLayout={(event) => {
+                  sectionTops.current[section.id] = event.nativeEvent.layout.y;
+                }}>
+                <Text style={styles.h2} accessibilityRole="header">
+                  {section.title}
+                </Text>
+                {section.blocks.map((block, index) => (
+                  <BlockView key={index} block={block} onOpen={open} wide={hydrated && width >= 640} />
+                ))}
+              </View>
+            ))}
 
-        <Text style={styles.section} accessibilityRole="header">
-          MEASURED, ASSUMED OR SIMULATED
-        </Text>
-        <Rule
-          label="MEASURED"
-          color={Colors.go}
-          text="Map imagery, rover traverses and pictures, weather at Gale and the radiation average. Each is shown with its source and date."
-        />
-        <Rule
-          label="FORECAST"
-          color={Colors.nav}
-          text="CME arrivals at Mars come from the WSA-Enlil model run by NASA's CCMC. They are a forecast, not a reading on Mars."
-        />
-        <Rule
-          label="ASSUMPTION"
-          color={Colors.caution}
-          text={`Choices of this project, not NASA rules: walking at ${a.walkingSpeedKmh} km/h, ${a.lifeSupportHours} h of life support with a ${Math.round(a.reserveFraction * 100)}% reserve, ${a.minutesPerStop} min per stop, a ${a.walkBackLimitKm} km walk-back limit, and a CME counting against a walk from ${CME_WINDOW.aheadHours} h before its arrival to ${CME_WINDOW.behindHours} h after.`}
-        />
-        <Rule
-          label="SIMULATED"
-          color={Colors.textMuted}
-          text="The walk itself: nobody is walking the route, and the base stands on the landing point of each mission."
-        />
+            <View style={styles.pager}>
+              {previous ? (
+                <PagerLink label="Previous" page={previous} onOpen={open} />
+              ) : (
+                <View style={styles.pagerSpacer} />
+              )}
+              {next ? <PagerLink label="Next" page={next} onOpen={open} alignEnd /> : null}
+            </View>
 
-        <Text style={styles.section} accessibilityRole="header">
-          SOFTWARE
-        </Text>
-        {SOFTWARE.map((item) => (
-          <View key={item.name} style={styles.softwareRow}>
-            <ExternalLink url={item.url} style={styles.link}>
-              {item.name}
-            </ExternalLink>
-            <Text style={styles.small}>{item.use}</Text>
+            <Text style={styles.footer}>
+              Armstrong Maps is a NASA Space Apps Challenge 2026 project with no official link to
+              NASA. The data belongs to its sources.
+            </Text>
           </View>
-        ))}
+        </ScrollView>
 
-        <Text style={styles.footer}>
-          Armstrong Maps is a NASA Space Apps Challenge 2026 project with no official link to NASA.
-          The data belongs to its sources. Code under the MIT License.
-        </Text>
-      </ScrollView>
+        {withContents ? (
+          <View style={styles.contents}>
+            <Text style={styles.contentsTitle}>On this page</Text>
+            {page.sections.map((section) => (
+              <Pressable
+                key={section.id}
+                onPress={() =>
+                  scroll.current?.scrollTo({ y: sectionTops.current[section.id] ?? 0, animated: true })
+                }
+                accessibilityRole="link"
+                style={styles.contentsItem}>
+                <Text style={styles.contentsText}>{section.title}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {!withSidebar && menuOpen ? <View style={styles.menuSheet}>{navigation}</View> : null}
+      </View>
     </SafeAreaView>
   );
 }
 
-function SourceCard({ source }: { source: DataSource }) {
+type NavigationProps = {
+  current: DocPage;
+  query: string;
+  onQuery: (value: string) => void;
+  onOpen: (id: string) => void;
+};
+
+/** The pages of the current tab by group, or every page that matches the search. */
+function Navigation({ current, query, onQuery, onOpen }: NavigationProps) {
+  const search = query.trim().toLowerCase();
+  const groups = search
+    ? [
+        {
+          group: 'Results',
+          pages: DOC_PAGES.filter((page) =>
+            `${page.title} ${page.lead} ${page.group}`.toLowerCase().includes(search),
+          ),
+        },
+      ]
+    : docGroups(current.tab);
+
   return (
-    <View style={[styles.card, source.nasa && styles.cardNasa]}>
-      <View style={styles.tags}>
-        {source.nasa ? <Text style={[styles.tag, styles.tagNasa]}>NASA</Text> : null}
-        <Text style={styles.tag}>{KIND_LABELS[source.kind]}</Text>
+    <ScrollView nativeID="docs-nav" contentContainerStyle={styles.navContent}>
+      <View style={styles.searchBox}>
+        <Icon name="search" size={16} color={Colors.textMuted} />
+        <TextInput
+          value={query}
+          onChangeText={onQuery}
+          placeholder="Search the docs"
+          placeholderTextColor={Colors.textMuted}
+          style={styles.searchInput}
+          accessibilityLabel="Search the docs"
+        />
       </View>
-      <Text style={[styles.cardName, source.nasa && styles.cardNameNasa]}>{source.name}</Text>
-      <Text style={styles.publisher}>{source.publisher}</Text>
-      <Field label="Gives" value={source.gives} />
-      <Field label="In the app" value={source.usedIn} />
-      <Text style={styles.fieldLabel}>{source.kind === 'published' ? 'Citation' : 'Endpoint'}</Text>
-      <Text style={styles.endpoint} selectable>
-        {source.endpoint}
-      </Text>
-      <Field label="Key" value={source.key} />
-      <Field label="Notes" value={source.notes} />
-      <ExternalLink url={source.reference} style={styles.link}>
-        Read more {'›'}
-      </ExternalLink>
-    </View>
+      {groups.map(({ group, pages }) => (
+        <View key={group} style={styles.navGroup}>
+          <Text style={styles.navGroupTitle}>{group}</Text>
+          {pages.length === 0 ? <Text style={styles.navEmpty}>No page matches.</Text> : null}
+          {pages.map((page) => {
+            const selected = page.id === current.id;
+            return (
+              <Pressable
+                key={page.id}
+                onPress={() => onOpen(page.id)}
+                accessibilityRole="link"
+                accessibilityState={{ selected }}
+                style={(state) => [
+                  styles.navItem,
+                  (state as { hovered?: boolean }).hovered && styles.navItemHovered,
+                  selected && (page.nasa ? styles.navItemNasa : styles.navItemSelected),
+                ]}>
+                <Icon
+                  name={page.icon}
+                  size={16}
+                  color={selected ? (page.nasa ? Colors.nasa : Colors.nav) : Colors.textMuted}
+                />
+                <Text
+                  style={[styles.navText, selected && styles.navTextSelected]}
+                  numberOfLines={1}>
+                  {page.title}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ))}
+    </ScrollView>
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <Text style={styles.small}>{value}</Text>
-    </View>
-  );
-}
+type PagerLinkProps = { label: string; page: DocPage; onOpen: (id: string) => void; alignEnd?: boolean };
 
-function Count({ value, label, accent }: { value: number; label: string; accent?: boolean }) {
+function PagerLink({ label, page, onOpen, alignEnd }: PagerLinkProps) {
   return (
-    <View style={[styles.count, accent && styles.countAccent]}>
-      <Text style={[styles.countValue, accent && styles.countValueAccent]}>{value}</Text>
-      <Text style={styles.countLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function Rule({ label, color, text }: { label: string; color: string; text: string }) {
-  return (
-    <View style={[styles.rule, { borderLeftColor: color }]}>
-      <Text style={[styles.ruleLabel, { color }]}>{label}</Text>
-      <Text style={styles.small}>{text}</Text>
-    </View>
-  );
-}
-
-type ExternalLinkProps = { url: string; style: object; children: ReactNode };
-
-/** Opens outside the app: a new tab on the web, the browser on a phone. */
-function ExternalLink({ url, style, children }: ExternalLinkProps) {
-  return (
-    <Link href={url as Href} target="_blank" rel="noopener noreferrer" style={style} accessibilityRole="link">
-      {children}
-    </Link>
+    <Pressable
+      onPress={() => onOpen(page.id)}
+      accessibilityRole="link"
+      accessibilityLabel={`${label}: ${page.title}`}
+      style={(state) => [
+        styles.pagerLink,
+        alignEnd && styles.pagerEnd,
+        (state as { hovered?: boolean }).hovered && styles.pagerHovered,
+      ]}>
+      <Text style={[styles.pagerLabel, alignEnd && styles.alignRight]}>{label}</Text>
+      <View style={[styles.pagerRow, alignEnd && styles.pagerRowEnd]}>
+        {!alignEnd ? <IconTile name={page.icon} color={Colors.nav} background={Colors.navTint} /> : null}
+        <Text style={[styles.pagerTitle, alignEnd && styles.alignRight]} numberOfLines={2}>
+          {page.title}
+        </Text>
+        {alignEnd ? <IconTile name={page.icon} color={Colors.nav} background={Colors.navTint} /> : null}
+      </View>
+    </Pressable>
   );
 }
 
@@ -200,190 +351,303 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  page: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    padding: Spacing.three,
-    gap: Spacing.three,
-  },
-  header: {
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    minHeight: 56,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  back: {
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -Spacing.two,
+  },
+  brand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  brandName: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 2,
+  },
+  badge: {
+    paddingHorizontal: Spacing.two - Spacing.half,
+    paddingVertical: Spacing.half,
+    borderRadius: Radius.small,
+    backgroundColor: Colors.navTint,
+  },
+  badgeText: {
+    color: Colors.nav,
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  openMap: {
     color: Colors.nav,
     fontFamily: Fonts.sans,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     paddingVertical: Spacing.two + Spacing.one,
-    paddingRight: Spacing.two,
+  },
+  tabs: {
+    flexDirection: 'row',
+    gap: Spacing.four,
+    paddingHorizontal: Spacing.three,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  tab: {
     minHeight: 44,
+    justifyContent: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabSelected: {
+    borderBottomColor: Colors.text,
+  },
+  tabText: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  tabTextSelected: {
+    color: Colors.text,
+  },
+  body: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  sidebar: {
+    width: SIDEBAR_WIDTH,
+    borderRightWidth: 1,
+    borderRightColor: Colors.border,
+  },
+  navContent: {
+    padding: Spacing.three,
+    gap: Spacing.four,
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.two + Spacing.one,
+    minHeight: 40,
+    borderRadius: Radius.small,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  searchInput: {
+    flex: 1,
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    paddingVertical: Spacing.two,
+  },
+  navGroup: {
+    gap: Spacing.half,
+  },
+  navGroupTitle: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    fontWeight: '700',
+    paddingHorizontal: Spacing.two,
+    paddingBottom: Spacing.one,
+  },
+  navEmpty: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    paddingHorizontal: Spacing.two,
+  },
+  navItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two + Spacing.half,
+    minHeight: 36,
+    paddingHorizontal: Spacing.two,
+    borderRadius: Radius.small,
+  },
+  navItemHovered: {
+    backgroundColor: Colors.surface,
+  },
+  navItemSelected: {
+    backgroundColor: Colors.navTint,
+  },
+  navItemNasa: {
+    backgroundColor: Colors.nasaTint,
+  },
+  navText: {
+    flex: 1,
+    color: Colors.textMuted,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+  },
+  navTextSelected: {
+    color: Colors.text,
+    fontWeight: '600',
+  },
+  main: {
+    flex: 1,
+  },
+  mainContent: {
+    paddingHorizontal: Spacing.three,
+    paddingBottom: Spacing.six,
+  },
+  breadcrumb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.three,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  breadcrumbText: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+  },
+  breadcrumbCurrent: {
+    flexShrink: 1,
+    color: Colors.text,
+    fontWeight: '600',
+  },
+  article: {
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+    gap: Spacing.five,
+    paddingTop: Spacing.five,
+  },
+  header: {
+    gap: Spacing.two,
+  },
+  eyebrow: {
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    fontWeight: '600',
   },
   title: {
     color: Colors.text,
     fontFamily: Fonts.sans,
-    fontSize: 16,
+    fontSize: 30,
     fontWeight: '700',
-    letterSpacing: 2,
+    lineHeight: 38,
   },
   lead: {
-    color: Colors.text,
+    color: Colors.textMuted,
     fontFamily: Fonts.sans,
     fontSize: 17,
-    lineHeight: 25,
-  },
-  counts: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
-  count: {
-    flex: 1,
-    padding: Spacing.two + Spacing.one,
-    gap: Spacing.half,
-    borderRadius: Radius.medium,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-  },
-  countAccent: {
-    borderColor: Colors.nasa,
-  },
-  countValue: {
-    color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  countValueAccent: {
-    color: Colors.nasa,
-  },
-  countLabel: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.sans,
-    fontSize: 12,
+    lineHeight: 27,
   },
   section: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 12,
-    letterSpacing: 2,
-    paddingTop: Spacing.three,
+    gap: Spacing.three,
   },
-  body: {
+  h2: {
     color: Colors.text,
     fontFamily: Fonts.sans,
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 21,
+    fontWeight: '700',
+    lineHeight: 28,
   },
-  code: {
-    fontFamily: Fonts.mono,
-    fontSize: 13,
-    color: Colors.text,
+  pager: {
+    flexDirection: 'row',
+    gap: Spacing.three,
+    paddingTop: Spacing.three,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
-  card: {
+  pagerSpacer: {
+    flex: 1,
+  },
+  pagerLink: {
+    flex: 1,
     gap: Spacing.two,
     padding: Spacing.three,
     borderRadius: Radius.medium,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.surface,
   },
-  cardNasa: {
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.nasa,
-    backgroundColor: Colors.surfaceRaised,
+  pagerEnd: {
+    alignItems: 'flex-end',
   },
-  tags: {
+  pagerHovered: {
+    borderColor: Colors.nav,
+  },
+  pagerLabel: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+  },
+  pagerRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.two,
   },
-  tag: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    letterSpacing: 1.5,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.half,
-    borderRadius: Radius.small,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
+  pagerRowEnd: {
+    justifyContent: 'flex-end',
   },
-  tagNasa: {
-    color: Colors.text,
-    fontWeight: '700',
-    borderColor: Colors.nasa,
-    backgroundColor: Colors.nasa,
-  },
-  cardName: {
+  pagerTitle: {
+    flexShrink: 1,
     color: Colors.text,
     fontFamily: Fonts.sans,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
-  cardNameNasa: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  publisher: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.sans,
-    fontSize: 13,
-  },
-  field: {
-    gap: Spacing.half,
-  },
-  fieldLabel: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
-  small: {
-    color: Colors.text,
-    fontFamily: Fonts.sans,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  endpoint: {
-    color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 12,
-    lineHeight: 18,
-    padding: Spacing.two,
-    borderRadius: Radius.small,
-    backgroundColor: Colors.background,
-  },
-  link: {
-    color: Colors.nav,
-    fontFamily: Fonts.sans,
-    fontSize: 14,
-    fontWeight: '600',
-    paddingVertical: Spacing.two,
-    minHeight: 44,
-  },
-  rule: {
-    gap: Spacing.one,
-    paddingLeft: Spacing.two + Spacing.one,
-    borderLeftWidth: 3,
-  },
-  ruleLabel: {
-    fontFamily: Fonts.mono,
-    fontSize: 11,
-    letterSpacing: 1.5,
-    fontWeight: '700',
-  },
-  softwareRow: {
-    gap: Spacing.half,
+  alignRight: {
+    textAlign: 'right',
   },
   footer: {
     color: Colors.textMuted,
     fontFamily: Fonts.sans,
     fontSize: 12,
     lineHeight: 18,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.four,
+  },
+  contents: {
+    width: CONTENTS_WIDTH,
+    paddingTop: Spacing.five,
+    paddingHorizontal: Spacing.three,
+    gap: Spacing.one,
+  },
+  contentsTitle: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    fontWeight: '700',
+    paddingBottom: Spacing.two,
+  },
+  contentsItem: {
+    paddingVertical: Spacing.one + Spacing.half,
+  },
+  contentsText: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+  },
+  menuSheet: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: Colors.background,
   },
 });

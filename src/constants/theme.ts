@@ -17,6 +17,8 @@ export const Colors = {
   textMuted: '#9AA4B2',
   /** Mars: the planet and the brand. */
   mars: '#E2562F',
+  /** Mars, lighter: hover on a Mars-coloured control. */
+  marsLight: '#F07A55',
   /** Navigation: routes, coverage areas, links. */
   nav: '#4C8DFF',
   /** Walk status. */
@@ -25,6 +27,9 @@ export const Colors = {
   noGo: '#F0513F',
   /** Marks a NASA source on the docs page. A colour only: never the NASA insignia. */
   nasa: '#FC3D21',
+  /** Soft fills behind an active item or an icon. */
+  navTint: 'rgba(76, 141, 255, 0.14)',
+  nasaTint: 'rgba(252, 61, 33, 0.14)',
 } as const;
 
 export type ColorName = keyof typeof Colors;
