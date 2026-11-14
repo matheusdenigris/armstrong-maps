@@ -36,7 +36,8 @@ This is a hackathon build in progress. What works today is tracked in the
 npm install
 npm start          # Expo dev server: press a for Android, w for web
 npm run web        # web only
-npm run check      # English-only gate, typecheck and lint
+npm test           # unit tests of the mission code
+npm run check      # English-only gate, typecheck, lint and tests
 npm run build:web  # static web export to dist/
 ```
 
@@ -49,7 +50,7 @@ To run on a phone, install Expo Go and scan the QR code that `npm start` prints.
 | App | React Native 0.88 with Expo SDK 58 and Expo Router |
 | Targets | Android and iOS (EAS Build), web (static export on Vercel) |
 | Language | TypeScript, strict |
-| Quality | ESLint, `tsc`, an English-only gate, GitHub Actions |
+| Quality | Vitest, ESLint, `tsc`, an English-only gate, GitHub Actions |
 
 ## Data
 

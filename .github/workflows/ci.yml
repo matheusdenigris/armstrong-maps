@@ -42,7 +42,7 @@ jobs:
         run: node scripts/check-english.mjs --text "$TITLE"
 
   app:
-    name: Typecheck, lint and web build
+    name: Typecheck, lint, test and web build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,4 +53,5 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm test
       - run: npm run build:web
