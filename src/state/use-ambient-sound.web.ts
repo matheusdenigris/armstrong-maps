@@ -2,9 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 
 export const AMBIENT_SOUND_AVAILABLE = true;
 
-/** Plays one recording on a loop, at the volume it was published with. */
+/**
+ * How much louder than published the recording is played. The wind of Mars is faint: the air is
+ * about a hundredth as dense as on Earth, and the published file is quiet. A limiter after the
+ * gain keeps the gusts from distorting.
+ */
+const GAIN = 6;
+
+/** Plays one recording on a loop, louder than it was published. */
 class LoopPlayer {
   private context: AudioContext | null = null;
+  private output: AudioNode | null = null;
   private buffer: AudioBuffer | null = null;
   private source: AudioBufferSourceNode | null = null;
   private readonly url: string;
@@ -15,6 +23,19 @@ class LoopPlayer {
 
   async start() {
     this.context ??= new AudioContext();
+    if (!this.output) {
+      const louder = this.context.createGain();
+      louder.gain.value = GAIN;
+      const limiter = this.context.createDynamicsCompressor();
+      limiter.threshold.value = -6;
+      limiter.knee.value = 6;
+      limiter.ratio.value = 12;
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.25;
+      louder.connect(limiter);
+      limiter.connect(this.context.destination);
+      this.output = louder;
+    }
     await this.context.resume();
     if (!this.buffer) {
       const response = await fetch(this.url);
@@ -25,7 +46,7 @@ class LoopPlayer {
     const source = this.context.createBufferSource();
     source.buffer = this.buffer;
     source.loop = true;
-    source.connect(this.context.destination);
+    source.connect(this.output);
     source.start();
     this.source = source;
   }
@@ -39,6 +60,7 @@ class LoopPlayer {
     this.stop();
     void this.context?.close();
     this.context = null;
+    this.output = null;
   }
 }
 

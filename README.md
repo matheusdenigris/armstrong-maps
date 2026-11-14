@@ -43,13 +43,15 @@ The app has three views:
   at Jezero, and the latest sol of weather from Curiosity's REMS station, each with its source.
   A feed that does not answer is shown as a gap.
 - **The walk, from two seats**: the ship console starts a simulated walk, and an astronaut
-  follows the route on the map. The astronaut's visor opens in another tab and puts you inside a
-  real 360-degree photograph taken by the rover at that site: drag with the mouse or a finger to
-  look all the way round. Over it, the display of the visor shows the heading, the bearing and
-  distance of the next waypoint, life support, dose, and a round map turned so that ahead is up.
-  As the astronaut moves, the visor switches to the photograph taken nearest to them. Pause the
-  walk in one tab and the other stops. The **Sound** button plays real wind recorded on Mars by
-  the microphone of Perseverance.
+  follows the route on the map. The astronaut's visor opens in another tab: first person, through
+  the glass of the helmet, over a real 360-degree photograph of the site that you turn with the
+  mouse or a finger. The display of the helmet carries what keeps the astronaut alive and the
+  mission on course: life support left, the time the way back takes and the time to spare before
+  turning back, the next waypoint with its bearing and arrival time, waypoints done, the mission
+  clock, the radiation dose, the weather where there is a station, and a round map turned so that
+  ahead is up. It raises an alert when the walk nears a limit, and says to turn back when the way
+  home would eat the reserve. Pause the walk in one tab and the other holds. The **Sound** button
+  plays real wind recorded on Mars by the microphone of Perseverance.
 - **Space weather**: NASA DONKI's WSA-Enlil forecast of coronal mass ejections reaching Mars, and
   the solar particle events of the last 30 days. A CME forecast to hit Mars squarely around the walk adds a caution to
   the verdict.
@@ -118,15 +120,18 @@ label.
 | Dune fields | [Mars Global Digital Dune Database](https://pubs.usgs.gov/of/2007/1158/) (Hayward et al. 2007, USGS), via Mars Trek | Yes |
 | Wind | InSight TWINS through [api.nasa.gov](https://api.nasa.gov) (October 2020, Elysium Planitia) | Yes |
 | Sound | [Wind recorded by the SuperCam microphone of Perseverance](https://science.nasa.gov/resource/perseverance-rovers-supercam-records-wind-on-mars/), Jezero, sol 4 (22 February 2021). NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero | Yes |
-| Visor photographs | Seven 360-degree panoramas from the NASA Image and Video Library: Curiosity (PIA16101, PIA20840, PIA22545, PIA26019), Perseverance (PIA24264, PIA26369) and Spirit (PIA16440). Listed in `src/data/panoramas.ts` | Yes |
+| Visor photographs | Ten 360-degree panoramas from the NASA Image and Video Library: Curiosity (PIA16101, PIA20840, PIA22545, PIA26554, PIA26019), Perseverance (PIA24264, PIA26474, PIA26369, PIA26644) and Spirit (PIA16440). Listed in `src/data/panoramas.ts` | Yes |
 
 The full list, with each endpoint, is in the app at `/docs` and in `src/data/sources.ts`.
 
 The walk is simulated: the astronaut's position follows the plan at an assumed speed. Walking
 speed, life-support duration and the walk-back limit are assumptions of this project, not NASA
 rules. The photographs in the visor are real, and each was taken from one fixed spot: there is no
-video of anyone walking on Mars, so the view does not move forward between two photographs. The
-stars behind the globe and the light on it are decoration.
+video of anyone walking on Mars. To give the sense of a walk, the view moves slowly into the
+photograph as the astronaut covers ground, and every 300 m it changes to another real photograph
+of the same site, through a short cut with drawn dust; those photographs were not taken on the
+planned route. The stars behind the globe and the light on it are
+decoration.
 
 ## English only
 

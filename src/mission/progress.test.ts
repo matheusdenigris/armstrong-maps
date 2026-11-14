@@ -50,6 +50,18 @@ describe('walkProgress', () => {
     expect(working.distanceToTargetM).toBeCloseTo(1000, 3);
   });
 
+  it('counts down the leg and the work, and counts the stops done', () => {
+    expect(at(0.1).phaseHoursLeft).toBeCloseTo(0.3, 6);
+    expect(at(0.1).stopsDone).toBe(0);
+    // A stop is 20 minutes; five minutes in, fifteen are left.
+    expect(at(0.4 + 5 / 60).phaseHoursLeft).toBeCloseTo(15 / 60, 6);
+    expect(at(0.4 + 5 / 60).stopsDone).toBe(0);
+    expect(at(0.4 + 1 / 3 + 0.1).stopsDone).toBe(1);
+    expect(at(0.8 + 2 / 3 + 0.01).stopsDone).toBe(2);
+    expect(at(99).stopsDone).toBe(2);
+    expect(at(99).phaseHoursLeft).toBe(0);
+  });
+
   it('walks the second leg after the stop', () => {
     const second = at(0.4 + 1 / 3 + 0.2);
     expect(second.phase).toBe('walking');

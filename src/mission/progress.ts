@@ -29,6 +29,10 @@ export type WalkProgress = {
   distanceToTargetM: number;
   bearingToTarget: number;
   distanceToBaseM: number;
+  /** Time left in what the astronaut is doing now: this leg, or the work at this stop. In hours. */
+  phaseHoursLeft: number;
+  /** How many waypoints have been reached and worked at. */
+  stopsDone: number;
   walkedM: number;
   /** Walk time counted, in hours: it stops growing when the walk is over. */
   elapsedHours: number;
@@ -70,6 +74,8 @@ export function walkProgress(
     stop: number | null,
     target: LatLon,
     walkedM: number,
+    phaseHoursLeft: number,
+    stopsDone: number,
   ): WalkProgress => ({
     phase,
     position,
@@ -79,6 +85,8 @@ export function walkProgress(
     distanceToTargetM: distance(position, target),
     bearingToTarget: bearing(position, target),
     distanceToBaseM: distance(position, base),
+    phaseHoursLeft,
+    stopsDone,
     walkedM,
     elapsedHours: counted,
     totalHours,
@@ -91,7 +99,7 @@ export function walkProgress(
     // Back at the base, looking the way the last leg came in.
     const lastLeg = legs[legs.length - 1];
     const heading = waypoints.length === 0 ? 0 : bearing(lastLeg.from, lastLeg.to);
-    return report('at-base', base, heading, null, base, walked);
+    return report('at-base', base, heading, null, base, walked, 0, waypoints.length);
   }
 
   let clock = 0;
@@ -110,6 +118,8 @@ export function walkProgress(
         lastLeg ? null : index,
         leg.to,
         walkedM + doneM,
+        clock + leg.hours - counted,
+        index,
       );
     }
     clock += leg.hours;
@@ -117,11 +127,20 @@ export function walkProgress(
     if (!lastLeg && counted < clock + stopHours) {
       const next = legs[index + 1];
       // Working at waypoint `index`; the next thing to walk to is the end of the next leg.
-      return report('working', leg.to, bearing(next.from, next.to), index, next.to, walkedM);
+      return report(
+        'working',
+        leg.to,
+        bearing(next.from, next.to),
+        index,
+        next.to,
+        walkedM,
+        clock + stopHours - counted,
+        index,
+      );
     }
     clock += lastLeg ? 0 : stopHours;
   }
 
   // Not reached: the loop returns before the total time. Kept for the type checker.
-  return report('at-base', base, 0, null, base, walkedM);
+  return report('at-base', base, 0, null, base, walkedM, 0, waypoints.length);
 }
