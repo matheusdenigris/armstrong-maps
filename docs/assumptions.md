@@ -65,6 +65,9 @@ The way back is a straight line at the assumed walking speed, like the return le
 | Radiation on the surface | 0.64 ± 0.12 mSv per Earth day, dose equivalent from galactic cosmic rays | MSL RAD: Hassler et al., *Science* 343, 1244797 (2014) |
 | Map imagery and its coverage | See `src/data/layers.ts` and `src/data/sites.ts` | NASA/JPL Mars Trek, each product's `WMTSCapabilities.xml` |
 | Rover traverse and latest position | Read live | Waypoints published by NASA/JPL on mars.nasa.gov |
+| Sample sites at Jezero | Read live | The sample file of the NASA location map on mars.nasa.gov |
+| Ingenuity flights at Jezero | Read live | The helicopter file of the NASA location map on mars.nasa.gov |
+| Sample depot at Three Forks | Ten rows, copied on 2026-11-14 | NASA Planetary Data System, Mars 2020 sample depot bundle, DOI 10.17189/wmc5-cw60 |
 | Weather | The latest sol the feed has, read live | Curiosity REMS, outreach feed of the Centro de Astrobiologia (CSIC-INTA) |
 | CME arrivals at Mars | A model forecast, read live: the last 30 days of runs | NASA DONKI, WSA-Enlil simulations (CCMC, Goddard) |
 | Solar particle events | Seen near the Earth, read live: the last 30 days | NASA DONKI, SEP |
@@ -74,6 +77,23 @@ The way back is a straight line at the assumed walking speed, like the return le
 The weather is measured at Gale crater only. At the other sites the app shows it as a reference
 and says how far the station is. The feed can be weeks behind the current date, so the app shows
 the sol and the Earth date of the reading.
+
+The mission points on the Jezero map (`src/data/mission-points.ts`) are there only because a NASA
+file gives their latitude and longitude; nothing is placed by eye. What a position is the position
+of differs by set, and the app says which:
+
+- A sample site is where the sample was taken. One record of the NASA file (Lefroy Bay) repeats
+  the position of the sample before it, while its own easting and northing are about 370 m away.
+  The app uses the position printed in the Sample Dossier of the Planetary Data System for that
+  one, says so on its card, and goes back to the file as soon as the file stops repeating.
+- A depot mark is where the rover stood when it dropped the tube, which is what the data bundle
+  states. The tube lies a few metres from it.
+- A flight mark is where the helicopter landed after that flight. The record numbered 0 is left
+  out: it has no distance and no time in the air.
+
+Gale has no such marks. NASA publishes no list of the drill holes of Curiosity with coordinates;
+the tables that exist give the position of the rover, so a mark made from them would be derived,
+not published. The other sites have no surface data of this kind at all.
 
 The radiation figure is a published average over about 300 sols at Gale crater, not a live
 reading: RAD has no public feed. The app uses it at every site, and a solar particle event would

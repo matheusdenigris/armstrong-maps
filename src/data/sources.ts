@@ -7,6 +7,14 @@
  * NASA hosts.
  */
 import { IMAGE_LIBRARY_API } from './image-library';
+import {
+  HELICOPTER_FEED,
+  SAMPLE_DEPOT,
+  SAMPLE_DEPOT_DOI,
+  SAMPLE_DEPOT_TABLE,
+  SAMPLE_DOSSIER,
+  SAMPLE_SITES_FEED,
+} from './mission-points';
 import { SURFACE_RADIATION } from './radiation';
 import { PANORAMAS } from './panoramas';
 import { RAW_IMAGE_FEEDS } from './rover-images';
@@ -87,6 +95,48 @@ export const SOURCES: readonly DataSource[] = [
     key: 'None',
     notes: 'Updated after drives are localised, usually within days.',
     reference: 'https://mars.nasa.gov/msl/mission/where-is-the-rover/',
+  },
+  {
+    id: 'sample-sites',
+    name: 'Perseverance sample sites',
+    publisher: 'NASA/JPL-Caltech, mars.nasa.gov',
+    nasa: true,
+    kind: 'live',
+    gives:
+      'Where each sample was taken at Jezero, with its name, outcrop, kind of rock, sol and date. Two samples from one rock share one record.',
+    usedIn: 'The sample marks on the Jezero map, switched in the Layers panel, and the card a press on one opens.',
+    endpoint: SAMPLE_SITES_FEED,
+    key: 'None',
+    notes: `The file behind the sample markers of the NASA location map. One record in it repeats the position of its neighbour (Lefroy Bay, checked on 2026-11-14); for that one the app uses the position printed in the Sample Dossier of the Planetary Data System, and says so on its card: ${SAMPLE_DOSSIER}`,
+    reference: 'https://science.nasa.gov/mission/mars-2020-perseverance/mars-rock-samples/',
+  },
+  {
+    id: 'helicopter-flights',
+    name: 'Ingenuity flights',
+    publisher: 'NASA/JPL-Caltech, mars.nasa.gov',
+    nasa: true,
+    kind: 'live',
+    gives:
+      'Where the helicopter landed after each flight, with the airfield, the sol and date, the distance, the time in the air and the height.',
+    usedIn: 'The flight marks on the Jezero map, switched in the Layers panel, and the card a press on one opens.',
+    endpoint: HELICOPTER_FEED,
+    key: 'None',
+    notes:
+      'The flights ended in January 2024, so the file no longer changes. Its record numbered 0, with no distance and no time in the air, is left out.',
+    reference: 'https://science.nasa.gov/mission/mars-2020-perseverance/ingenuity-mars-helicopter/',
+  },
+  {
+    id: 'sample-depot',
+    name: 'Three Forks sample depot',
+    publisher: 'NASA Planetary Data System, Geosciences Node (Mars 2020 sample depot bundle)',
+    nasa: true,
+    kind: 'catalogue',
+    gives: `The ${SAMPLE_DEPOT.length} sample tubes left on the ground at Three Forks: name, designation, sol of the drop and position.`,
+    usedIn: 'The depot marks on the Jezero map, switched in the Layers panel, and the card a press on one opens.',
+    endpoint: SAMPLE_DEPOT_TABLE,
+    key: 'None',
+    notes: `Copied into src/data/mission-points.ts on 2026-11-14 (DOI ${SAMPLE_DEPOT_DOI}): the table has not changed since 2024 and its server does not let a browser read it. Each position is where the rover stood when it dropped the tube, as the bundle says, not a surveyed position of the tube.`,
+    reference: `https://doi.org/${SAMPLE_DEPOT_DOI}`,
   },
   {
     id: 'donki-enlil',
