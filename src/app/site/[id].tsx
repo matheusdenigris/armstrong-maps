@@ -1,7 +1,17 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import {
+  AccessibilityInfo,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+  type ViewStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EnvironmentPanel } from '@/components/environment-panel';
@@ -78,6 +88,44 @@ const GALE = SITES[0].landing;
 const ENLIL_CACHE = { key: 'donki-enlil', freshForHours: 3 };
 const SEP_CACHE = { key: 'donki-sep', freshForHours: 3 };
 
+/** Styles only a browser understands: transitions and keyframe animations. */
+const web = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle) : null);
+/** One curve for everything that opens, closes or comes in: quick to start, soft to land. */
+const CURVE = 'cubic-bezier(0.2, 0.7, 0.2, 1)';
+const PANEL_MS = 320;
+/** A panel changes width; what is in it comes in after and goes out before. */
+const PANEL_WIDTH = web({ transition: `width ${PANEL_MS}ms ${CURVE}` });
+const BODY_SHOWN = web({
+  visibility: 'visible',
+  transition: `opacity 240ms ease 90ms, transform ${PANEL_MS}ms ${CURVE}, visibility 0s`,
+});
+const BODY_HIDDEN = web({
+  visibility: 'hidden',
+  transition: `opacity 150ms ease, transform ${PANEL_MS}ms ${CURVE}, visibility 0s linear 150ms`,
+});
+const ARROW_TURN = web({ transition: `transform ${PANEL_MS}ms ${CURVE}` });
+const RISE = web({ animation: `armstrong-rise 260ms ${CURVE} both` });
+const SHEET_IN = web({ animation: `armstrong-sheet 300ms ${CURVE} both` });
+const KEYFRAMES = `
+  @keyframes armstrong-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @keyframes armstrong-sheet { from { opacity: 0; transform: translateY(32px); } to { opacity: 1; transform: none; } }
+`;
+
+/** True when the person has asked the system for less movement: then nothing here animates. */
+function useReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((on) => alive && setReduced(on));
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
+    return () => {
+      alive = false;
+      subscription.remove();
+    };
+  }, []);
+  return reduced;
+}
+
 type Tab = 'map' | 'layers' | 'walk' | 'site' | 'photos';
 /** What the right-hand panel of the desktop console shows: one subject at a time. */
 type PanelTab = 'walk' | 'site' | 'photos';
@@ -126,6 +174,7 @@ function SiteMap({ site }: { site: Site }) {
   const endWalk = useMission((state) => state.endWalk);
   const [tab, setTab] = useState<Tab>('map');
   const [panelTab, setPanelTab] = useState<PanelTab>('walk');
+  const calm = useReducedMotion();
 
   // The walk in progress, if there is one. Its position is simulated from the plan.
   const now = useNow(clock?.running ?? false);
@@ -379,6 +428,7 @@ function SiteMap({ site }: { site: Site }) {
       <Head>
         <title>{`${site.name} | Armstrong Maps`}</title>
         <meta name="description" content={`Map of ${site.name} on Mars. ${site.science}`} />
+        <style>{KEYFRAMES}</style>
       </Head>
 
       <ConsoleHeader
@@ -397,6 +447,7 @@ function SiteMap({ site }: { site: Site }) {
             side="left"
             visible={layersVisible}
             width={LAYERS_PANEL_WIDTH}
+            calm={calm}
             onToggle={() => setLayersVisible((visible) => !visible)}>
             {layersContent}
           </DesktopPanel>
@@ -405,6 +456,7 @@ function SiteMap({ site }: { site: Site }) {
             side="right"
             visible={walkVisible}
             width={WALK_PANEL_WIDTH}
+            calm={calm}
             onToggle={() => setWalkVisible((visible) => !visible)}
             scrollKey={panelTab}
             header={<PanelTabs selected={panelTab} onChange={setPanelTab} />}>
@@ -416,7 +468,14 @@ function SiteMap({ site }: { site: Site }) {
           <View style={styles.mobileMapStack}>
             {map}
             {tab !== 'map' ? (
-              <View style={[styles.mobileSheet, hydrated && { maxHeight: sheetLimit }]}>
+              <View
+                // A new sheet for each tab, so each one comes up from the foot of the screen.
+                key={tab}
+                style={[
+                  styles.mobileSheet,
+                  hydrated && { maxHeight: sheetLimit },
+                  calm ? null : SHEET_IN,
+                ]}>
                 <ScrollView
                   style={styles.mobileSheetScroll}
                   contentContainerStyle={styles.mobileSheetContent}
@@ -721,6 +780,8 @@ type DesktopPanelProps = {
   header?: ReactNode;
   /** A new key sends the content back to its top, as when the panel changes subject. */
   scrollKey?: string;
+  /** Less movement was asked for: the panel opens and closes at once. */
+  calm: boolean;
   children: ReactNode;
 };
 
@@ -732,11 +793,15 @@ function DesktopPanel({
   onToggle,
   header,
   scrollKey,
+  calm,
   children,
 }: DesktopPanelProps) {
   const expanding = side === 'left' ? 'Show layers panel' : 'Show walk plan panel';
   const collapsing = side === 'left' ? 'Hide layers panel' : 'Hide walk plan panel';
-  const arrow = side === 'left' ? (visible ? '‹' : '›') : visible ? '›' : '‹';
+  // One arrow that points at the edge the panel folds to, and turns round when it is folded.
+  const arrow = side === 'left' ? '‹' : '›';
+  // Folded, the content slides a little towards the edge it folds to as it fades.
+  const tucked = side === 'left' ? -16 : 16;
 
   return (
     <View
@@ -744,6 +809,7 @@ function DesktopPanel({
         styles.desktopPanel,
         side === 'left' ? styles.layersPanel : styles.walkPanel,
         { width: visible ? width : COLLAPSED_PANEL_WIDTH },
+        calm ? null : PANEL_WIDTH,
       ]}>
       <Pressable
         onPress={onToggle}
@@ -756,24 +822,50 @@ function DesktopPanel({
           !visible && (side === 'left' ? styles.layersToggleCollapsed : styles.walkToggleCollapsed),
           pressed && styles.panelTogglePressed,
         ]}>
-        <Text style={styles.panelToggleText}>{arrow}</Text>
+        <Text
+          style={[
+            styles.panelToggleText,
+            { transform: [{ rotate: visible ? '0deg' : '180deg' }] },
+            calm ? null : ARROW_TURN,
+          ]}>
+          {arrow}
+        </Text>
       </Pressable>
-      {/* A solid band behind the controls at the top: the content scrolls under it, not through it. */}
-      {visible ? <View pointerEvents="none" style={styles.panelBar} /> : null}
-      {visible && header ? (
-        <View style={[styles.panelHeader, side === 'left' ? styles.panelHeaderLeft : styles.panelHeaderRight]}>
-          {header}
-        </View>
-      ) : null}
-      {visible ? (
+      {/*
+        The content keeps its full width and stays pinned to the outer edge while the panel
+        changes width over it, so the text does not reflow as the panel opens or closes.
+      */}
+      <View
+        pointerEvents={visible ? 'auto' : 'none'}
+        aria-hidden={!visible}
+        style={[
+          styles.panelBody,
+          side === 'left' ? styles.panelBodyLeft : styles.panelBodyRight,
+          { width, opacity: visible ? 1 : 0, transform: [{ translateX: visible ? 0 : tucked }] },
+          calm ? web({ visibility: visible ? 'visible' : 'hidden' }) : visible ? BODY_SHOWN : BODY_HIDDEN,
+        ]}>
+        {/* A solid band behind the controls at the top: the content scrolls under it, not through it. */}
+        <View pointerEvents="none" style={styles.panelBar} />
+        {header ? (
+          <View
+            style={[
+              styles.panelHeader,
+              side === 'left' ? styles.panelHeaderLeft : styles.panelHeaderRight,
+            ]}>
+            {header}
+          </View>
+        ) : null}
         <ScrollView
           key={scrollKey}
           style={styles.desktopPanelScroll}
           contentContainerStyle={styles.desktopPanelContent}
           showsVerticalScrollIndicator={false}>
-          {children}
+          {/* What a tab brings in rises into place. */}
+          <View key={scrollKey} style={calm ? null : RISE}>
+            {children}
+          </View>
         </ScrollView>
-      ) : null}
+      </View>
     </View>
   );
 }
@@ -1182,6 +1274,17 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 20,
     lineHeight: 22,
+  },
+  panelBody: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+  },
+  panelBodyLeft: {
+    left: 0,
+  },
+  panelBodyRight: {
+    right: 0,
   },
   panelBar: {
     position: 'absolute',

@@ -76,6 +76,9 @@ screen needs a source or a "simulated" or "assumption" label.
   - The home screen is the globe with a headline and one dock of landing sites: no side cards,
     no vignette bands, no statistics.
   - The map never shows the empty space beside the planet (`clampView` with the size of the map).
+  - What opens, closes or comes in is animated, on one curve and in about a third of a second:
+    a side panel changes width while its content fades, the content of a tab rises into place,
+    a sheet on a phone comes up from the foot. Reduced motion turns all of it off.
 - Styling is `StyleSheet` with the tokens; no hard-coded colours in screens.
 - The logo is `src/components/logo.tsx`; masters are in `assets/brand`. The app icons under
   `assets/images` are rendered from the same drawing: change them together.
