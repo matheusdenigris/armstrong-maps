@@ -95,6 +95,9 @@ NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero.
 
 - The walk: the astronaut's position, heading, time outside, life support and dose all follow the
   plan at the assumed speed. Nobody is walking it. The console can play it faster than real time.
+- The work at a waypoint is played 15 times faster than the walking, so that a 20-minute stop
+  takes eight seconds on screen at the default speed. The plan, the mission clock, life support
+  and the dose still count the whole stop.
 - The base stands on the landing point of the mission at each site.
 
 ## Illustrative

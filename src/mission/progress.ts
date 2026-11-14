@@ -7,6 +7,46 @@
 import { bearing, destination, distance, type LatLon } from './geo';
 import { WALK_ASSUMPTIONS, type WalkAssumptions } from './walk';
 
+/**
+ * How much faster than the walking the work at a stop is played back. The plan keeps the whole
+ * stop, and so do the clock of the mission, life support and the dose. Someone watching does not
+ * have to sit through it: at ten times real time a 20-minute stop takes eight seconds on screen.
+ */
+export const WORK_PLAYBACK = 15;
+
+/**
+ * The walk time reached when the clock of a walk in progress has played `playedHours`. Walking
+ * is played as it is; the work at each stop is played `workPlayback` times faster.
+ */
+export function walkHoursPlayed(
+  base: LatLon,
+  waypoints: readonly LatLon[],
+  playedHours: number,
+  assumptions: WalkAssumptions = WALK_ASSUMPTIONS,
+  workPlayback: number = WORK_PLAYBACK,
+): number {
+  const speed = assumptions.walkingSpeedKmh * 1000; // metres per hour
+  const stopHours = assumptions.minutesPerStop / 60;
+  const playedStopHours = stopHours / workPlayback;
+  const points = [base, ...waypoints, base];
+  let left = Math.max(0, playedHours);
+  let walk = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const legHours = distance(points[index - 1], points[index]) / speed;
+    if (left <= legHours) return walk + left;
+    left -= legHours;
+    walk += legHours;
+    // Every point but the base at the end is a waypoint, with a stop.
+    if (index < points.length - 1) {
+      if (left <= playedStopHours) return walk + left * workPlayback;
+      left -= playedStopHours;
+      walk += stopHours;
+    }
+  }
+  // Past the end of the walk the time keeps counting, so the walk reads as over.
+  return walk + left;
+}
+
 export type WalkPhase =
   /** On the way to a waypoint. */
   | 'walking'

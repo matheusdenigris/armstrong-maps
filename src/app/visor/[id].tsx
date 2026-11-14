@@ -33,7 +33,12 @@ import {
   formatShare,
 } from '@/mission/format';
 import { bearing } from '@/mission/geo';
-import { walkProgress, type WalkProgress } from '@/mission/progress';
+import {
+  WORK_PLAYBACK,
+  walkHoursPlayed,
+  walkProgress,
+  type WalkProgress,
+} from '@/mission/progress';
 import { walkSafety, type SafetyAlert, type SafetyLevel, type WalkSafety } from '@/mission/safety';
 import { WALK_ASSUMPTIONS } from '@/mission/walk';
 import { useMission, useRoute } from '@/state/mission';
@@ -140,7 +145,10 @@ function Visor({ site }: { site: Site }) {
     return () => window.removeEventListener('keydown', turn);
   }, []);
 
-  const elapsedHours = clock ? elapsedSeconds(clock, now) / 3600 : 0;
+  // The same reading of the clock as the ship console: walking as it is, work at a stop faster.
+  const elapsedHours = clock
+    ? walkHoursPlayed(site.landing, route, elapsedSeconds(clock, now) / 3600)
+    : 0;
   const progress = walkProgress(site.landing, route, elapsedHours, SURFACE_RADIATION.msvPerDay);
   const safety = walkSafety(progress);
   const heading = (((progress.heading + look.yaw) % 360) + 360) % 360;
@@ -500,6 +508,7 @@ function Visor({ site }: { site: Site }) {
         <View style={[styles.sources, { bottom: rim + Spacing.two }]} pointerEvents="none">
           <Text style={styles.sourcesText}>
             The position, the clock, life support and the dose are simulated from the plan. The
+            work at a waypoint is played {WORK_PLAYBACK} times faster than the walking. The
             limits are project assumptions, not NASA rules: {WALK_ASSUMPTIONS.lifeSupportHours} h of
             life support with a {formatShare(WALK_ASSUMPTIONS.reserveFraction)} reserve,{' '}
             {WALK_ASSUMPTIONS.walkingSpeedKmh} km/h on foot, a {WALK_ASSUMPTIONS.walkBackLimitKm} km
@@ -607,7 +616,7 @@ function Target({ progress, offTarget, etaHours, stops }: TargetProps) {
           <View style={[styles.workDone, { width: `${done * 100}%` }]} />
         </View>
         <Text style={styles.targetHint}>
-          {`Work left here · then ${next}, ${formatDistance(progress.distanceToTargetM)} at ${bearingText(progress.bearingToTarget)}`}
+          {`Work played ${WORK_PLAYBACK}x faster · then ${next}, ${formatDistance(progress.distanceToTargetM)} at ${bearingText(progress.bearingToTarget)}`}
         </Text>
       </View>
     );

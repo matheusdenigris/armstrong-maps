@@ -26,7 +26,7 @@ function describe(phase: WalkPhase, progress: WalkProgress, over: boolean): stri
     case 'walking':
       return `Walking to waypoint ${(progress.stop ?? 0) + 1}, ${formatDistance(progress.distanceToTargetM)} to go.`;
     case 'working':
-      return `Working at waypoint ${(progress.stop ?? 0) + 1}, ${formatDuration(progress.phaseHoursLeft)} of work left.`;
+      return `Working at waypoint ${(progress.stop ?? 0) + 1}, ${formatDuration(progress.phaseHoursLeft)} of work left, played fast.`;
     case 'returning':
       return `Returning to the base, ${formatDistance(progress.distanceToTargetM)} to go.`;
     case 'at-base':

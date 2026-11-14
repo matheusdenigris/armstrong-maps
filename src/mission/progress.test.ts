@@ -9,7 +9,7 @@ import {
   withRate,
 } from './clock';
 import { destination, distance } from './geo';
-import { walkProgress } from './progress';
+import { WORK_PLAYBACK, walkHoursPlayed, walkProgress } from './progress';
 import { evaluateWalk } from './walk';
 
 const BASE = { lat: -4.589467, lon: 137.441633 };
@@ -20,6 +20,56 @@ const SECOND = destination(FIRST, 0, 1000);
 const ROUTE = [FIRST, SECOND];
 
 const at = (hours: number) => walkProgress(BASE, ROUTE, hours, DOSE_RATE);
+
+describe('walkHoursPlayed', () => {
+  // Each kilometre takes 0.4 h and each stop a third of an hour, played in a fifteenth of that.
+  const LEG = 0.4;
+  const STOP = 1 / 3;
+  const PLAYED_STOP = STOP / WORK_PLAYBACK;
+  const played = (hours: number) => walkHoursPlayed(BASE, ROUTE, hours);
+
+  it('plays the walking as it is', () => {
+    expect(played(0)).toBe(0);
+    expect(played(0.25)).toBeCloseTo(0.25, 6);
+    expect(played(LEG)).toBeCloseTo(LEG, 4);
+  });
+
+  it('plays the work at a stop faster, and all of it', () => {
+    // Halfway through the played stop, half the work is done.
+    expect(played(LEG + PLAYED_STOP / 2)).toBeCloseTo(LEG + STOP / 2, 4);
+    // Once the stop has been played, the walk is on the next leg with the whole stop counted.
+    expect(played(LEG + PLAYED_STOP + 0.1)).toBeCloseTo(LEG + STOP + 0.1, 4);
+    const second = at(played(LEG + PLAYED_STOP + 0.1));
+    expect(second.phase).toBe('walking');
+    expect(second.stop).toBe(1);
+  });
+
+  it('takes eight seconds on screen for a stop at ten times real time', () => {
+    const onScreenSeconds = (PLAYED_STOP * 3600) / DEFAULT_RATE;
+    expect(onScreenSeconds).toBeCloseTo(8, 6);
+  });
+
+  it('reaches the end of the walk and keeps counting', () => {
+    const total = at(0).totalHours;
+    const playedTotal = total - 2 * (STOP - PLAYED_STOP);
+    expect(played(playedTotal)).toBeCloseTo(total, 4);
+    expect(played(playedTotal + 1)).toBeCloseTo(total + 1, 4);
+    expect(at(played(playedTotal + 1)).phase).toBe('at-base');
+  });
+
+  it('is the played time itself when there is no route', () => {
+    expect(walkHoursPlayed(BASE, [], 0.5)).toBeCloseTo(0.5, 6);
+  });
+
+  it('never goes back as the clock goes on', () => {
+    let before = 0;
+    for (let hours = 0; hours <= 2; hours += 0.01) {
+      const now = played(hours);
+      expect(now).toBeGreaterThanOrEqual(before);
+      before = now;
+    }
+  });
+});
 
 describe('walkProgress', () => {
   it('starts at the base, facing the first waypoint', () => {
