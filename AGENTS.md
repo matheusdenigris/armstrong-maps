@@ -20,7 +20,8 @@ The roadmap is the GitHub issues, grouped in milestones. See [docs/roadmap.md](d
 npm install
 npm start              # Expo dev server (press a for Android, w for web)
 npm run web            # web only
-npm run check          # English-only gate, typecheck and lint: run before calling a task done
+npm test               # unit tests of the mission code (vitest)
+npm run check          # English-only gate, typecheck, lint and tests: run before calling a task done
 npm run build:web      # static web export to dist/
 ```
 
@@ -33,8 +34,10 @@ the merge. A real exception (a proper noun) goes in `scripts/english-allowlist.t
 
 ## Domain rules
 
-- **Mars is not Earth.** Every distance uses the radius of Mars (3389.5 km). Map libraries assume
-  Earth; never take a distance from one.
+- **Mars is not Earth.** Every distance comes from `src/mission/geo.ts` (radius 3389.5 km). Map
+  libraries assume Earth; never take a distance from one.
+- **Mission code is pure TypeScript** in `src/mission`, with no React and no device APIs, and it
+  is tested. It returns numbers and reason codes; the interface turns them into text.
 - **Map tiles are equirectangular**, not Web Mercator. Level L has 2^(L+1) columns and 2^L rows.
 - **Longitudes** are stored as -180..180 and shown as 0..360 E.
 - **A new map layer** is checked against the product's `WMTSCapabilities.xml` on trek.nasa.gov
