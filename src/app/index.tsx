@@ -59,6 +59,26 @@ export default function HomeScreen() {
       {SITES.map((site) => (
         <SiteCard key={site.id} site={site} onPress={(event) => choose(site, event)} />
       ))}
+      <Link href="/docs" asChild>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Docs: the NASA data and APIs behind the map">
+          {(state) => (
+            <View
+              style={[
+                styles.docsCard,
+                (state as { hovered?: boolean }).hovered && styles.cardHovered,
+                state.pressed && styles.cardPressed,
+              ]}>
+              <Text style={styles.docsTitle}>Docs and data sources {'›'}</Text>
+              <Text style={styles.cardScience}>
+                Every NASA API the map reads, what it takes from each, and what is measured, assumed
+                or simulated.
+              </Text>
+            </View>
+          )}
+        </Pressable>
+      </Link>
       <Text style={styles.footer}>
         Imagery from NASA/JPL Mars Trek. A NASA Space Apps Challenge 2026 project, with no official
         link to NASA.
@@ -299,6 +319,22 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.mono,
     fontSize: 12,
     paddingTop: Spacing.one,
+  },
+  docsCard: {
+    padding: Spacing.three,
+    gap: Spacing.two,
+    borderRadius: Radius.medium,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.nasa,
+    backgroundColor: Colors.surface,
+  },
+  docsTitle: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 16,
+    fontWeight: '700',
   },
   footer: {
     color: Colors.textMuted,
