@@ -54,8 +54,12 @@ export type RoverImage = {
    * weight of the 800-pixel version. The full frame is on the linked page.
    */
   image: string;
-  /** The image's page in NASA's raw-image gallery, when the feed gives one. */
-  link: string | null;
+  /**
+   * The same frame at the largest size the feed has as a JPEG: what a press on the photo opens.
+   * The feed also names a page for each image, but for Curiosity those pages answer "not found"
+   * (checked on 2026-11-14), so the file itself is the link that always works.
+   */
+  full: string;
   credit: string;
 };
 
@@ -88,7 +92,9 @@ export function parseRawImages(raw: unknown, limit = 6, perCamera = 2): RoverIma
       takenUtc: text(item.date_taken_utc) ?? '',
       camera: text((item.camera as Entry | undefined)?.instrument) ?? text(item.instrument) ?? '',
       image,
-      link: https(text(item.link)),
+      full:
+        https(text(files.large) ?? text(files.medium) ?? text(files.full_res) ?? text(files.small)) ??
+        image,
       credit: text(item.credit) ?? 'NASA/JPL-Caltech',
     });
   }
