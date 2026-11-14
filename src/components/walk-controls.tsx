@@ -1,4 +1,5 @@
 import { Link } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SectionHeading } from '@/components/console-parts';
@@ -6,6 +7,10 @@ import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { CLOCK_RATES, type WalkClock } from '@/mission/clock';
 import { formatDistance, formatDuration } from '@/mission/format';
 import type { WalkPhase, WalkProgress } from '@/mission/progress';
+import { VISOR_READY_KEY } from '@/state/mission';
+
+/** How long the console waits for the visor to load before it starts the walk anyway. */
+const VISOR_WAIT_MS = 12_000;
 
 type WalkControlsProps = {
   siteId: string;
@@ -56,11 +61,51 @@ export function WalkControls({
   const share = progress.totalHours > 0 ? progress.elapsedHours / progress.totalHours : 0;
 
   // Starting the walk also opens the visor, in its own tab: it is the other half of the walk, and
-  // easy to miss as a link. A browser may refuse the tab; the link below stays as the way in.
+  // easy to miss as a link. The walk itself begins when that tab has loaded and said so, so that
+  // nobody misses the first steps. A browser may refuse the tab: then the walk starts here at
+  // once, and the link below stays as the way in.
+  const [waiting, setWaiting] = useState(false);
+  const begin = useRef(onStart);
+  useEffect(() => {
+    begin.current = onStart;
+  }, [onStart]);
+
   const start = () => {
-    onStart();
-    if (Platform.OS === 'web') window.open(`/visor/${siteId}`, '_blank');
+    if (Platform.OS !== 'web') {
+      onStart();
+      return;
+    }
+    const visor = window.open(`/visor/${siteId}`, '_blank');
+    if (visor) setWaiting(true);
+    else onStart();
   };
+  const startNow = () => {
+    setWaiting(false);
+    onStart();
+  };
+
+  useEffect(() => {
+    if (!waiting) return;
+    const go = () => {
+      setWaiting(false);
+      begin.current();
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== VISOR_READY_KEY || !event.newValue) return;
+      try {
+        if ((JSON.parse(event.newValue) as { site?: string }).site === siteId) go();
+      } catch {
+        // Not a message from the visor.
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    // A visor that never answers must not hold the walk for ever.
+    const timer = setTimeout(go, VISOR_WAIT_MS);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      clearTimeout(timer);
+    };
+  }, [waiting, siteId]);
 
   return (
     <View style={styles.block}>
@@ -89,13 +134,25 @@ export function WalkControls({
               ? 'Click or tap the map to mark the first point of the route.'
               : 'An astronaut walks the route at the assumed speed. Their position is simulated. The astronaut visor opens in a new tab.'}
           </Text>
-          <Button
-            label="Start the walk"
-            text="Start the walk"
-            primary
-            onPress={start}
-            disabled={stops === 0}
-          />
+          {waiting ? (
+            <>
+              <Text style={styles.status} accessibilityLiveRegion="polite">
+                Opening the astronaut visor…
+              </Text>
+              <Text style={styles.note}>
+                The walk starts as soon as the visor has loaded in its tab.
+              </Text>
+              <Button label="Start the walk without waiting" text="Start now" onPress={startNow} />
+            </>
+          ) : (
+            <Button
+              label="Start the walk"
+              text="Start the walk"
+              primary
+              onPress={start}
+              disabled={stops === 0}
+            />
+          )}
         </View>
       ) : (
         <View style={styles.card}>
