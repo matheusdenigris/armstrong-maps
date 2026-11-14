@@ -158,12 +158,19 @@ export function WalkDetails({ walk, stops, onUndo, onClear }: WalkDetailsProps) 
         />
       </View>
 
-      <Text style={styles.assumptions}>
-        Project assumptions, not NASA rules: {a.walkingSpeedKmh} km/h on foot, {a.minutesPerStop}{' '}
-        min at each stop, {a.lifeSupportHours} h of life support with a{' '}
-        {formatShare(a.reserveFraction)} reserve, and a {a.walkBackLimitKm} km walk-back limit (the
-        dashed ring). The return is a straight line to the base. {SURFACE_RADIATION.caveat}
-      </Text>
+      <View style={styles.assumptions}>
+        <Text style={styles.assumptionsParagraph}>Project assumptions, not NASA rules:</Text>
+        <Text style={styles.assumptionsParagraph}>
+          • Walking speed on foot: {a.walkingSpeedKmh} km/h
+        </Text>
+        <Text style={styles.assumptionsParagraph}>• {a.minutesPerStop} min at each stop</Text>
+        <Text style={styles.assumptionsParagraph}>
+          • {a.lifeSupportHours} h of life support with a {formatShare(a.reserveFraction)} reserve
+        </Text>
+        <Text style={styles.assumptionsParagraph}>
+          • {a.walkBackLimitKm} km walk-back limit (the dashed ring).
+        </Text>
+      </View>
     </View>
   );
 }
@@ -436,12 +443,15 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   assumptions: {
+    gap: Spacing.one,
+    paddingTop: Spacing.one,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+  },
+  assumptionsParagraph: {
     color: Colors.textMuted,
     fontFamily: Fonts.sans,
     fontSize: 11,
     lineHeight: 16,
-    paddingTop: Spacing.one,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
   },
 });
