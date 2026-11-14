@@ -500,7 +500,7 @@ function Visor({ site }: { site: Site }) {
             {panorama.north === null
               ? 'It is not lined up with the compass.'
               : 'It is lined up with the compass.'}{' '}
-            Black areas are where the camera took no frame; the sky above the frames is filled in.
+            Black areas are where the camera took no frame; the sky above the frames, and any gap in it, is filled in.
             {scene.count > 1
               ? ` The scenery changes every ${formatDistance(stretch)} walked, through the ${scene.count} photographs of this site, to give the sense of ground being covered. Within a scene the view moves slowly into the still photograph. No camera filmed the way between two of them, and the dust in the cut from one to the next is drawn.`
               : ''}

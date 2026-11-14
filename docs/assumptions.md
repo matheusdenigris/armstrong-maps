@@ -118,6 +118,9 @@ NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero.
 - Three things were set by eye for each photograph: the row of the horizon, the band that is free
   of the black gaps at the top and bottom of the mosaic, and the colour that continues the sky
   above that band. Black areas inside the band are where the camera took no frame.
+- Where the mosaic has no frame for a patch of sky inside that band (PIA20840 has one beside its
+  first butte), the visor draws the sky there, in the colours the photograph has on either side.
+  The ground is never filled in: a gap in it stays black.
 - Gale has five photographs, Jezero four and Gusev one, so a walk at Gusev stays in the same
   scene. Meridiani and Elysium borrow the ones from Gale, and the visor says so.
 
