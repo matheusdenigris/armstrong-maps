@@ -53,6 +53,7 @@ const DOUBLE_TAP_MS = 320;
 const DOUBLE_TAP_REACH = 30;
 const SETTLE_MS = 140;
 const TWEEN_MS = 180;
+const RECENTRE_MS = 320;
 
 export const ZOOM_STEP = 2;
 
@@ -211,8 +212,33 @@ export class MapController {
 
   recentre() {
     this.stopTween();
-    this.show(this.options.home);
-    this.settleSoon();
+    const size = this.size;
+    if (!size) return;
+    const from = this.camera.view;
+    const to = clampView(this.options.home, this.options.limits, size);
+    if (this.options.reduceMotion) {
+      this.show(to);
+      this.settleSoon();
+      return;
+    }
+    const started = Date.now();
+    const step = () => {
+      const t = Math.min(1, (Date.now() - started) / RECENTRE_MS);
+      const eased = 1 - (1 - t) ** 3;
+      this.show({
+        lat: from.lat + (to.lat - from.lat) * eased,
+        lon: from.lon + (to.lon - from.lon) * eased,
+        // Scale exponentially so returning from a close zoom does not rush at the start.
+        pixelsPerDegree: from.pixelsPerDegree * (to.pixelsPerDegree / from.pixelsPerDegree) ** eased,
+      });
+      if (t < 1) {
+        this.tween = requestAnimationFrame(step);
+      } else {
+        this.tween = null;
+        this.settleSoon();
+      }
+    };
+    this.tween = requestAnimationFrame(step);
   }
 
   private start(points: Pixel[], keep?: Gesture) {

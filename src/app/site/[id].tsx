@@ -1,6 +1,6 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
   Platform,
@@ -13,6 +13,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { Easing, LinearTransition, ReduceMotion } from 'react-native-reanimated';
 
 import { EnvironmentPanel } from '@/components/environment-panel';
 import { LayerPanel } from '@/components/layer-panel';
@@ -74,6 +75,11 @@ const SCIENCE_BAR = 1500;
 const LAYERS_PANEL_WIDTH = 300;
 const WALK_PANEL_WIDTH = 340;
 const COLLAPSED_PANEL_WIDTH = 52;
+
+/** A brief, steady transition for the console columns; it honors the system motion preference. */
+const PANEL_LAYOUT_TRANSITION = LinearTransition.duration(240)
+  .easing(Easing.out(Easing.cubic))
+  .reduceMotion(ReduceMotion.System);
 
 /** Layers that go over the optical base: everything planet-wide except the base itself. */
 const OVERLAYS = GLOBAL_LAYERS.filter((layer) => layer !== VIKING_GLOBAL);
@@ -418,6 +424,7 @@ function SiteMap({ site }: { site: Site }) {
       sources={sources}
       legends={coloured}
       desktop={desktopConsole}
+      scaleAfterToggle={desktopConsole && !layersVisible}
       showFoot={desktopConsole || tab === 'map'}
       onOpenWalk={desktopConsole ? undefined : () => setTab('walk')}
     />
@@ -451,7 +458,9 @@ function SiteMap({ site }: { site: Site }) {
             onToggle={() => setLayersVisible((visible) => !visible)}>
             {layersContent}
           </DesktopPanel>
-          <View style={styles.mapColumn}>{map}</View>
+          <Animated.View layout={PANEL_LAYOUT_TRANSITION} style={styles.mapColumn}>
+            {map}
+          </Animated.View>
           <DesktopPanel
             side="right"
             visible={walkVisible}
@@ -557,9 +566,7 @@ function ConsoleHeader({
           <Text style={styles.siteName} numberOfLines={1}>
             {site.name}
           </Text>
-          <Text style={styles.siteMission} numberOfLines={1}>
-            {site.mission}
-          </Text>
+          <MissionLabel mission={site.mission} />
         </View>
         {showScience ? (
           <Text style={styles.science} numberOfLines={2}>
@@ -570,6 +577,37 @@ function ConsoleHeader({
       </View>
       {desktop ? null : telemetry}
     </View>
+  );
+}
+
+/** The full mission name stays available when the compact console header has to truncate it. */
+function MissionLabel({ mission }: { mission: string }) {
+  const [truncated, setTruncated] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const label = useRef<ComponentRef<typeof Text>>(null);
+
+  const measureTruncation = () => {
+    // React Native Web gives Text a DOM element, whose scroll width includes the clipped text.
+    // Native does not show hover tooltips, so it deliberately leaves this false there.
+    const element = label.current as unknown as { clientWidth?: number; scrollWidth?: number } | null;
+    const { clientWidth = 0, scrollWidth = 0 } = element ?? {};
+    setTruncated(clientWidth > 0 && scrollWidth > clientWidth);
+  };
+
+  return (
+    <Pressable
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      style={styles.siteMissionTrigger}>
+      <Text ref={label} onLayout={measureTruncation} style={styles.siteMission} numberOfLines={1}>
+        {mission}
+      </Text>
+      {hovered && truncated ? (
+        <View pointerEvents="none" style={styles.siteMissionTooltip}>
+          <Text style={styles.siteMissionTooltipText}>{mission}</Text>
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -620,6 +658,7 @@ type MapStageProps = {
   sources: string;
   legends: readonly MapLayer[];
   desktop: boolean;
+  scaleAfterToggle: boolean;
   showFoot: boolean;
   onOpenWalk?: () => void;
 };
@@ -642,6 +681,7 @@ function MapStage({
   sources,
   legends,
   desktop,
+  scaleAfterToggle,
   showFoot,
   onOpenWalk,
 }: MapStageProps) {
@@ -669,6 +709,7 @@ function MapStage({
           sources={sources}
           legends={legends}
           desktop={desktop}
+          scaleAfterToggle={scaleAfterToggle}
           showFoot={showFoot}
           onOpenWalk={onOpenWalk}
         />
@@ -685,6 +726,7 @@ type MapHudProps = {
   /** The layers that are on over the base: each gets its colour key on the map. */
   legends: readonly MapLayer[];
   desktop: boolean;
+  scaleAfterToggle: boolean;
   showFoot: boolean;
   onOpenWalk?: () => void;
 };
@@ -696,6 +738,7 @@ function MapHud({
   stops,
   sources,
   legends,
+  scaleAfterToggle,
   desktop,
   showFoot,
   onOpenWalk,
@@ -706,7 +749,13 @@ function MapHud({
   return (
     // It fills the map: without a size of its own, what is pinned to its bottom lands above it.
     <View pointerEvents="box-none" style={styles.hud}>
-      <View pointerEvents="none" style={[styles.mapReadout, desktop && styles.mapReadoutDesktop]}>
+      <View
+        pointerEvents="none"
+        style={[
+          styles.mapReadout,
+          desktop && styles.mapReadoutDesktop,
+          scaleAfterToggle && styles.mapReadoutAfterToggle,
+        ]}>
         <View style={styles.scaleReadout} accessible accessibilityLabel="Map scale on Mars">
           <ScaleBar pixelsPerDegree={view.pixelsPerDegree} />
         </View>
@@ -804,10 +853,14 @@ function DesktopPanel({
   const tucked = side === 'left' ? -16 : 16;
 
   return (
-    <View
+    <Animated.View
+      pointerEvents={visible ? 'auto' : 'box-none'}
+      layout={PANEL_LAYOUT_TRANSITION}
       style={[
         styles.desktopPanel,
         side === 'left' ? styles.layersPanel : styles.walkPanel,
+        !visible && styles.desktopPanelCollapsed,
+        !visible && (side === 'left' ? styles.layersPanelCollapsed : styles.walkPanelCollapsed),
         { width: visible ? width : COLLAPSED_PANEL_WIDTH },
         calm ? null : PANEL_WIDTH,
       ]}>
@@ -820,6 +873,7 @@ function DesktopPanel({
           styles.panelToggle,
           side === 'left' ? styles.layersToggle : styles.walkToggle,
           !visible && (side === 'left' ? styles.layersToggleCollapsed : styles.walkToggleCollapsed),
+          !visible && styles.panelToggleCollapsed,
           pressed && styles.panelTogglePressed,
         ]}>
         <Text
@@ -866,7 +920,7 @@ function DesktopPanel({
           </View>
         </ScrollView>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -1043,6 +1097,30 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 12,
   },
+  siteMissionTrigger: {
+    position: 'relative',
+    alignSelf: 'stretch',
+  },
+  siteMissionTooltip: {
+    position: 'absolute',
+    zIndex: 20,
+    top: '100%',
+    left: 0,
+    maxWidth: 320,
+    marginTop: Spacing.one,
+    paddingHorizontal: Spacing.two + Spacing.one,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.glassStrong,
+  },
+  siteMissionTooltipText: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    lineHeight: 18,
+  },
   science: {
     flex: 1,
     minWidth: 0,
@@ -1127,6 +1205,9 @@ const styles = StyleSheet.create({
   mapReadoutDesktop: {
     top: Spacing.four,
     left: Spacing.four,
+  },
+  mapReadoutAfterToggle: {
+    left: Spacing.six,
   },
   scaleReadout: {
     alignItems: 'flex-start',
@@ -1230,11 +1311,26 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
   },
+  // A collapsed panel is only its toggle. It floats over the map so no empty rail remains.
+  desktopPanelCollapsed: {
+    position: 'absolute',
+    top: 0,
+    bottom: Spacing.two + Spacing.one,
+    zIndex: 2,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+  },
   layersPanel: {
     flexGrow: 0,
   },
+  layersPanelCollapsed: {
+    left: Spacing.two + Spacing.one,
+  },
   walkPanel: {
     flexGrow: 0,
+  },
+  walkPanelCollapsed: {
+    right: Spacing.two + Spacing.one,
   },
   desktopPanelScroll: {
     flex: 1,
@@ -1253,6 +1349,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.glassLight,
     borderRadius: Radius.pill,
+  },
+  panelToggleCollapsed: {
+    backgroundColor: Colors.glassStrong,
   },
   layersToggle: {
     right: Spacing.two + Spacing.one,

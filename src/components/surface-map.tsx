@@ -11,6 +11,8 @@ import {
 } from 'react';
 import {
   AccessibilityInfo,
+  Animated,
+  Easing,
   PixelRatio,
   Platform,
   Pressable,
@@ -98,6 +100,7 @@ type SurfaceMapProps = {
 };
 
 const webOnly = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle) : null);
+const LAYER_REVEAL_MS = 160;
 
 const sameView = (left: MapView, right: MapView) =>
   left.lat === right.lat &&
@@ -266,7 +269,13 @@ export function SurfaceMap({
       onResponderTerminate={() => controller.current?.end()}>
       {size && planeStyle && (
         <View style={[StyleSheet.absoluteFill, planeStyle]} pointerEvents="none">
-          <TilePlane layers={layers} opacity={opacity} base={base} size={size} />
+          <TilePlane
+            layers={layers}
+            opacity={opacity}
+            base={base}
+            size={size}
+            reduceMotion={reduceMotion}
+          />
         </View>
       )}
 
@@ -365,13 +374,20 @@ type TilePlaneProps = {
   opacity?: Readonly<Record<string, number>>;
   base: MapView;
   size: Size;
+  reduceMotion?: boolean;
 };
 
 /**
  * Every layer in two passes: a coarse one over a wide area, so something is there while panning
  * and while sharp tiles load, and a sharp one over the screen.
  */
-export const TilePlane = memo(function TilePlane({ layers, opacity, base, size }: TilePlaneProps) {
+export const TilePlane = memo(function TilePlane({
+  layers,
+  opacity,
+  base,
+  size,
+  reduceMotion = false,
+}: TilePlaneProps) {
   // Phones pack two or three device pixels in a point; ask for a deeper level so tiles stay crisp.
   const density = Math.min(PixelRatio.get(), 2);
   const sharpArea = visibleBounds(base, size, 0.25);
@@ -416,8 +432,10 @@ export const TilePlane = memo(function TilePlane({ layers, opacity, base, size }
             layer={layer}
             tiles={[...coarse, ...sharp]}
             sharpLevel={sharpLevel}
-            opacity={opacity?.[layer.id] ?? 1}
             place={place}
+            opacity={opacity?.[layer.id] ?? 1}
+            animateIn={opacity?.[layer.id] !== undefined}
+            reduceMotion={reduceMotion}
           />
         );
       })}
@@ -439,6 +457,8 @@ type LayerTilesProps = {
   sharpLevel: number;
   opacity: number;
   place: (tile: TileAddress) => { left: number; top: number; width: number; height: number };
+  animateIn: boolean;
+  reduceMotion: boolean;
 };
 
 /**
@@ -446,10 +466,22 @@ type LayerTilesProps = {
  * until the new sharp ones have arrived: the map goes from one sharpness to the next without
  * falling back to a blur, or to nothing, in between.
  */
-function LayerTiles({ layer, tiles, sharpLevel, opacity, place }: LayerTilesProps) {
+function LayerTiles({
+  layer,
+  tiles,
+  sharpLevel,
+  opacity,
+  place,
+  animateIn,
+  reduceMotion,
+}: LayerTilesProps) {
   const signature = tiles.map(keyOf).join(' ');
   const [shown, setShown] = useState({ signature, tiles });
   const [held, setHeld] = useState<readonly TileAddress[]>([]);
+  const [shownOpacity] = useState(
+    () => new Animated.Value(animateIn && !reduceMotion ? 0 : opacity),
+  );
+  const hasEntered = useRef(!animateIn || reduceMotion);
   if (shown.signature !== signature) {
     // The view asked for other tiles: what was on screen is held, less what is asked for again.
     const coming = new Set(tiles.map(keyOf));
@@ -471,6 +503,30 @@ function LayerTiles({ layer, tiles, sharpLevel, opacity, place }: LayerTilesProp
     return () => clearTimeout(timer);
   }, [held]);
 
+  useEffect(() => {
+    if (reduceMotion || !animateIn) {
+      shownOpacity.stopAnimation();
+      shownOpacity.setValue(opacity);
+      hasEntered.current = true;
+      return;
+    }
+    // The fade belongs to turning a layer on. Slider adjustments must follow the thumb directly.
+    if (hasEntered.current) {
+      shownOpacity.stopAnimation();
+      shownOpacity.setValue(opacity);
+      return;
+    }
+    hasEntered.current = true;
+    const transition = Animated.timing(shownOpacity, {
+      toValue: opacity,
+      duration: LAYER_REVEAL_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    transition.start();
+    return () => transition.stop();
+  }, [animateIn, opacity, reduceMotion, shownOpacity]);
+
   const settle = (key: string) => {
     const seen = arrived.current;
     seen.add(key);
@@ -488,7 +544,7 @@ function LayerTiles({ layer, tiles, sharpLevel, opacity, place }: LayerTilesProp
 
   // The layer fades as one sheet, so the coarse pass does not show through the sharp one.
   return (
-    <View style={[StyleSheet.absoluteFill, { opacity }]}>
+    <Animated.View style={[StyleSheet.absoluteFill, { opacity: shownOpacity }]}>
       {drawn.map((tile) => {
         const key = keyOf(tile);
         return (
@@ -506,7 +562,7 @@ function LayerTiles({ layer, tiles, sharpLevel, opacity, place }: LayerTilesProp
           />
         );
       })}
-    </View>
+    </Animated.View>
   );
 }
 

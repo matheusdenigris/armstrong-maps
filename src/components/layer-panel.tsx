@@ -1,4 +1,15 @@
+import Slider from '@react-native-community/slider';
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  LinearTransition,
+  ReduceMotion,
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import type { LayerKind, MapLayer } from '@/data/layers';
@@ -21,9 +32,12 @@ const KINDS: { kind: LayerKind; title: string; color: string }[] = [
   { kind: 'spectral', title: 'SPECTRAL', color: Colors.spectral },
 ];
 
-const OPACITIES = [0.25, 0.5, 0.75, 1];
+const LAYER_CONTROL_TRANSITION_MS = 160;
+const LAYER_LAYOUT_TRANSITION = LinearTransition.duration(LAYER_CONTROL_TRANSITION_MS)
+  .easing(Easing.out(Easing.cubic))
+  .reduceMotion(ReduceMotion.System);
 
-/** The layers of the map by kind of data, with a switch and an opacity for each overlay. */
+/** The layers of the map by kind of data, with a switch and adjustable opacity for each overlay. */
 export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: LayerPanelProps) {
   return (
     <View style={styles.panel}>
@@ -52,8 +66,9 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
               const opacity = active[layer.id];
               const on = opacity !== undefined;
               return (
-                <View
+                <Animated.View
                   key={layer.id}
+                  layout={LAYER_LAYOUT_TRANSITION}
                   style={[styles.layer, on && styles.layerOn]}>
                   <Pressable
                     onPress={() => onToggle(layer.id)}
@@ -61,9 +76,7 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
                     accessibilityState={{ checked: on }}
                     accessibilityLabel={`${layer.name}, ${layer.source}`}
                     style={({ pressed }) => [styles.toggle, pressed && styles.togglePressed]}>
-                    <View style={[styles.switch, on && { backgroundColor: color }]}>
-                      <View style={[styles.knob, on && styles.knobOn]} />
-                    </View>
+                    <LayerSwitch on={on} color={color} />
                     <View style={styles.text}>
                       <Text style={styles.name}>{layer.name}</Text>
                       <Text style={[styles.source, { color }]}>{layer.source}</Text>
@@ -71,27 +84,32 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
                   </Pressable>
                   <Text style={styles.reads}>{layer.reads}</Text>
                   {on ? (
-                    <View style={styles.opacity} accessibilityRole="radiogroup">
-                      <Text style={styles.opacityLabel}>Opacity</Text>
-                      {OPACITIES.map((value) => {
-                        const chosen = Math.abs(opacity - value) < 0.01;
-                        return (
-                          <Pressable
-                            key={value}
-                            onPress={() => onOpacity(layer.id, value)}
-                            accessibilityRole="radio"
-                            accessibilityState={{ checked: chosen }}
-                            accessibilityLabel={`${layer.name} opacity ${formatShare(value)}`}
-                            style={[styles.step, chosen && styles.stepChosen]}>
-                            <Text style={[styles.stepText, chosen && styles.stepTextChosen]}>
-                              {formatShare(value)}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
+                    <View style={styles.opacity}>
+                      <View style={styles.opacityHeading}>
+                        <Text style={styles.opacityLabel}>Opacity</Text>
+                        <Text style={styles.opacityValue}>{formatShare(opacity)}</Text>
+                      </View>
+                      <Slider
+                        accessibilityLabel={`${layer.name} opacity`}
+                        accessibilityValue={{
+                          min: 0,
+                          max: 100,
+                          now: Math.round(opacity * 100),
+                          text: formatShare(opacity),
+                        }}
+                        minimumValue={0}
+                        maximumValue={1}
+                        step={0.01}
+                        value={opacity}
+                        onValueChange={(value) => onOpacity(layer.id, value)}
+                        minimumTrackTintColor={color}
+                        maximumTrackTintColor={Colors.glassBorder}
+                        thumbTintColor={Colors.text}
+                        style={styles.slider}
+                      />
                     </View>
                   ) : null}
-                </View>
+                </Animated.View>
               );
             })}
           </View>
@@ -103,6 +121,31 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
         coverage.
       </Text>
     </View>
+  );
+}
+
+function LayerSwitch({ on, color }: { on: boolean; color: string }) {
+  const progress = useSharedValue(on ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withTiming(on ? 1 : 0, {
+      duration: LAYER_CONTROL_TRANSITION_MS,
+      easing: Easing.out(Easing.cubic),
+      reduceMotion: ReduceMotion.System,
+    });
+  }, [on, progress]);
+
+  const switchStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(progress.value, [0, 1], [Colors.glassBorder, color]),
+  }));
+  const knobStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: progress.value * 18 }],
+  }));
+
+  return (
+    <Animated.View style={[styles.switch, switchStyle]}>
+      <Animated.View style={[styles.knob, knobStyle]} />
+    </Animated.View>
   );
 }
 
@@ -193,9 +236,6 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     backgroundColor: Colors.white,
   },
-  knobOn: {
-    marginLeft: 18,
-  },
   text: {
     flex: 1,
     gap: Spacing.half,
@@ -227,36 +267,27 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   opacity: {
+    gap: Spacing.half,
+    paddingTop: Spacing.one,
+  },
+  opacityHeading: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: Spacing.one,
-    paddingTop: Spacing.one,
+    justifyContent: 'space-between',
   },
   opacityLabel: {
     color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 12,
-    paddingRight: Spacing.two,
   },
-  step: {
-    minWidth: 52,
-    minHeight: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Radius.pill,
-    backgroundColor: Colors.glassLight,
-  },
-  stepChosen: {
-    backgroundColor: Colors.text,
-  },
-  stepText: {
-    color: Colors.textSoft,
+  opacityValue: {
+    color: Colors.text,
     fontFamily: Fonts.mono,
     fontSize: 12,
   },
-  stepTextChosen: {
-    color: Colors.background,
+  slider: {
+    height: 36,
+    marginHorizontal: -Spacing.one,
   },
   credit: {
     color: Colors.textFaint,
