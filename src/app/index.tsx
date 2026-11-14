@@ -10,9 +10,8 @@ import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { SITES, type Site } from '@/data/sites';
 import { formatLatLon } from '@/mission/format';
 
-/** From this width the globe and the list sit side by side. */
-const SIDE_BY_SIDE = 900;
-const PANEL_WIDTH = 420;
+/** From this width the site dock can overlay the globe without crowding it. */
+const WIDE_GLOBE = 980;
 
 /** A press on the web is a mouse event and on a phone a touch; both can be cancelled. */
 type Cancellable = { preventDefault: () => void };
@@ -37,8 +36,8 @@ export default function HomeScreen() {
   const hydrated = useHydrated();
   const globe = useRef<GlobeHandle>(null);
 
-  const sideBySide = GLOBE_AVAILABLE && hydrated && width >= SIDE_BY_SIDE;
-  const stacked = GLOBE_AVAILABLE && hydrated && !sideBySide;
+  const wideGlobe = GLOBE_AVAILABLE && hydrated && width >= WIDE_GLOBE;
+  const stacked = GLOBE_AVAILABLE && hydrated && !wideGlobe;
 
   const open = (site: Site) => router.push({ pathname: '/site/[id]', params: { id: site.id } });
 
@@ -50,19 +49,14 @@ export default function HomeScreen() {
   };
 
   const list = (
-    <ScrollView contentContainerStyle={styles.list}>
+    <ScrollView nativeID="landing-site-dock" contentContainerStyle={styles.list}>
       {!GLOBE_AVAILABLE || !hydrated ? <Hero /> : null}
       <Text style={styles.section} accessibilityRole="header">
         LANDING SITES
       </Text>
-      {sideBySide ? <Text style={styles.intro}>{TAGLINE}</Text> : null}
-      {SITES.map((site) => (
-        <SiteCard key={site.id} site={site} onPress={(event) => choose(site, event)} />
+      {SITES.map((site, index) => (
+        <SiteCard key={site.id} index={index + 1} site={site} onPress={(event) => choose(site, event)} />
       ))}
-      <Text style={styles.footer}>
-        Imagery from NASA/JPL Mars Trek. A NASA Space Apps Challenge 2026 project, with no official
-        link to NASA.
-      </Text>
     </ScrollView>
   );
 
@@ -71,20 +65,45 @@ export default function HomeScreen() {
       <Head>
         <title>Armstrong Maps</title>
         <meta name="description" content={TAGLINE} />
+        <style>{`
+          #landing-site-dock {
+            scrollbar-color: ${Colors.mars} transparent;
+            scrollbar-width: thin;
+          }
+
+          #landing-site-dock::-webkit-scrollbar {
+            width: 10px;
+            background: transparent;
+          }
+
+          #landing-site-dock::-webkit-scrollbar-track {
+            background: transparent;
+          }
+
+          #landing-site-dock::-webkit-scrollbar-thumb {
+            background: ${Colors.mars};
+            border: 1px solid ${Colors.text};
+            border-radius: ${Radius.large}px;
+          }
+        `}</style>
       </Head>
 
-      {sideBySide ? (
-        <View style={styles.row}>
-          <View style={styles.stage}>
-            <MarsGlobe ref={globe} sites={SITES} onOpen={open} />
-            <View style={styles.brandOverlay} pointerEvents="none">
-              <Brand />
-            </View>
-            <Text style={styles.hint} pointerEvents="none">
+      {wideGlobe ? (
+        <View style={styles.stage}>
+          <MarsGlobe ref={globe} sites={SITES} onOpen={open} />
+          <View style={styles.topBar} pointerEvents="none">
+            <Brand />
+          </View>
+          <View style={styles.siteDock}>{list}</View>
+          <View style={styles.globeCaption} pointerEvents="none">
+            <Text style={styles.hint} numberOfLines={1}>
               Drag to turn, scroll to move in. Blue outlines: high-resolution coverage.
             </Text>
+            <Text style={styles.credit}>
+              Imagery from NASA/JPL Mars Trek. A NASA Space Apps Challenge 2026 project, with no
+              official link to NASA.
+            </Text>
           </View>
-          <View style={styles.panel}>{list}</View>
         </View>
       ) : (
         <>
@@ -132,9 +151,9 @@ function Hero() {
   );
 }
 
-type SiteCardProps = { site: Site; onPress: (event: Cancellable) => void };
+type SiteCardProps = { index: number; site: Site; onPress: (event: Cancellable) => void };
 
-function SiteCard({ site, onPress }: SiteCardProps) {
+function SiteCard({ index, site, onPress }: SiteCardProps) {
   return (
     <Link href={{ pathname: '/site/[id]', params: { id: site.id } }} onPress={onPress} asChild>
       <Pressable accessibilityRole="link" accessibilityLabel={`Open the map of ${site.name}`}>
@@ -146,10 +165,13 @@ function SiteCard({ site, onPress }: SiteCardProps) {
               (state as { hovered?: boolean }).hovered && styles.cardHovered,
               state.pressed && styles.cardPressed,
             ]}>
-            <Text style={styles.cardName}>{site.name}</Text>
-            <Text style={styles.cardMission}>{site.mission}</Text>
-            <Text style={styles.cardScience}>{site.science}</Text>
-            <Text style={styles.cardCoords}>{formatLatLon(site.landing, 2)}</Text>
+            <Text style={styles.cardIndex}>{String(index).padStart(2, '0')}</Text>
+            <View style={styles.cardDetails}>
+              <Text style={styles.cardName}>{site.name}</Text>
+              <Text style={styles.cardMission}>{site.mission}</Text>
+              <Text style={styles.cardScience}>{site.science}</Text>
+              <Text style={styles.cardCoords}>{formatLatLon(site.landing, 2)}</Text>
+            </View>
           </View>
         )}
       </Pressable>
@@ -165,27 +187,23 @@ const styles = StyleSheet.create({
   fill: {
     flex: 1,
   },
-  row: {
-    flex: 1,
-    flexDirection: 'row',
-  },
   stage: {
     flex: 1,
   },
-  panel: {
-    width: PANEL_WIDTH,
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    borderLeftColor: Colors.border,
-    backgroundColor: Colors.surface,
-  },
-  brandOverlay: {
+  topBar: {
     position: 'absolute',
-    top: Spacing.four,
-    left: Spacing.four,
+    top: 0,
+    right: 0,
+    left: 0,
+    zIndex: 1,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
   },
   brandBar: {
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
   },
   brand: {
     flexDirection: 'row',
@@ -194,24 +212,43 @@ const styles = StyleSheet.create({
   },
   brandName: {
     color: Colors.text,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.mono,
     fontSize: 18,
     fontWeight: '700',
     letterSpacing: 3,
   },
   brandSub: {
     color: Colors.textMuted,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.mono,
     fontSize: 12,
     letterSpacing: 7,
   },
-  hint: {
+  siteDock: {
+    position: 'absolute',
+    top: Spacing.three,
+    right: Spacing.four,
+    bottom: Spacing.four,
+    zIndex: 1,
+    width: 340,
+  },
+  globeCaption: {
     position: 'absolute',
     left: Spacing.four,
     bottom: Spacing.four,
+    zIndex: 1,
+    gap: Spacing.one,
+    maxWidth: 620,
+  },
+  hint: {
     color: Colors.textMuted,
     fontFamily: Fonts.mono,
     fontSize: 11,
+  },
+  credit: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.mono,
+    fontSize: 11,
+    lineHeight: 16,
   },
   list: {
     width: '100%',
@@ -231,20 +268,20 @@ const styles = StyleSheet.create({
   },
   name: {
     color: Colors.text,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.mono,
     fontSize: 28,
     fontWeight: '700',
     letterSpacing: 4,
   },
   sub: {
     color: Colors.textMuted,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.mono,
     fontSize: 18,
     letterSpacing: 10,
   },
   tagline: {
     color: Colors.textMuted,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.mono,
     fontSize: 16,
     lineHeight: 24,
     textAlign: 'center',
@@ -256,41 +293,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 2,
   },
-  intro: {
-    color: Colors.text,
-    fontFamily: Fonts.sans,
-    fontSize: 15,
-    lineHeight: 22,
-  },
   card: {
+    flexDirection: 'row',
     padding: Spacing.three,
-    gap: Spacing.two,
+    gap: Spacing.three,
     borderRadius: Radius.medium,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.border,
-    backgroundColor: Colors.surfaceRaised,
+    backgroundColor: 'transparent',
   },
   cardHovered: {
     borderColor: Colors.nav,
   },
   cardPressed: {
-    backgroundColor: Colors.border,
+    borderColor: Colors.textMuted,
+  },
+  cardIndex: {
+    color: Colors.nav,
+    fontFamily: Fonts.mono,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  cardDetails: {
+    flex: 1,
+    gap: Spacing.one,
   },
   cardName: {
     color: Colors.text,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.mono,
     fontSize: 18,
     fontWeight: '700',
   },
   cardMission: {
     color: Colors.mars,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.mono,
     fontSize: 13,
     fontWeight: '600',
   },
   cardScience: {
     color: Colors.textMuted,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.mono,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -299,11 +341,5 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.mono,
     fontSize: 12,
     paddingTop: Spacing.one,
-  },
-  footer: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.sans,
-    fontSize: 12,
-    lineHeight: 18,
   },
 });
