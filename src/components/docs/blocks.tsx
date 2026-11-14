@@ -3,7 +3,7 @@ import { Fragment } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
-import type { Block } from '@/data/docs-pages';
+import type { Block, Level } from '@/data/docs-pages';
 
 import { Icon, IconTile } from './icon';
 
@@ -30,11 +30,110 @@ const NEW_TAB =
 
 const TONES = { note: Colors.nav, warning: Colors.caution, nasa: Colors.nasa } as const;
 
+const LEVELS: Record<Level, { label: string; color: string }> = {
+  go: { label: 'Go', color: Colors.go },
+  caution: { label: 'Caution', color: Colors.caution },
+  'no-go': { label: 'No-go', color: Colors.noGo },
+  warning: { label: 'Warning', color: Colors.noGo },
+};
+
+/** The colours of a layer from low to high, as one smooth bar in a browser and as steps elsewhere. */
+function Ramp({ colors }: { colors: readonly string[] }) {
+  const smooth = web({ backgroundImage: `linear-gradient(90deg, ${colors.join(', ')})` });
+  return (
+    <View style={[styles.ramp, smooth]}>
+      {smooth
+        ? null
+        : colors.map((color) => <View key={color} style={[styles.rampStep, { backgroundColor: color }]} />)}
+    </View>
+  );
+}
+
 /** One block of a docs page. */
 export function BlockView({ block, onOpen, wide }: BlockViewProps) {
   switch (block.kind) {
     case 'text':
       return <Text style={styles.text}>{block.text}</Text>;
+
+    case 'list':
+      return (
+        <View style={styles.list} accessibilityRole="list">
+          {block.items.map((item) => (
+            <View key={item} style={styles.listItem}>
+              <View style={styles.listDot} />
+              <Text style={styles.listText}>{item}</Text>
+            </View>
+          ))}
+        </View>
+      );
+
+    case 'stats':
+      return (
+        <View style={styles.cards}>
+          {block.items.map((item) => (
+            <View key={item.label} style={wide ? styles.statSlotWide : styles.cardSlotHalf}>
+              <View style={styles.stat} accessible accessibilityLabel={`${item.value} ${item.label}`}>
+                <Text style={styles.statValue}>{item.value}</Text>
+                <Text style={styles.statLabel}>{item.label}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      );
+
+    case 'levels':
+      return (
+        <View style={styles.table}>
+          {block.items.map((item, index) => {
+            const level = LEVELS[item.level];
+            return (
+              <View
+                key={item.title}
+                style={[styles.row, index > 0 && styles.rowDivider, !wide && styles.rowStacked]}>
+                <View style={[styles.level, wide && styles.levelWide]}>
+                  <View style={[styles.calloutDot, { backgroundColor: level.color }]} />
+                  <Text style={styles.levelLabel}>{level.label}</Text>
+                </View>
+                <View style={[styles.levelCopy, wide && styles.rowValueWide]}>
+                  <Text style={styles.rowValue}>{item.title}</Text>
+                  {item.text ? <Text style={styles.levelText}>{item.text}</Text> : null}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      );
+
+    case 'layers':
+      return (
+        <View style={styles.layers}>
+          {block.items.map((item) => (
+            <View key={item.name} style={styles.layer}>
+              <View style={styles.layerHead}>
+                <Text style={styles.cardTitle}>{item.name}</Text>
+                <View style={styles.tag}>
+                  <Text style={styles.tagText}>{item.tag}</Text>
+                </View>
+              </View>
+              <Text style={styles.layerSource}>{item.source}</Text>
+              <Text style={styles.layerReads}>{item.reads}</Text>
+              {item.key ? (
+                <View
+                  style={styles.layerKey}
+                  accessible
+                  accessibilityLabel={`Colour key: ${item.key.quantity}. ${item.key.low}. ${item.key.high}.`}>
+                  <Text style={styles.codeLabel}>{item.key.quantity}</Text>
+                  <Ramp colors={item.key.colors} />
+                  <View style={styles.layerEnds}>
+                    <Text style={styles.layerEnd}>{item.key.low}</Text>
+                    <Text style={[styles.layerEnd, styles.layerEndHigh]}>{item.key.high}</Text>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      );
 
     case 'steps':
       return (
@@ -60,15 +159,19 @@ export function BlockView({ block, onOpen, wide }: BlockViewProps) {
       return (
         <View style={styles.cards}>
           {block.items.map((item) => {
+            // One card alone is a line across the page; more share the row two by two.
+            const half = wide && block.items.length > 1;
+            const slot = half ? styles.cardSlotHalf : styles.cardSlot;
+            const linked = Boolean(item.page || item.href);
             const body = (lit: boolean) => (
-              <View style={[styles.card, EASE, wide && styles.cardHalf, lit && styles.cardOver]}>
+              <View style={[styles.card, EASE, half && styles.cardHalf, lit && styles.cardOver]}>
                 <View style={styles.cardTop}>
                   <IconTile
                     name={item.icon}
                     color={item.nasa ? Colors.nasa : Colors.text}
                     background={item.nasa ? Colors.nasaTint : Colors.glassHover}
                   />
-                  {item.page ? <Icon name="chevron" size={16} color={Colors.textFaint} /> : null}
+                  {linked ? <Icon name="chevron" size={16} color={Colors.textFaint} /> : null}
                 </View>
                 <Text style={styles.cardTitle}>{item.title}</Text>
                 <Text style={styles.cardText} numberOfLines={4}>
@@ -76,17 +179,29 @@ export function BlockView({ block, onOpen, wide }: BlockViewProps) {
                 </Text>
               </View>
             );
+            if (item.href) {
+              return (
+                <Link key={item.title} href={item.href as Href} asChild>
+                  <Pressable
+                    accessibilityRole="link"
+                    accessibilityLabel={`${item.title}. ${item.text}`}
+                    style={slot}>
+                    {(state) => body(Boolean(over(state)))}
+                  </Pressable>
+                </Link>
+              );
+            }
             return item.page ? (
               <Pressable
                 key={item.title}
                 onPress={() => onOpen(item.page!)}
                 accessibilityRole="link"
                 accessibilityLabel={`${item.title}. ${item.text}`}
-                style={wide ? styles.cardSlotHalf : styles.cardSlot}>
+                style={slot}>
                 {(state) => body(Boolean(over(state)))}
               </Pressable>
             ) : (
-              <View key={item.title} style={wide ? styles.cardSlotHalf : styles.cardSlot}>
+              <View key={item.title} style={slot}>
                 {body(false)}
               </View>
             );
@@ -169,6 +284,147 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 16,
     lineHeight: 26,
+  },
+
+  list: {
+    gap: Spacing.two,
+  },
+  listItem: {
+    flexDirection: 'row',
+    gap: Spacing.two + Spacing.one,
+  },
+  listDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 11,
+    backgroundColor: Colors.textFaint,
+  },
+  listText: {
+    flex: 1,
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 16,
+    lineHeight: 26,
+  },
+
+  statSlotWide: {
+    width: '25%',
+    padding: Spacing.one + Spacing.half,
+  },
+  stat: {
+    flexGrow: 1,
+    gap: Spacing.one,
+    padding: Spacing.three,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
+  },
+  statValue: {
+    color: Colors.text,
+    fontFamily: Fonts.mono,
+    fontSize: 24,
+    lineHeight: 30,
+    letterSpacing: -0.6,
+  },
+  statLabel: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+
+  level: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    minHeight: 21,
+  },
+  levelWide: {
+    width: 96,
+    alignSelf: 'flex-start',
+  },
+  levelLabel: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  levelCopy: {
+    gap: Spacing.half,
+  },
+  levelText: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+
+  layers: {
+    gap: Spacing.two + Spacing.one,
+  },
+  layer: {
+    gap: Spacing.one,
+    padding: Spacing.three + Spacing.one,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
+  },
+  layerHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  tag: {
+    paddingHorizontal: Spacing.two + Spacing.half,
+    paddingVertical: Spacing.half + 1,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.glassHover,
+  },
+  tagText: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+  },
+  layerSource: {
+    color: Colors.textFaint,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  layerReads: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    lineHeight: 21,
+    paddingTop: Spacing.one,
+  },
+  layerKey: {
+    gap: Spacing.two,
+    paddingTop: Spacing.three,
+  },
+  ramp: {
+    flexDirection: 'row',
+    height: 8,
+    borderRadius: Radius.pill,
+    overflow: 'hidden',
+  },
+  rampStep: {
+    flex: 1,
+  },
+  layerEnds: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+  },
+  layerEnd: {
+    flex: 1,
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  layerEndHigh: {
+    textAlign: 'right',
   },
 
   step: {

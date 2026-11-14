@@ -34,6 +34,7 @@ import {
   DOC_TABS,
   docGroups,
   findDocPage,
+  searchDocs,
   type DocPage,
 } from '@/data/docs-pages';
 
@@ -380,16 +381,9 @@ type NavigationProps = {
 /** The pages of the current tab by group, or every page that matches the search. */
 function Navigation({ current, query, onQuery, onOpen }: NavigationProps) {
   const [searching, setSearching] = useState(false);
-  const search = query.trim().toLowerCase();
-  const groups = search
-    ? [
-        {
-          group: 'Results',
-          pages: DOC_PAGES.filter((page) =>
-            `${page.title} ${page.lead} ${page.group}`.toLowerCase().includes(search),
-          ),
-        },
-      ]
+  // A search looks through everything the pages say, in both tabs.
+  const groups = query.trim()
+    ? [{ group: 'Results', pages: searchDocs(query) }]
     : docGroups(current.tab);
 
   return (

@@ -24,6 +24,12 @@ export type IconName =
   | 'sound'
   | 'ruler'
   | 'database'
+  | 'pin'
+  | 'bell'
+  | 'phone'
+  | 'flag'
+  | 'terminal'
+  | 'blocks'
   | 'menu'
   | 'close'
   | 'chevron'
@@ -53,6 +59,12 @@ const PATHS: Record<IconName, string[]> = {
   sound: ['M4 9h4l5-4v14l-5-4H4V9z', 'M16 9a4 4 0 0 1 0 6', 'M18.5 6.5a8 8 0 0 1 0 11'],
   ruler: ['M3 17L17 3l4 4L7 21l-4-4z', 'M7 13l2 2', 'M10 10l2 2', 'M13 7l2 2'],
   database: ['M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z', 'M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6', 'M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3'],
+  pin: ['M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z', 'M12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z'],
+  bell: ['M6 16v-5a6 6 0 0 1 12 0v5l2 2H4l2-2z', 'M10 20.5a2 2 0 0 0 4 0'],
+  phone: ['M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z', 'M11 18h2'],
+  flag: ['M5 21V4', 'M5 4h13l-2.5 4 2.5 4H5'],
+  terminal: ['M4 5h16v14H4z', 'M7.5 10l3 2-3 2', 'M12.5 15h4'],
+  blocks: ['M4 4h7v7H4z', 'M13 4h7v7h-7z', 'M4 13h7v7H4z', 'M13 13h7v7h-7z'],
   menu: ['M4 7h16', 'M4 12h16', 'M4 17h16'],
   close: ['M6 6l12 12', 'M18 6L6 18'],
   chevron: ['M9 6l6 6-6 6'],
