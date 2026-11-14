@@ -34,6 +34,36 @@ const CONTENTS_FROM = 1240;
 const SIDEBAR_WIDTH = 272;
 const CONTENTS_WIDTH = 220;
 
+/**
+ * Thin, quiet scroll bars on the web, in the colours of the theme, instead of the browser's
+ * default. Phones draw their own overlay bars and ignore this.
+ */
+const SCROLLBAR_CSS = `
+  #docs-main, #docs-nav {
+    scrollbar-width: thin;
+    scrollbar-color: ${Colors.border} transparent;
+  }
+  #docs-main:hover, #docs-nav:hover {
+    scrollbar-color: ${Colors.textMuted} transparent;
+  }
+  #docs-main::-webkit-scrollbar, #docs-nav::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    background: transparent;
+  }
+  #docs-main::-webkit-scrollbar-track, #docs-nav::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  #docs-main::-webkit-scrollbar-thumb, #docs-nav::-webkit-scrollbar-thumb {
+    background: ${Colors.border};
+    border-radius: 8px;
+    border: 2px solid ${Colors.background};
+  }
+  #docs-main::-webkit-scrollbar-thumb:hover, #docs-nav::-webkit-scrollbar-thumb:hover {
+    background: ${Colors.textMuted};
+  }
+`;
+
 /** False on the page rendered ahead of time, which does not know the size of the window. */
 function useHydrated() {
   return useSyncExternalStore(
@@ -84,6 +114,7 @@ export default function DocsScreen() {
       <Head>
         <title>{`${page.title} | Armstrong Maps docs`}</title>
         <meta name="description" content={DESCRIPTION} />
+        <style>{SCROLLBAR_CSS}</style>
       </Head>
 
       <View style={styles.topBar}>
@@ -136,7 +167,11 @@ export default function DocsScreen() {
       <View style={styles.body}>
         {withSidebar ? <View style={styles.sidebar}>{navigation}</View> : null}
 
-        <ScrollView ref={scroll} style={styles.main} contentContainerStyle={styles.mainContent}>
+        <ScrollView
+          ref={scroll}
+          nativeID="docs-main"
+          style={styles.main}
+          contentContainerStyle={styles.mainContent}>
           {!withSidebar ? (
             <View style={styles.breadcrumb}>
               <Text style={styles.breadcrumbText}>{page.group}</Text>
@@ -235,7 +270,7 @@ function Navigation({ current, query, onQuery, onOpen }: NavigationProps) {
     : docGroups(current.tab);
 
   return (
-    <ScrollView contentContainerStyle={styles.navContent}>
+    <ScrollView nativeID="docs-nav" contentContainerStyle={styles.navContent}>
       <View style={styles.searchBox}>
         <Icon name="search" size={16} color={Colors.textMuted} />
         <TextInput
