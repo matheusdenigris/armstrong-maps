@@ -251,7 +251,8 @@ export function PanoramaView({
     let frame = 0;
     let swapped = false;
     const step = (time: number) => {
-      const t = calm ? 1 : Math.min(1, (time - started) / CUT_MS);
+      // The first frame can carry a time from before the cut was asked for.
+      const t = calm ? 1 : Math.min(1, Math.max(0, (time - started) / CUT_MS));
       if (!swapped && t >= 0.5) {
         swapped = true;
         setScene(panorama);
