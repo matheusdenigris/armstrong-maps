@@ -89,10 +89,11 @@ export function MarsGlobe({ sites, onOpen, onHover, ref }: MarsGlobeProps) {
   );
 }
 
-/** The planet shows softly through a label. */
+/** The planet shows softly through a label, and a label fades in and out at the edge. */
 const BLUR = {
   backdropFilter: 'blur(12px)',
   WebkitBackdropFilter: 'blur(12px)',
+  willChange: 'transform, opacity',
 } as ViewStyle;
 
 const styles = StyleSheet.create({
