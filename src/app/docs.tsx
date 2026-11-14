@@ -1,9 +1,10 @@
 import { Link, type Href } from 'expo-router';
 import Head from 'expo-router/head';
 import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Logo } from '@/components/logo';
 import { Colors, Fonts, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import {
   KIND_LABELS,
@@ -35,21 +36,39 @@ export default function DocsScreen() {
         <meta name="description" content={DESCRIPTION} />
       </Head>
 
+      <View style={styles.missionBar}>
+        <Link href="/" asChild>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Back to the landing sites"
+            style={({ pressed }) => [styles.brand, pressed && styles.brandPressed]}>
+            <View style={styles.brandIdentity}>
+              <Logo size={26} />
+              <Text style={styles.brandName} numberOfLines={1}>
+                ARMSTRONG <Text style={styles.brandAccent}>MAPS</Text>
+              </Text>
+            </View>
+          </Pressable>
+        </Link>
+        <View style={styles.barDivider} />
+        <Text style={styles.barLabel}>MISSION DOCUMENTATION</Text>
+      </View>
+
       <ScrollView contentContainerStyle={styles.page}>
-        <View style={styles.header}>
-          <Link href="/" style={styles.back} accessibilityRole="link" accessibilityLabel="Back to the sites">
-            {'‹'} Sites
-          </Link>
+        <View style={styles.hero}>
+          <Text style={styles.eyebrow}>INTERPLANETARY SURVIVAL GUIDE</Text>
           <Text style={styles.title} accessibilityRole="header">
-            DOCS
+            MISSION
+          </Text>
+          <Text style={[styles.title, styles.titleAccent]} accessibilityRole="header">
+            DOCUMENTATION
+          </Text>
+          <Text style={styles.lead}>
+            Armstrong Maps puts NASA data about Mars in layers on a map and turns a tapped route into a
+            go, caution or no-go verdict. This page lists every source the app reads, the address it
+            calls, and where each one shows up.
           </Text>
         </View>
-
-        <Text style={styles.lead}>
-          Armstrong Maps puts NASA data about Mars in layers on a map and turns a tapped route into a
-          go, caution or no-go verdict. This page lists every source the app reads, the address it
-          calls, and where each one shows up.
-        </Text>
 
         <View style={styles.counts}>
           <Count value={NASA_SOURCES.length} label="NASA sources" accent />
@@ -57,9 +76,7 @@ export default function DocsScreen() {
           <Count value={OTHER_SOURCES.length} label="other reference" />
         </View>
 
-        <Text style={styles.section} accessibilityRole="header">
-          NASA DATA AND APIS
-        </Text>
+        <SectionHeading number="01" title="NASA DATA AND APIS" />
         <Text style={styles.body}>
           NASA sources carry the most weight in the app: the map, the rover traverses and pictures,
           the space weather and the radiation figure all come from NASA missions and services. They
@@ -69,16 +86,12 @@ export default function DocsScreen() {
           <SourceCard key={source.id} source={source} />
         ))}
 
-        <Text style={styles.section} accessibilityRole="header">
-          OTHER REFERENCES
-        </Text>
+        <SectionHeading number="02" title="OTHER REFERENCES" />
         {OTHER_SOURCES.map((source) => (
           <SourceCard key={source.id} source={source} />
         ))}
 
-        <Text style={styles.section} accessibilityRole="header">
-          USING THE NASA KEY
-        </Text>
+        <SectionHeading number="03" title="USING THE NASA KEY" />
         <Text style={styles.body}>
           Only DONKI, on api.nasa.gov, takes a key. The app reads it from{' '}
           <Text style={styles.code}>EXPO_PUBLIC_NASA_API_KEY</Text> when it is built and falls back
@@ -88,9 +101,7 @@ export default function DocsScreen() {
           last {DONKI_WINDOW_DAYS} days, once per visit.
         </Text>
 
-        <Text style={styles.section} accessibilityRole="header">
-          MEASURED, ASSUMED OR SIMULATED
-        </Text>
+        <SectionHeading number="04" title="MEASURED, ASSUMED OR SIMULATED" />
         <Rule
           label="MEASURED"
           color={Colors.go}
@@ -112,9 +123,7 @@ export default function DocsScreen() {
           text="The walk itself: nobody is walking the route, and the base stands on the landing point of each mission."
         />
 
-        <Text style={styles.section} accessibilityRole="header">
-          SOFTWARE
-        </Text>
+        <SectionHeading number="05" title="SOFTWARE" />
         {SOFTWARE.map((item) => (
           <View key={item.name} style={styles.softwareRow}>
             <ExternalLink url={item.url} style={styles.link}>
@@ -130,6 +139,16 @@ export default function DocsScreen() {
         </Text>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function SectionHeading({ number, title }: { number: string; title: string }) {
+  return (
+    <View style={styles.sectionHeading} accessibilityRole="header">
+      <Text style={styles.sectionNumber}>{number}</Text>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionRule} />
+    </View>
   );
 }
 
@@ -200,39 +219,99 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  page: {
-    width: '100%',
-    maxWidth: MaxContentWidth,
-    alignSelf: 'center',
-    padding: Spacing.three,
-    gap: Spacing.three,
-  },
-  header: {
+  missionBar: {
+    zIndex: 2,
+    minHeight: 58,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.glassStrong,
   },
-  back: {
-    color: Colors.nav,
-    fontFamily: Fonts.sans,
-    fontSize: 16,
-    fontWeight: '600',
-    paddingVertical: Spacing.two + Spacing.one,
-    paddingRight: Spacing.two,
+  brand: {
+    width: 176,
+    flexShrink: 0,
     minHeight: 44,
+    paddingHorizontal: Spacing.one,
+    borderRadius: Radius.small,
+  },
+  brandPressed: {
+    backgroundColor: Colors.surfaceRaised,
+  },
+  brandIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  brandName: {
+    color: Colors.text,
+    fontFamily: Fonts.display,
+    fontSize: 11,
+    fontWeight: '400',
+    letterSpacing: 1.5,
+  },
+  brandAccent: {
+    color: Colors.mars,
+  },
+  barDivider: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: 'stretch',
+    backgroundColor: Colors.border,
+  },
+  barLabel: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 1.3,
+  },
+  page: {
+    width: '100%',
+    maxWidth: MaxContentWidth + 160,
+    alignSelf: 'center',
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.five,
+    paddingBottom: Spacing.six,
+    gap: Spacing.four,
+  },
+  hero: {
+    gap: Spacing.two,
+    paddingBottom: Spacing.three,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  eyebrow: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    fontWeight: '500',
+    letterSpacing: 1.8,
   },
   title: {
     color: Colors.text,
-    fontFamily: Fonts.sans,
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 2,
+    fontFamily: Fonts.display,
+    fontSize: 34,
+    fontWeight: '400',
+    letterSpacing: 1,
+    lineHeight: 40,
+    textTransform: 'uppercase',
+  },
+  titleAccent: {
+    color: Colors.mars,
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: 0.4,
+    marginTop: -Spacing.two,
   },
   lead: {
-    color: Colors.text,
+    maxWidth: 620,
+    marginTop: Spacing.two,
+    color: Colors.textMuted,
     fontFamily: Fonts.sans,
-    fontSize: 17,
-    lineHeight: 25,
+    fontSize: 16,
+    lineHeight: 24,
   },
   counts: {
     flexDirection: 'row',
@@ -240,42 +319,66 @@ const styles = StyleSheet.create({
   },
   count: {
     flex: 1,
-    padding: Spacing.two + Spacing.one,
+    minHeight: 92,
+    justifyContent: 'space-between',
+    padding: Spacing.three,
     gap: Spacing.half,
-    borderRadius: Radius.medium,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
   },
   countAccent: {
-    borderColor: Colors.nasa,
+    borderLeftWidth: 3,
+    borderColor: Colors.mars,
+    borderLeftColor: Colors.mars,
   },
   countValue: {
     color: Colors.text,
-    fontFamily: Fonts.mono,
+    fontFamily: Fonts.display,
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: '400',
   },
   countValueAccent: {
-    color: Colors.nasa,
+    color: Colors.mars,
   },
   countLabel: {
     color: Colors.textMuted,
-    fontFamily: Fonts.sans,
-    fontSize: 12,
-  },
-  section: {
-    color: Colors.textMuted,
     fontFamily: Fonts.mono,
-    fontSize: 12,
-    letterSpacing: 2,
-    paddingTop: Spacing.three,
+    fontSize: 9,
+    fontWeight: '600',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  sectionHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    marginTop: Spacing.two,
+  },
+  sectionNumber: {
+    color: Colors.mars,
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  sectionTitle: {
+    color: Colors.text,
+    fontFamily: Fonts.mono,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  sectionRule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.border,
   },
   body: {
     color: Colors.text,
     fontFamily: Fonts.sans,
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 23,
   },
   code: {
     fontFamily: Fonts.mono,
@@ -285,14 +388,13 @@ const styles = StyleSheet.create({
   card: {
     gap: Spacing.two,
     padding: Spacing.three,
-    borderRadius: Radius.medium,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
   },
   cardNasa: {
     borderLeftWidth: 4,
-    borderLeftColor: Colors.nasa,
+    borderLeftColor: Colors.mars,
     backgroundColor: Colors.surfaceRaised,
   },
   tags: {
@@ -306,25 +408,26 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.half,
-    borderRadius: Radius.small,
+    borderRadius: Radius.small - 2,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.border,
   },
   tagNasa: {
-    color: Colors.text,
+    color: Colors.background,
     fontWeight: '700',
-    borderColor: Colors.nasa,
-    backgroundColor: Colors.nasa,
+    borderColor: Colors.mars,
+    backgroundColor: Colors.mars,
   },
   cardName: {
     color: Colors.text,
-    fontFamily: Fonts.sans,
-    fontSize: 16,
-    fontWeight: '600',
+    fontFamily: Fonts.display,
+    fontSize: 13,
+    fontWeight: '400',
+    letterSpacing: 0.5,
   },
   cardNameNasa: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 14,
+    color: Colors.white,
   },
   publisher: {
     color: Colors.textMuted,
@@ -348,26 +451,31 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   endpoint: {
-    color: Colors.text,
+    color: Colors.cyan,
     fontFamily: Fonts.mono,
     fontSize: 12,
     lineHeight: 18,
     padding: Spacing.two,
-    borderRadius: Radius.small,
+    borderLeftWidth: 2,
+    borderLeftColor: Colors.borderStrong,
     backgroundColor: Colors.background,
   },
   link: {
-    color: Colors.nav,
-    fontFamily: Fonts.sans,
-    fontSize: 14,
-    fontWeight: '600',
-    paddingVertical: Spacing.two,
+    color: Colors.cyan,
+    fontFamily: Fonts.mono,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    paddingTop: Spacing.one,
     minHeight: 44,
   },
   rule: {
-    gap: Spacing.one,
-    paddingLeft: Spacing.two + Spacing.one,
+    gap: Spacing.two,
+    padding: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
     borderLeftWidth: 3,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
   },
   ruleLabel: {
     fontFamily: Fonts.mono,
@@ -376,14 +484,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   softwareRow: {
-    gap: Spacing.half,
+    gap: Spacing.one,
+    padding: Spacing.three,
+    borderLeftWidth: 2,
+    borderLeftColor: Colors.borderStrong,
+    backgroundColor: Colors.surface,
   },
   footer: {
     color: Colors.textMuted,
     fontFamily: Fonts.sans,
     fontSize: 12,
     lineHeight: 18,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.four,
+    marginTop: Spacing.three,
+    paddingTop: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
   },
 });

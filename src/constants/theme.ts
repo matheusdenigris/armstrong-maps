@@ -19,6 +19,8 @@ export const Colors = {
   textMuted: '#8794A6',
   /** Mars: the planet and the brand. */
   mars: '#FC3D21',
+  /** Source cards on the documentation screen. A colour only, never the NASA insignia. */
+  nasa: '#FC3D21',
   /** Navigation: routes, coverage areas, links. */
   nav: '#2F6BFF',
   /** Deeper navigation blue for map labels and overlays. */

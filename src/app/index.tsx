@@ -65,20 +65,24 @@ export default function HomeScreen() {
         <meta name="description" content={TAGLINE} />
         <style>{`
           #landing-globe [id^="landing-site-"],
+          #landing-globe #landing-docs,
           #landing-globe [id^="globe-label-"] {
             cursor: pointer;
           }
 
-          #landing-globe [id^="landing-site-"] {
+          #landing-globe [id^="landing-site-"],
+          #landing-globe #landing-docs {
             transition: transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1), border-color 180ms ease, box-shadow 180ms ease;
           }
 
-          #landing-globe [id^="landing-site-"]:hover {
+          #landing-globe [id^="landing-site-"]:hover,
+          #landing-globe #landing-docs:hover {
             transform: translateX(-4px);
           }
 
           @media (max-width: ${WIDE_LAYOUT - 1}px) {
-            #landing-globe [id^="landing-site-"]:hover {
+            #landing-globe [id^="landing-site-"]:hover,
+            #landing-globe #landing-docs:hover {
               transform: none;
             }
           }
@@ -279,8 +283,44 @@ function SiteRail({
             wide={wide}
           />
         ))}
+        <DocsTile wide={wide} />
       </ScrollView>
     </View>
+  );
+}
+
+/** The field guide is a first-class destination beside the sites it documents. */
+function DocsTile({ wide }: { wide: boolean }) {
+  return (
+    <Link href="/docs" asChild>
+      <Pressable
+        nativeID="landing-docs"
+        accessibilityLabel="Open mission documentation"
+        accessibilityRole="link"
+        style={({ pressed }) => [
+          styles.siteCardPressable,
+          wide && styles.siteCardPressableWide,
+          pressed && styles.siteCardPressed,
+        ]}>
+        {({ pressed }) => (
+          <View style={[styles.siteCard, styles.docsCard, pressed && styles.siteCardPressedSurface]}>
+            <View pointerEvents="none" style={[styles.siteCardEdge, styles.docsCardEdge]} />
+            <View style={styles.siteCardContent}>
+              <Text style={styles.siteIndex}>{String(SITES.length + 1).padStart(2, '0')}</Text>
+              <View style={styles.siteCardCopy}>
+                <Text numberOfLines={1} style={styles.siteName}>
+                  Mission docs
+                </Text>
+                <Text numberOfLines={1} style={styles.siteMission}>
+                  Methods, sources and field guide
+                </Text>
+                <Text style={styles.docsAction}>OPEN DOCUMENTATION →</Text>
+              </View>
+            </View>
+          </View>
+        )}
+      </Pressable>
+    </Link>
   );
 }
 
@@ -414,6 +454,7 @@ function FallbackLanding({
             wide
           />
         ))}
+        <DocsTile wide />
       </View>
 
       <View style={styles.fallbackLegend}>
@@ -728,6 +769,14 @@ const styles = StyleSheet.create({
   siteCardPressedSurface: {
     backgroundColor: Colors.surfaceRaised,
   },
+  docsCard: {
+    borderColor: Colors.borderStrong,
+    backgroundColor: Colors.surfaceRaised,
+  },
+  docsCardEdge: {
+    opacity: 1,
+    backgroundColor: Colors.cyan,
+  },
   siteCardSpotlight: {
     position: 'absolute',
     top: -110,
@@ -807,6 +856,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 15,
     marginTop: Spacing.one - 1,
+  },
+  docsAction: {
+    color: Colors.cyan,
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.7,
+    marginTop: Spacing.one,
   },
   coverageLegend: {
     position: 'absolute',
