@@ -76,12 +76,19 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 export const clampScale = (pixelsPerDegree: number, limits: ScaleLimits) =>
   clamp(pixelsPerDegree, limits.min, limits.max);
 
-/** Keeps the centre on the planet and the scale inside its limits. */
-export function clampView(view: MapView, limits: ScaleLimits): MapView {
+/**
+ * Keeps the centre on the planet and the scale inside its limits. With the size of the map, it
+ * also stops the edge of the planet at the edge of the map, so that dragging never brings the
+ * empty space beside the planet into view; a planet smaller than the map stays in its middle.
+ */
+export function clampView(view: MapView, limits: ScaleLimits, size?: Size): MapView {
+  const pixelsPerDegree = clampScale(view.pixelsPerDegree, limits);
+  const halfWidth = size ? Math.min(180, size.width / 2 / pixelsPerDegree) : 0;
+  const halfHeight = size ? Math.min(90, size.height / 2 / pixelsPerDegree) : 0;
   return {
-    lat: clamp(view.lat, -90, 90),
-    lon: clamp(view.lon, -180, 180),
-    pixelsPerDegree: clampScale(view.pixelsPerDegree, limits),
+    lat: clamp(view.lat, -90 + halfHeight, 90 - halfHeight),
+    lon: clamp(view.lon, -180 + halfWidth, 180 - halfWidth),
+    pixelsPerDegree,
   };
 }
 

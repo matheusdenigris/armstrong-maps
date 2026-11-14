@@ -90,8 +90,8 @@ export class MapController {
     this.options = options;
     // A resized map can raise its minimum scale. Keep the rendered camera within those new bounds.
     this.camera = {
-      view: clampView(this.camera.view, options.limits),
-      base: clampView(this.camera.base, options.limits),
+      view: clampView(this.camera.view, options.limits, this.size ?? undefined),
+      base: clampView(this.camera.base, options.limits, this.size ?? undefined),
     };
   }
 
@@ -239,7 +239,7 @@ export class MapController {
   private show(next: MapView) {
     const size = this.size;
     if (!size) return;
-    const view = clampView(next, this.options.limits);
+    const view = clampView(next, this.options.limits, size);
     this.camera = { view, base: this.camera.base };
     if (this.frame !== null) return;
     this.frame = requestAnimationFrame(() => {

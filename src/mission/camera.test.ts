@@ -68,6 +68,23 @@ describe('clampView', () => {
     const lost = clampView({ lat: 120, lon: -400, pixelsPerDegree: 10 }, limits);
     expect(lost).toEqual({ lat: 90, lon: -180, pixelsPerDegree: 10 });
   });
+
+  it('stops the edge of the planet at the edge of the map', () => {
+    // At 10 pixels a degree, a map of 800 by 600 shows 40 degrees each side and 30 up and down.
+    const size = { width: 800, height: 600 };
+    const corner = clampView({ lat: -90, lon: 180, pixelsPerDegree: 10 }, limits, size);
+    expect(corner).toEqual({ lat: -60, lon: 140, pixelsPerDegree: 10 });
+    const inside = clampView({ lat: 10, lon: 20, pixelsPerDegree: 10 }, limits, size);
+    expect(inside).toEqual({ lat: 10, lon: 20, pixelsPerDegree: 10 });
+  });
+
+  it('keeps a planet smaller than the map in its middle', () => {
+    const small = clampView({ lat: 50, lon: -120, pixelsPerDegree: 2 }, limits, {
+      width: 1600,
+      height: 900,
+    });
+    expect(small).toEqual({ lat: 0, lon: 0, pixelsPerDegree: 2 });
+  });
 });
 
 describe('clampScale', () => {
