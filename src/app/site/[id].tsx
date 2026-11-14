@@ -4,6 +4,7 @@ import { useMemo, useState, useSyncExternalStore } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EnvironmentPanel } from '@/components/environment-panel';
 import { LayerPanel } from '@/components/layer-panel';
 import { ScaleBar } from '@/components/scale-bar';
 import {
@@ -16,12 +17,16 @@ import { WalkDetails, WalkSummary } from '@/components/walk-panel';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { GLOBAL_LAYERS, VIKING_GLOBAL } from '@/data/layers';
 import { SURFACE_RADIATION } from '@/data/radiation';
+import { ROVERS, parseRoverTrack } from '@/data/rover';
 import { SITES, findSite, type Site } from '@/data/sites';
+import { REMS_FEED, parseWeather } from '@/data/weather';
 import type { MapView } from '@/mission/camera';
 import { formatLatLon } from '@/mission/format';
+import { distance } from '@/mission/geo';
 import { TILE_PIXELS, tileSpan } from '@/mission/tiles';
 import { WALK_ASSUMPTIONS, evaluateWalk } from '@/mission/walk';
 import { useMission, useRoute } from '@/state/mission';
+import { useFeed } from '@/state/use-feed';
 
 /** One page per site in the static web export. */
 export function generateStaticParams() {
@@ -39,7 +44,10 @@ const PANEL_WIDTH = 380;
 /** Layers that go over the optical base: everything planet-wide except the base itself. */
 const OVERLAYS = GLOBAL_LAYERS.filter((layer) => layer !== VIKING_GLOBAL);
 
-type Tab = 'walk' | 'layers';
+/** The weather station is on Curiosity, which landed at Gale crater. */
+const GALE = SITES[0].landing;
+
+type Tab = 'walk' | 'layers' | 'site';
 
 /** False on the page rendered ahead of time, which does not know the size of the window. */
 function useHydrated() {
@@ -74,6 +82,12 @@ function SiteMap({ site }: { site: Site }) {
   const [expanded, setExpanded] = useState(false);
   const [tab, setTab] = useState<Tab>('walk');
 
+  // Live data. The traverse is drawn on the map, so it is asked for at once; the weather waits
+  // until its tab is opened.
+  const rover = site.rover ? ROVERS[site.rover] : null;
+  const track = useFeed(rover?.feed ?? null, parseRoverTrack);
+  const weather = useFeed(tab === 'site' ? REMS_FEED : null, parseWeather);
+
   // The map lays its tiles out again when these change, so they must not change on every frame.
   const { home, limits } = useMemo(() => {
     const sharpest = site.layers[site.layers.length - 1];
@@ -107,6 +121,7 @@ function SiteMap({ site }: { site: Site }) {
   // The walk: out from the base through the waypoints, and straight back.
   const { walk, markers, paths, rings } = useMemo(() => {
     const landing = site.landing;
+    const driven = track.status === 'ready' ? track.data : null;
     const pins: MapMarker[] = [
       { id: 'base', point: landing, label: `Base · ${landing.name}`, color: Colors.mars },
       ...route.map((point, index) => ({
@@ -116,19 +131,30 @@ function SiteMap({ site }: { site: Site }) {
         color: Colors.nav,
       })),
     ];
-    const lines: MapPath[] =
-      route.length === 0
-        ? []
-        : [
-            { id: 'outbound', points: [landing, ...route], color: Colors.nav },
-            {
-              id: 'return',
-              points: [route[route.length - 1], landing],
-              color: Colors.nav,
-              dashed: true,
-              width: 2,
-            },
-          ];
+    if (rover && driven?.latest) {
+      pins.push({
+        id: 'rover',
+        point: driven.latest.point,
+        label: `${rover.name} · sol ${driven.latest.sol}`,
+        color: Colors.text,
+      });
+    }
+    // The real traverse goes under the planned route.
+    const lines: MapPath[] = driven
+      ? [{ id: 'traverse', points: driven.path, color: Colors.text, width: 2 }]
+      : [];
+    if (route.length > 0) {
+      lines.push(
+        { id: 'outbound', points: [landing, ...route], color: Colors.nav },
+        {
+          id: 'return',
+          points: [route[route.length - 1], landing],
+          color: Colors.nav,
+          dashed: true,
+          width: 2,
+        },
+      );
+    }
     const circles: MapRing[] = [
       {
         id: 'walk-back-limit',
@@ -143,7 +169,7 @@ function SiteMap({ site }: { site: Site }) {
       paths: lines,
       rings: circles,
     };
-  }, [site, route]);
+  }, [site, route, rover, track]);
 
   const open = sideBySide || expanded;
   const panel = (
@@ -164,6 +190,7 @@ function SiteMap({ site }: { site: Site }) {
               selected={tab === 'layers'}
               onPress={() => setTab('layers')}
             />
+            <TabButton label="Site" selected={tab === 'site'} onPress={() => setTab('site')} />
           </View>
           {tab === 'walk' ? (
             <WalkDetails
@@ -172,7 +199,8 @@ function SiteMap({ site }: { site: Site }) {
               onUndo={() => removeLastWaypoint(site.id)}
               onClear={() => clearRoute(site.id)}
             />
-          ) : (
+          ) : null}
+          {tab === 'layers' ? (
             <LayerPanel
               base={base}
               overlays={OVERLAYS}
@@ -180,7 +208,15 @@ function SiteMap({ site }: { site: Site }) {
               onToggle={toggleOverlay}
               onOpacity={setOverlayOpacity}
             />
-          )}
+          ) : null}
+          {tab === 'site' ? (
+            <EnvironmentPanel
+              siteName={site.name}
+              distanceFromGaleM={distance(site.landing, GALE)}
+              weather={weather}
+              rover={rover ? { name: rover.name, track } : null}
+            />
+          ) : null}
         </>
       ) : null}
     </>
