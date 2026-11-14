@@ -40,6 +40,12 @@ Daylight, weather and radiation do not change the verdict yet.
 | Radius of Mars | 3389.5 km (mean) | IAU |
 | Radiation on the surface | 0.64 ± 0.12 mSv per Earth day, dose equivalent from galactic cosmic rays | MSL RAD: Hassler et al., *Science* 343, 1244797 (2014) |
 | Map imagery and its coverage | See `src/data/layers.ts` and `src/data/sites.ts` | NASA/JPL Mars Trek, each product's `WMTSCapabilities.xml` |
+| Rover traverse and latest position | Read live | Waypoints published by NASA/JPL on mars.nasa.gov |
+| Weather | The latest sol the feed has, read live | Curiosity REMS, outreach feed of the Centro de Astrobiologia (CSIC-INTA) |
+
+The weather is measured at Gale crater only. At the other sites the app shows it as a reference
+and says how far the station is. The feed can be weeks behind the current date, so the app shows
+the sol and the Earth date of the reading.
 
 The radiation figure is a published average over about 300 sols at Gale crater, not a live
 reading: RAD has no public feed. The app uses it at every site, and a solar particle event would

@@ -39,9 +39,12 @@ The app has three views:
 - **Walk planning**: tap to add waypoints; the app draws the route and the walk-back limit and
   gives distance, time outside, life support used, radiation dose and a go, caution or no-go
   verdict with its reasons. The plan is saved on the device.
+- **Live data**: the real traverse and latest position of Curiosity at Gale and of Perseverance
+  at Jezero, and the latest sol of weather from Curiosity's REMS station, each with its source.
+  A feed that does not answer is shown as a gap.
 
-Not built yet: the astronaut visor, weather, the rover traverses, and the globe inside the
-Android and iOS apps (they open on the list of sites). The rest of the plan is in the
+Not built yet: the astronaut visor, and the globe inside the Android and iOS apps (they open on
+the list of sites). The rest of the plan is in the
 [issues](../../issues) and [milestones](../../milestones); see [docs/roadmap.md](docs/roadmap.md).
 What is measured and what is assumed is in [docs/assumptions.md](docs/assumptions.md).
 
@@ -78,8 +81,8 @@ label.
 |---|---|---|
 | Map tiles | [Mars Trek](https://trek.nasa.gov/mars/) (NASA/JPL): Viking MDIM 2.1, MRO CTX and HiRISE, MGS MOLA, Mars Express HRSC, Mars Odyssey THEMIS, MGS TES | Yes |
 | Radiation | MSL RAD, Hassler et al. 2014 (a published average, not a live reading) | Yes |
-| Weather | Curiosity REMS | Planned |
-| Rover traverses | Curiosity and Perseverance waypoints (mars.nasa.gov) | Planned |
+| Weather | Curiosity REMS, an outreach feed of the Centro de Astrobiologia (CSIC-INTA). Measured at Gale only | Yes |
+| Rover traverses | Curiosity and Perseverance waypoints (mars.nasa.gov) | Yes |
 
 The walk is a plan drawn on the map: nobody is walking it. Walking speed, life-support duration
 and the walk-back limit are assumptions of this project, not NASA rules. The stars behind the globe
