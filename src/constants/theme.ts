@@ -23,6 +23,8 @@ export const Colors = {
   go: '#3DD68C',
   caution: '#F5B83D',
   noGo: '#F0513F',
+  /** Marks a NASA source on the docs page. A colour only: never the NASA insignia. */
+  nasa: '#FC3D21',
 } as const;
 
 export type ColorName = keyof typeof Colors;

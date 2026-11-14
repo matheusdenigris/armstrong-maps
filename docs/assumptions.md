@@ -17,6 +17,8 @@ every number follows.
 | Share of life support that must be left on return | 20% | Assumption |
 | Walk-back limit: the farthest a waypoint may be from the base | 5 km | Assumption |
 | Warning threshold near the walk-back limit | 80% of it | Assumption |
+| A CME counts against a walk from this long before its forecast arrival at Mars | 72 h | Assumption |
+| ... and until this long after it | 24 h | Assumption |
 | Return leg | A straight line from the last waypoint to the base | Simplification |
 | Terrain | Flat: slopes and obstacles do not slow the walk | Simplification |
 
@@ -30,8 +32,13 @@ every number follows.
 | The walk uses part of the reserve | Caution |
 | A waypoint is beyond the walk-back limit | No-go |
 | A waypoint is past the warning threshold of the walk-back limit | Caution |
+| NASA DONKI's WSA-Enlil model forecasts a CME hitting Mars inside the window above, not rated minor or glancing | Caution |
 
-Daylight, weather and radiation do not change the verdict yet.
+Most forecast arrivals at Mars are rated minor or a glancing blow (all ten in the 30 days to 2026-11-14). Counting them would have kept walks on caution 61% of the time, so they are shown in the Site tab but do not change the verdict.
+
+Daylight and weather do not change the verdict yet. The dose stays the published average; a CME
+only adds a caution, because DONKI forecasts its arrival, not the dose it brings. When DONKI does
+not answer, the verdict leaves space weather out and the Site tab says so.
 
 ## Measured data
 
@@ -42,6 +49,10 @@ Daylight, weather and radiation do not change the verdict yet.
 | Map imagery and its coverage | See `src/data/layers.ts` and `src/data/sites.ts` | NASA/JPL Mars Trek, each product's `WMTSCapabilities.xml` |
 | Rover traverse and latest position | Read live | Waypoints published by NASA/JPL on mars.nasa.gov |
 | Weather | The latest sol the feed has, read live | Curiosity REMS, outreach feed of the Centro de Astrobiologia (CSIC-INTA) |
+| CME arrivals at Mars | A model forecast, read live: the last 30 days of runs | NASA DONKI, WSA-Enlil simulations (CCMC, Goddard) |
+| Solar particle events | Seen near the Earth, read live: the last 30 days | NASA DONKI, SEP |
+| Rover pictures | The newest raw frames, read live | NASA/JPL-Caltech raw-image feed on mars.nasa.gov |
+| Archive pictures | Read live | NASA Image and Video Library |
 
 The weather is measured at Gale crater only. At the other sites the app shows it as a reference
 and says how far the station is. The feed can be weeks behind the current date, so the app shows
