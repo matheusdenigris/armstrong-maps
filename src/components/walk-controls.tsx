@@ -71,9 +71,22 @@ export function WalkControls({
 
       {clock === null ? (
         <View style={styles.card}>
+          <View style={styles.steps} accessibilityRole="list">
+            <Step
+              number={1}
+              state={stops === 0 ? 'now' : 'done'}
+              text={
+                stops === 0
+                  ? 'Mark waypoints on the map'
+                  : `${stops} ${stops === 1 ? 'waypoint' : 'waypoints'} marked on the map`
+              }
+            />
+            <Step number={2} state={stops === 0 ? 'later' : 'now'} text="Start the walk" />
+            <Step number={3} state="later" text="Follow it in the astronaut visor" />
+          </View>
           <Text style={styles.note}>
             {stops === 0
-              ? 'Add a waypoint on the map, then start the walk.'
+              ? 'Click or tap the map to mark the first point of the route.'
               : 'An astronaut walks the route at the assumed speed. Their position is simulated. The astronaut visor opens in a new tab.'}
           </Text>
           <Button
@@ -151,6 +164,30 @@ export function WalkControls({
   );
 }
 
+type StepProps = { number: number; state: 'done' | 'now' | 'later'; text: string };
+
+/** One of the three things a first walk takes, with where the user is among them. */
+function Step({ number, state, text }: StepProps) {
+  return (
+    <View
+      style={styles.step}
+      accessible
+      accessibilityLabel={`Step ${number}${state === 'done' ? ', done' : state === 'now' ? ', next' : ''}: ${text}`}>
+      <View
+        style={[
+          styles.stepMark,
+          state === 'done' && styles.stepMarkDone,
+          state === 'now' && styles.stepMarkNow,
+        ]}>
+        <Text style={[styles.stepNumber, state !== 'later' && styles.stepNumberOn]}>
+          {state === 'done' ? '✓' : number}
+        </Text>
+      </View>
+      <Text style={[styles.stepText, state === 'later' && styles.stepTextLater]}>{text}</Text>
+    </View>
+  );
+}
+
 type ButtonProps = {
   label: string;
   text: string;
@@ -190,6 +227,47 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     borderRadius: Radius.card,
     backgroundColor: Colors.glassLight,
+  },
+  steps: {
+    gap: Spacing.two,
+    paddingBottom: Spacing.one,
+  },
+  step: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two + Spacing.half,
+  },
+  stepMark: {
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.glassHover,
+  },
+  stepMarkDone: {
+    backgroundColor: Colors.go,
+  },
+  stepMarkNow: {
+    backgroundColor: Colors.text,
+  },
+  stepNumber: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.mono,
+    fontSize: 11,
+  },
+  stepNumberOn: {
+    color: Colors.background,
+  },
+  stepText: {
+    flex: 1,
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  stepTextLater: {
+    color: Colors.textSoft,
   },
   note: {
     color: Colors.textFaint,
