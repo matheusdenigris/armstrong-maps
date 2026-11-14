@@ -100,17 +100,22 @@ NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero.
 ## Illustrative
 
 - The photographs in the visor are real 360-degree mosaics (see the table below), each taken
-  from one fixed spot. The visor shows the one taken nearest to the astronaut's simulated position
-  and says how far away that was. Between two photographs nothing moves forward: there is no
-  video of a walk on Mars, and the app does not fake one.
+  from one fixed spot. Nobody has walked on Mars, so there is no film of a walk. To give the sense
+  of ground being covered, the visor goes through the photographs of the site in order, from the
+  one taken nearest to the landing point outwards, and changes scene every 300 m walked (more when
+  the walk is played fast, so that a scene stays at least eight seconds). The photographs are real
+  and from that site, but they were not taken on the planned route: the Sources panel says how far
+  from the simulated position each one was taken.
+- The change of scene is a short cut: the view strides forward into a gust of dust, which clears
+  on the next photograph. The dust and the stride are drawn.
 - Only one photograph has a caption that says where north is (PIA20840). The others are not lined
   up with the compass: turning turns the view by the right amount, but what is ahead in the
   picture is not what is ahead on the ground. The visor says which case it is.
 - Three things were set by eye for each photograph: the row of the horizon, the band that is free
   of the black gaps at the top and bottom of the mosaic, and the colour that continues the sky
   above that band. Black areas inside the band are where the camera took no frame.
-- Gale, Jezero and Gusev have their own photographs. Meridiani and Elysium borrow one from Gale,
-  and the visor says so.
+- Gale has five photographs, Jezero four and Gusev one, so a walk at Gusev stays in the same
+  scene. Meridiani and Elysium borrow the ones from Gale, and the visor says so.
 
 | Photograph | Where and when | Source |
 |---|---|---|
@@ -120,6 +125,9 @@ NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero.
 | Curiosity Mastcam below Gediz Vallis Ridge | Gale, sol 3928 (2023) | [PIA26019](https://images.nasa.gov/details/PIA26019), NASA/JPL-Caltech/MSSS |
 | Perseverance Mastcam-Z, first 360-degree panorama | Jezero, landing site, sol 3 (2021) | [PIA24264](https://images.nasa.gov/details/PIA24264), NASA/JPL-Caltech/MSSS/ASU |
 | Perseverance Mastcam-Z at Bright Angel | Jezero, sol 1178 (2024) | [PIA26369](https://images.nasa.gov/details/PIA26369), NASA/JPL-Caltech/ASU/MSSS |
+| Perseverance Mastcam-Z at Rio Chiquito | Jezero, sol 1337 (2024) | [PIA26474](https://images.nasa.gov/details/PIA26474), NASA/JPL-Caltech/ASU/MSSS |
+| Perseverance Mastcam-Z at Falbreen | Jezero, sol 1516 (2025) | [PIA26644](https://images.nasa.gov/details/PIA26644), NASA/JPL-Caltech/ASU/MSSS |
+| Curiosity Mastcam at the Ubajara sampling site | Gale, sol 3815 (2023) | [PIA26554](https://images.nasa.gov/details/PIA26554), NASA/JPL-Caltech/MSSS |
 | Spirit Pancam, the McMurdo panorama | Gusev, Low Ridge, 2006 | [PIA16440](https://images.nasa.gov/details/PIA16440), NASA/JPL-Caltech/Cornell |
 
 The place of each Gale and Jezero photograph is the rover's published position on the sol it was

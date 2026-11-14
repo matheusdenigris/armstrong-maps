@@ -112,15 +112,17 @@ label.
 | Rover pictures | Raw-image feed of Curiosity and Perseverance (NASA/JPL-Caltech, mars.nasa.gov) | Yes |
 | Archive pictures | [NASA Image and Video Library](https://images.nasa.gov) (images-api.nasa.gov) | Yes |
 | Sound | [Wind recorded by the SuperCam microphone of Perseverance](https://science.nasa.gov/resource/perseverance-rovers-supercam-records-wind-on-mars/), Jezero, sol 4 (22 February 2021). NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero | Yes |
-| Visor photographs | Seven 360-degree panoramas from the NASA Image and Video Library: Curiosity (PIA16101, PIA20840, PIA22545, PIA26019), Perseverance (PIA24264, PIA26369) and Spirit (PIA16440). Listed in `src/data/panoramas.ts` | Yes |
+| Visor photographs | Ten 360-degree panoramas from the NASA Image and Video Library: Curiosity (PIA16101, PIA20840, PIA22545, PIA26554, PIA26019), Perseverance (PIA24264, PIA26474, PIA26369, PIA26644) and Spirit (PIA16440). Listed in `src/data/panoramas.ts` | Yes |
 
 The full list, with each endpoint, is in the app at `/docs` and in `src/data/sources.ts`.
 
 The walk is simulated: the astronaut's position follows the plan at an assumed speed. Walking
 speed, life-support duration and the walk-back limit are assumptions of this project, not NASA
 rules. The photographs in the visor are real, and each was taken from one fixed spot: there is no
-video of anyone walking on Mars, so the view does not move forward between two photographs. The
-stars behind the globe and the light on it are decoration.
+video of anyone walking on Mars. To give the sense of a walk, the visor changes to another real
+photograph of the same site every 300 m, through a short cut with drawn dust; those photographs
+were not taken on the planned route. The stars behind the globe and the light on it are
+decoration.
 
 ## English only
 
