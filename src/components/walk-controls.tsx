@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SectionHeading } from '@/components/console-parts';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
@@ -55,6 +55,13 @@ export function WalkControls({
   const over = clock !== null && progress.totalHours > 0 && progress.elapsedHours >= progress.totalHours;
   const share = progress.totalHours > 0 ? progress.elapsedHours / progress.totalHours : 0;
 
+  // Starting the walk also opens the visor, in its own tab: it is the other half of the walk, and
+  // easy to miss as a link. A browser may refuse the tab; the link below stays as the way in.
+  const start = () => {
+    onStart();
+    if (Platform.OS === 'web') window.open(`/visor/${siteId}`, '_blank');
+  };
+
   return (
     <View style={styles.block}>
       <SectionHeading
@@ -67,13 +74,13 @@ export function WalkControls({
           <Text style={styles.note}>
             {stops === 0
               ? 'Add a waypoint on the map, then start the walk.'
-              : 'An astronaut walks the route at the assumed speed. Their position is simulated.'}
+              : 'An astronaut walks the route at the assumed speed. Their position is simulated. The astronaut visor opens in a new tab.'}
           </Text>
           <Button
             label="Start the walk"
             text="Start the walk"
             primary
-            onPress={onStart}
+            onPress={start}
             disabled={stops === 0}
           />
         </View>
@@ -130,13 +137,15 @@ export function WalkControls({
       <Link
         href={{ pathname: '/visor/[id]', params: { id: siteId } }}
         target="_blank"
-        style={styles.visor}
+        style={[styles.visor, clock !== null && styles.visorLive]}
         accessibilityRole="link"
         accessibilityLabel="Open the astronaut visor in a new tab">
-        Astronaut visor {'↗'}
+        {clock === null ? 'Astronaut visor' : 'Open the astronaut visor'} {'↗'}
       </Link>
       <Text style={styles.note}>
-        The visor opens in another tab and follows the walk from there.
+        {clock === null
+          ? 'The walk seen from inside the helmet. It opens in another tab and follows the walk.'
+          : 'See this walk from inside the helmet: the visor follows it from another tab.'}
       </Text>
     </View>
   );
@@ -272,6 +281,11 @@ const styles = StyleSheet.create({
   },
   buttonTextPrimary: {
     color: Colors.background,
+  },
+  visorLive: {
+    color: Colors.background,
+    borderColor: Colors.text,
+    backgroundColor: Colors.text,
   },
   visor: {
     color: Colors.text,
