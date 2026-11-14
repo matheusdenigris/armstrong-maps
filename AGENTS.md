@@ -76,8 +76,12 @@ screen needs a source or a "simulated" or "assumption" label.
   state. The clock (`src/mission/clock.ts`) stores an anchor instead of ticking, so every tab
   works out the same time. Tabs follow each other through the saved state and the browser's
   `storage` event (`src/app/_layout.tsx`).
-- **The photograph in the visor is an image, not a texture**, and only the clean `window` of it
-  in `src/data/panoramas.ts` is shown. Its framing is illustrative and the visor has to say so.
+- **The visor shows real photographs, not a drawn scene.** A 3D terrain with a painted sky was
+  tried and rejected as game-like: do not bring it back. `src/components/panorama-view.web.tsx`
+  wraps a real 360-degree mosaic round the astronaut with plain strips, because the NASA image
+  library does not let its files be used as WebGL textures. Each picture in
+  `src/data/panoramas.ts` has a `band` that keeps the black gaps of the mosaic out of view. The
+  visor has to say where the photograph was taken and whether it is lined up with the compass.
 - Do not add `src/app/+html.tsx` without checking the export: a custom shell dropped the style
   sheet and the script tags from every page. Set titles with `Head` from `expo-router/head`.
 - **Pages are rendered ahead of time, without a window.** `useWindowDimensions` is 0 there, and a
