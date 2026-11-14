@@ -6,6 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EnvironmentPanel } from '@/components/environment-panel';
 import { HazardPanel } from '@/components/hazard-panel';
+import { MarsClockPanel } from '@/components/mars-clock-panel';
+import { SafetyCheck, type StartPlan } from '@/components/safety-check';
+import { WeatherChart } from '@/components/weather-chart';
 import { LayerPanel } from '@/components/layer-panel';
 import { PhotosPanel } from '@/components/photos-panel';
 import { ScaleBar } from '@/components/scale-bar';
@@ -49,6 +52,7 @@ import { useFeed } from '@/state/use-feed';
 import { useTerrain } from '@/state/use-terrain';
 import { routeCrosses, routeSlope } from '@/mission/terrain';
 import { useNow } from '@/state/use-now';
+import { nextSunCrossing, walkDaylight } from '@/mission/mars-time';
 
 /** One page per site in the static web export. */
 export function generateStaticParams() {
@@ -78,6 +82,9 @@ const SEP_CACHE = { key: 'donki-sep', freshForHours: 3 };
 /** Wind InSight measured in 2020 does not change; the dune outlines barely do. */
 const INSIGHT_CACHE = { key: 'insight-wind', freshForHours: 24 };
 const DUNES_CACHE_HOURS = 24 * 7;
+
+/** "Next morning" starts the walk when the Sun is this high, in degrees: a project assumption. */
+const MORNING_SUN_DEG = 15;
 
 type Tab = 'walk' | 'layers' | 'site' | 'photos';
 
@@ -168,6 +175,21 @@ function SiteMap({ site }: { site: Site }) {
   const dunes = useFeed(duneQueryUrl(site.region), parseDunes, dunesCache);
   const wind = useFeed(tab === 'site' ? insightWeatherUrl() : null, parseInsightWind, INSIGHT_CACHE);
   const [hazards, setHazards] = useState({ slope: true, dunes: true });
+
+  // The Sun over the walk. The Mars clock moves on once a minute; the walk starts now or the next
+  // morning, when the Sun is MORNING_SUN_DEG up.
+  const minute = useNow(true, 60_000);
+  const [startPlan, setStartPlan] = useState<StartPlan>('now');
+  const plannedStart = useMemo(() => {
+    const from = new Date(minute);
+    if (startPlan === 'now') return from;
+    return nextSunCrossing(from, site.landing.lat, site.landing.lon, true, MORNING_SUN_DEG) ?? from;
+  }, [minute, startPlan, site]);
+  const daylight = useMemo(() => {
+    if (route.length === 0) return null;
+    const hours = evaluateWalk(site.landing, route, SURFACE_RADIATION.msvPerDay).durationHours;
+    return walkDaylight(plannedStart, hours, site.landing.lat, site.landing.lon);
+  }, [plannedStart, route, site]);
 
   // The ground under the whole walk, out and back.
   const { groundSlope, crossesDunes } = useMemo(() => {
@@ -297,12 +319,13 @@ function SiteMap({ site }: { site: Site }) {
         cmeAtMars,
         maxSlopeDeg: groundSlope?.maxDeg ?? null,
         crossesDunes,
+        daylight,
       }),
       markers: pins,
       paths: lines,
       rings: circles,
     };
-  }, [site, route, rover, track, astronaut, cmeAtMars, groundSlope, crossesDunes]);
+  }, [site, route, rover, track, astronaut, cmeAtMars, groundSlope, crossesDunes, daylight]);
 
   const open = sideBySide || expanded;
   const panel = (
@@ -339,6 +362,19 @@ function SiteMap({ site }: { site: Site }) {
                 onEnd={() => endWalk(site.id)}
                 onRate={(rate) => setWalkRate(site.id, rate)}
               />
+              <SafetyCheck
+                walk={walk}
+                stops={route.length}
+                lonEast={site.landing.lon}
+                startPlan={startPlan}
+                onStartPlan={setStartPlan}
+                daylight={daylight}
+                start={plannedStart}
+                spaceWeather={arrivals.status === 'ready' ? (cmeAtMars ? 'alert' : 'quiet') : 'unknown'}
+                ground={groundSlope}
+                groundKnown={terrain.near.status === 'ready' || terrain.around.status === 'ready'}
+                dunes={dunes.status === 'ready' ? (crossesDunes ? 'crossed' : 'clear') : 'unknown'}
+              />
               <WalkDetails
                 walk={walk}
                 stops={route.length}
@@ -370,6 +406,14 @@ function SiteMap({ site }: { site: Site }) {
             />
           ) : null}
           {tab === 'site' ? (
+            <MarsClockPanel
+              siteName={site.name}
+              lat={site.landing.lat}
+              lonEast={site.landing.lon}
+              now={new Date(minute)}
+            />
+          ) : null}
+          {tab === 'site' ? (
             <EnvironmentPanel
               siteName={site.name}
               distanceFromGaleM={distance(site.landing, GALE)}
@@ -378,6 +422,7 @@ function SiteMap({ site }: { site: Site }) {
               space={{ arrivals, sep, now: visitStart }}
             />
           ) : null}
+          {tab === 'site' && weather.status === 'ready' ? <WeatherChart sols={weather.data} /> : null}
           {tab === 'site' ? (
             <WindPanel
               siteName={site.name}

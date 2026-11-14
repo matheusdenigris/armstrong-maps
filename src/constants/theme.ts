@@ -30,6 +30,9 @@ export const Colors = {
   wind: '#8FD6FF',
   /** Marks a NASA source on the docs page. A colour only: never the NASA insignia. */
   nasa: '#FC3D21',
+  /** Soft fills behind an active item or an icon. */
+  navTint: 'rgba(76, 141, 255, 0.14)',
+  nasaTint: 'rgba(252, 61, 33, 0.14)',
 } as const;
 
 export type ColorName = keyof typeof Colors;
