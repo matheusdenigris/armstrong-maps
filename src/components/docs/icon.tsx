@@ -64,7 +64,7 @@ type IconProps = { name: IconName; size?: number; color: string };
 
 export function Icon({ name, size = 18, color }: IconProps) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" accessible={false}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       {PATHS[name].map((d, index) => (
         <Path
           key={index}
@@ -82,7 +82,7 @@ export function Icon({ name, size = 18, color }: IconProps) {
 /** A square tile with an icon, for the cards. */
 export function IconTile({ name, color, background }: { name: IconName; color: string; background: string }) {
   return (
-    <Svg width={36} height={36} viewBox="0 0 36 36" accessible={false}>
+    <Svg width={36} height={36} viewBox="0 0 36 36">
       <Rect x={0} y={0} width={36} height={36} rx={9} fill={background} />
       <Svg x={8} y={8} width={20} height={20} viewBox="0 0 24 24" fill="none">
         {PATHS[name].map((d, index) => (
