@@ -131,6 +131,11 @@ export const useMission = create<MissionState>()(
 
 /** The name the state is saved under. Other tabs watch this key to follow the ship. */
 export const MISSION_STORAGE_KEY = 'armstrong-maps.mission';
+/**
+ * Where a visor that has just finished loading says so, for the console in the other tab that is
+ * waiting to start the walk. The value is the site and the moment, so that it changes every time.
+ */
+export const VISOR_READY_KEY = 'armstrong-maps.visor-ready';
 
 /** The waypoints of one site. The empty list is always the same object, so nothing re-renders. */
 export function useRoute(siteId: string): readonly LatLon[] {

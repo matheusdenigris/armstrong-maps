@@ -1,5 +1,14 @@
 import { Image } from 'expo-image';
-import { memo, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import {
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentRef,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -14,12 +23,13 @@ import {
   type LayoutChangeEvent,
   type ViewStyle,
 } from 'react-native';
-import Svg, { Circle, Ellipse, Path, Polyline } from 'react-native-svg';
+import Svg, { Circle, Ellipse, Line, Path, Polyline } from 'react-native-svg';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { tileUrl, type MapLayer } from '@/data/layers';
 import {
   project,
+  unproject,
   limitsForSurfaceFrame,
   visibleBounds,
   type MapView,
@@ -56,6 +66,16 @@ export type MapRing = {
   color: string;
 };
 
+/**
+ * What a press on the map would add, shown under the pointer before the press: a line from
+ * `from` to the pointer, and two lines of text about the place under it.
+ */
+export type MapPreview = {
+  from: LatLon;
+  color: string;
+  describe: (to: LatLon) => { title: string; detail: string };
+};
+
 type SurfaceMapProps = {
   /** Drawn from the bottom up. */
   layers: readonly MapLayer[];
@@ -71,6 +91,8 @@ type SurfaceMapProps = {
   onViewChange?: (view: MapView) => void;
   /** A single tap on the map (not a drag, not a double tap). */
   onPress?: (point: LatLon) => void;
+  /** Shown under a mouse pointer, where there is one. Null when a press would add nothing. */
+  preview?: MapPreview | null;
   accessibilityLabel: string;
   /** Room to leave under the zoom buttons, for whatever the screen puts at the bottom. */
   controlsBottom?: number;
@@ -104,6 +126,7 @@ export function SurfaceMap({
   rings = [],
   onViewChange,
   onPress,
+  preview = null,
   accessibilityLabel,
   controlsBottom = Spacing.three,
   children,
@@ -221,7 +244,15 @@ export function SurfaceMap({
   return (
     <View
       ref={node}
-      style={[styles.map, webOnly({ touchAction: 'none', userSelect: 'none', cursor: 'default' })]}
+      style={[
+        styles.map,
+        // Cross hairs say that a press marks a point; an arrow that it does not.
+        webOnly({
+          touchAction: 'none',
+          userSelect: 'none',
+          cursor: preview ? 'crosshair' : 'default',
+        }),
+      ]}
       onLayout={onLayout}
       accessible
       accessibilityRole="image"
@@ -308,6 +339,10 @@ export function SurfaceMap({
           );
         })}
 
+      {size && preview && Platform.OS === 'web' ? (
+        <PointerPreview host={node} view={view} size={size} preview={preview} />
+      ) : null}
+
       {children}
 
       <View style={[styles.controls, { bottom: controlsBottom }]}>
@@ -393,6 +428,7 @@ export const TilePlane = memo(function TilePlane({
         }).filter((tile) => tile.level < sharpLevel);
         return (
           <LayerTiles
+          <LayerTiles
             key={layer.id}
             layer={layer}
             tiles={[...coarse, ...sharp]}
@@ -462,9 +498,187 @@ function LayerTiles({ layer, tiles, place, opacity, animateIn, reduceMotion }: L
       ))}
     </Animated.View>
   );
+});
+
+const keyOf = (tile: TileAddress) => `${tile.level}/${tile.row}/${tile.col}`;
+
+/** How long the tiles of the last view may stay under the new ones that have not all arrived. */
+const HOLD_MS = 2500;
+/** How many tiles of earlier views are kept at most. */
+const HELD_AT_MOST = 120;
+
+type LayerTilesProps = {
+  layer: MapLayer;
+  /** The tiles for the view as it is now, coarse ones first. */
+  tiles: readonly TileAddress[];
+  sharpLevel: number;
+  opacity: number;
+  place: (tile: TileAddress) => { left: number; top: number; width: number; height: number };
+};
+
+/**
+ * The tiles of one layer. When the scale changes, the tiles of the scale before stay underneath
+ * until the new sharp ones have arrived: the map goes from one sharpness to the next without
+ * falling back to a blur, or to nothing, in between.
+ */
+function LayerTiles({ layer, tiles, sharpLevel, opacity, place }: LayerTilesProps) {
+  const signature = tiles.map(keyOf).join(' ');
+  const [shown, setShown] = useState({ signature, tiles });
+  const [held, setHeld] = useState<readonly TileAddress[]>([]);
+  if (shown.signature !== signature) {
+    // The view asked for other tiles: what was on screen is held, less what is asked for again.
+    const coming = new Set(tiles.map(keyOf));
+    const kept = new Map<string, TileAddress>();
+    for (const tile of [...held, ...shown.tiles]) {
+      if (!coming.has(keyOf(tile))) kept.set(keyOf(tile), tile);
+    }
+    setHeld([...kept.values()].slice(-HELD_AT_MOST));
+    setShown({ signature, tiles });
+  }
+
+  // Which tiles have been drawn at least once; a tile that stays on screen does not report again.
+  const arrived = useRef(new Set<string>());
+
+  // Held tiles go in any case after a while: a tile that never answers must not pin them.
+  useEffect(() => {
+    if (held.length === 0) return;
+    const timer = setTimeout(() => setHeld([]), HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [held]);
+
+  const settle = (key: string) => {
+    const seen = arrived.current;
+    seen.add(key);
+    const complete = tiles.every((tile) => tile.level !== sharpLevel || seen.has(keyOf(tile)));
+    if (!complete) return;
+    setHeld((previous) => (previous.length === 0 ? previous : []));
+    if (seen.size > 600) {
+      const drawn = new Set(tiles.map(keyOf));
+      for (const entry of seen) if (!drawn.has(entry)) seen.delete(entry);
+    }
+  };
+
+  // Finer tiles go over coarser ones, whichever view they came from.
+  const drawn = [...held, ...tiles].sort((one, other) => one.level - other.level);
+
+  // The layer fades as one sheet, so the coarse pass does not show through the sharp one.
+  return (
+    <View style={[StyleSheet.absoluteFill, { opacity }]}>
+      {drawn.map((tile) => {
+        const key = keyOf(tile);
+        return (
+          <Image
+            key={key}
+            source={{ uri: tileUrl(layer, tile) }}
+            style={[styles.tile, place(tile)]}
+            contentFit="fill"
+            cachePolicy="memory-disk"
+            // A new tile comes in over the one under it, without a jump.
+            transition={140}
+            onLoad={() => settle(key)}
+            onError={() => settle(key)}
+            accessible={false}
+          />
+        );
+      })}
+    </View>
+  );
 }
 
 type Glyph = 'plus' | 'minus' | 'target';
+type PointerPreviewProps = {
+  host: RefObject<ComponentRef<typeof View> | null>;
+  view: MapView;
+  size: Size;
+  preview: MapPreview;
+};
+
+/**
+ * The leg a press would add, drawn under the mouse pointer. It keeps the pointer's position to
+ * itself, so that moving the mouse does not draw the whole map again.
+ */
+function PointerPreview({ host, view, size, preview }: PointerPreviewProps) {
+  const [at, setAt] = useState<Pixel | null>(null);
+
+  useEffect(() => {
+    const element = host.current as unknown as HTMLElement | null;
+    if (!element) return;
+    const onMove = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      // Not while the map is being dragged, and not over a button that sits on the map.
+      if (event.buttons !== 0 || target?.closest('button, a, [role="button"]')) {
+        setAt(null);
+        return;
+      }
+      const box = element.getBoundingClientRect();
+      setAt({ x: event.clientX - box.left, y: event.clientY - box.top });
+    };
+    const onLeave = () => setAt(null);
+    element.addEventListener('mousemove', onMove);
+    element.addEventListener('mouseleave', onLeave);
+    return () => {
+      element.removeEventListener('mousemove', onMove);
+      element.removeEventListener('mouseleave', onLeave);
+    };
+  }, [host]);
+
+  if (!at) return null;
+  const from = project(view, size, preview.from);
+  const { title, detail } = preview.describe(unproject(view, size, at));
+  // The text stays inside the map: left of the pointer near the right edge, above it near the foot.
+  const left = at.x > size.width - 240;
+  const above = at.y > size.height - 90;
+  return (
+    <>
+      <Svg width={size.width} height={size.height} style={styles.overlay} pointerEvents="none">
+        <Line
+          x1={from.x}
+          y1={from.y}
+          x2={at.x}
+          y2={at.y}
+          stroke={preview.color}
+          strokeWidth={2}
+          strokeDasharray="6 6"
+          strokeLinecap="round"
+          opacity={0.9}
+        />
+        <Circle
+          cx={at.x}
+          cy={at.y}
+          r={7}
+          fill={preview.color}
+          fillOpacity={0.35}
+          stroke={Colors.white}
+          strokeWidth={1.5}
+        />
+      </Svg>
+      <View
+        pointerEvents="none"
+        style={[
+          styles.previewNote,
+          { left: at.x, top: at.y },
+          {
+            transform: [
+              { translateX: left ? -Spacing.three : Spacing.three },
+              { translateY: above ? -Spacing.three : Spacing.three },
+            ],
+          },
+          left && styles.previewNoteLeft,
+          above && styles.previewNoteAbove,
+        ]}>
+        <View style={styles.previewCard}>
+          <Text style={styles.previewTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={styles.previewDetail} numberOfLines={1}>
+            {detail}
+          </Text>
+        </View>
+      </View>
+    </>
+  );
+}
+
 type MapButtonProps = {
   label: string;
   glyph: Glyph;
@@ -550,6 +764,39 @@ const styles = StyleSheet.create({
     borderColor: Colors.glassBorder,
     backgroundColor: Colors.glassStrong,
     overflow: 'hidden',
+  },
+  // A point of no size at the pointer; the card hangs from one of its corners.
+  previewNote: {
+    position: 'absolute',
+    width: 0,
+    height: 0,
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+  },
+  previewNoteLeft: {
+    alignItems: 'flex-end',
+  },
+  previewNoteAbove: {
+    justifyContent: 'flex-end',
+  },
+  previewCard: {
+    gap: Spacing.half,
+    paddingHorizontal: Spacing.two + Spacing.one,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.medium,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.glassStrong,
+  },
+  previewTitle: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+  },
+  previewDetail: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.mono,
+    fontSize: 11,
   },
   controls: {
     position: 'absolute',

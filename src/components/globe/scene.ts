@@ -1,5 +1,6 @@
 /**
- * The 3D scene of the globe: Mars, a thin atmosphere, and a marker on each landing site. Plain
+ * The 3D scene of the globe: Mars, a thin atmosphere, and a mark on the ground at each landing
+ * site. Plain
  * three.js, with nothing that depends on a browser, so the same scene can run on a phone's
  * OpenGL context.
  */
@@ -34,28 +35,40 @@ export function fitDistance(aspect: number, room = 1.18): number {
   return room / Math.sin(Math.min(vertical, horizontal));
 }
 
-/** A ring with a dot in the middle, drawn into a small texture. */
-function markerTexture(): THREE.DataTexture {
-  const size = 64;
-  const data = new Uint8Array(size * size * 4);
-  for (let y = 0; y < size; y += 1) {
-    for (let x = 0; x < size; x += 1) {
-      const distance = Math.hypot(x - size / 2 + 0.5, y - size / 2 + 0.5) / (size / 2);
-      const dot = 1 - THREE.MathUtils.smoothstep(distance, 0.3, 0.38);
-      const ring =
-        THREE.MathUtils.smoothstep(distance, 0.62, 0.7) *
-        (1 - THREE.MathUtils.smoothstep(distance, 0.86, 0.94));
-      const alpha = Math.max(dot, ring);
-      const offset = (y * size + x) * 4;
-      data[offset] = data[offset + 1] = data[offset + 2] = 255;
-      data[offset + 3] = Math.round(alpha * 255);
-    }
+/** How far above the ground a marker lies, as a share of the radius: enough not to flicker. */
+const MARKER_LIFT = 1.006;
+
+/**
+ * The mark of a landing site: a ring with a dot in its middle on a dark disc, lying flat on the
+ * ground. It is part of the planet, so it turns with it and flattens towards the edge, where a
+ * mark that always faced the viewer would float off the surface.
+ */
+function siteMarkers(sites: readonly Site[]): THREE.Group {
+  const ring = new THREE.RingGeometry(0.021, 0.029, 48);
+  const dot = new THREE.CircleGeometry(0.0105, 32);
+  const disc = new THREE.CircleGeometry(0.04, 48);
+  // Not lit: a site on the night side is still a site to pick.
+  const white = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false });
+  const backing = new THREE.MeshBasicMaterial({
+    color: 0x04060a,
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false,
+  });
+  const group = new THREE.Group();
+  const outward = new THREE.Vector3();
+  for (const site of sites) {
+    const marker = new THREE.Group();
+    toVector(site.landing, 1, outward);
+    marker.position.copy(outward).multiplyScalar(MARKER_LIFT);
+    // Its face looks straight up from the ground.
+    marker.lookAt(outward.multiplyScalar(2));
+    const shade = new THREE.Mesh(disc, backing);
+    shade.position.z = -0.0006;
+    marker.add(shade, new THREE.Mesh(ring, white), new THREE.Mesh(dot, white));
+    group.add(marker);
   }
-  const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-  texture.magFilter = THREE.LinearFilter;
-  texture.minFilter = THREE.LinearFilter;
-  texture.needsUpdate = true;
-  return texture;
+  return group;
 }
 
 /** A small repeatable random generator, so the star field is the same on every visit. */
@@ -221,21 +234,7 @@ export function createGlobeScene(
     new THREE.SphereGeometry(1, 128, 96),
     new THREE.MeshStandardMaterial({ map: surface, roughness: 1, metalness: 0 }),
   );
-  scene.add(planet, atmosphere(), starField(pixelRatio));
-
-  const pin = new THREE.SpriteMaterial({
-    map: markerTexture(),
-    color: 0xffffff,
-    transparent: true,
-    depthWrite: false,
-    sizeAttenuation: true,
-  });
-  for (const site of sites) {
-    const marker = new THREE.Sprite(pin);
-    marker.position.copy(toVector(site.landing, 1.012));
-    marker.scale.setScalar(0.052);
-    scene.add(marker);
-  }
+  scene.add(planet, atmosphere(), starField(pixelRatio), siteMarkers(sites));
 
   const dispose = () => {
     scene.traverse((object) => {
@@ -245,7 +244,6 @@ export function createGlobeScene(
       if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
       else material?.dispose();
     });
-    pin.map?.dispose();
   };
 
   return { scene, camera, dispose };

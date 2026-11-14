@@ -1,6 +1,5 @@
 import { Image } from 'expo-image';
-import { Link, type Href } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PanelHeading, SectionHeading, StatusNote } from '@/components/console-parts';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
@@ -38,10 +37,10 @@ export function PhotosPanel({ siteName, rover, library }: PhotosPanelProps) {
                 <Photo
                   key={frame.id}
                   uri={frame.image}
-                  url={frame.link ?? rover.gallery}
+                  url={frame.full}
                   title={`${CAMERA_NAMES[frame.camera] ?? frame.camera} · sol ${frame.sol}`}
                   detail={frame.takenUtc ? `${frame.takenUtc.slice(0, 10)} UTC` : ''}
-                  label={`${CAMERA_NAMES[frame.camera] ?? frame.camera} image from sol ${frame.sol}. Opens its page on mars.nasa.gov.`}
+                  label={`${CAMERA_NAMES[frame.camera] ?? frame.camera} image from sol ${frame.sol}. Opens the full image from mars.nasa.gov in a new tab.`}
                 />
               ))}
             </View>
@@ -72,7 +71,7 @@ export function PhotosPanel({ siteName, rover, library }: PhotosPanelProps) {
               url={picture.page}
               title={picture.title}
               detail={[picture.centre, picture.dateCreated].filter(Boolean).join(' · ')}
-              label={`${picture.title}. Opens its page on images.nasa.gov.`}
+              label={`${picture.title}. Opens its page on images.nasa.gov in a new tab.`}
             />
           ))}
         </View>
@@ -106,24 +105,27 @@ type PhotoProps = { uri: string; url: string; title: string; detail: string; lab
 
 function Photo({ uri, url, title, detail, label }: PhotoProps) {
   return (
-    <Link href={url as Href} target="_blank" rel="noopener noreferrer" asChild>
-      <Pressable
-        style={({ pressed }) => [styles.photo, pressed && styles.photoPressed]}
-        accessibilityRole="link"
-        accessibilityLabel={label}>
-        <Image source={{ uri }} style={styles.image} contentFit="cover" transition={150} />
-        <View style={styles.caption}>
-          <Text style={styles.photoTitle} numberOfLines={2}>
-            {title}
+    <Pressable
+      // Always away from the app: a new tab in a browser, the browser itself on a phone.
+      onPress={() => {
+        if (Platform.OS === 'web') window.open(url, '_blank', 'noopener,noreferrer');
+        else void Linking.openURL(url);
+      }}
+      style={({ pressed }) => [styles.photo, pressed && styles.photoPressed]}
+      accessibilityRole="link"
+      accessibilityLabel={label}>
+      <Image source={{ uri }} style={styles.image} contentFit="cover" transition={150} />
+      <View style={styles.caption}>
+        <Text style={styles.photoTitle} numberOfLines={2}>
+          {title}
+        </Text>
+        {detail ? (
+          <Text style={styles.photoDetail} numberOfLines={1}>
+            {detail}
           </Text>
-          {detail ? (
-            <Text style={styles.photoDetail} numberOfLines={1}>
-              {detail}
-            </Text>
-          ) : null}
-        </View>
-      </Pressable>
-    </Link>
+        ) : null}
+      </View>
+    </Pressable>
   );
 }
 

@@ -42,6 +42,13 @@ const RESUME_AFTER_MS = 250;
 const RESUME_OVER_MS = 600;
 /** Below this speed, in degrees per second, a thrown planet is taken as at rest. */
 const AT_REST = 1.5;
+/** A label shows from this much facing the viewer, and is at full strength a little further in. */
+const LABEL_EDGE = 0.1;
+const LABEL_FADE = 0.3;
+/** Pixels between a mark and its label, and the room one label needs to clear another. */
+const LABEL_GAP = 18;
+const LABEL_WIDTH = 190;
+const LABEL_HEIGHT = 34;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
@@ -197,31 +204,48 @@ export function startGlobe(
     camera.updateMatrixWorld();
   }
 
-  /** Where a site is on screen, or null when it is on the far side. */
+  /**
+   * Where a site is on screen, or null when it is on the far side. `facing` is how squarely its
+   * ground faces the viewer: 1 in the middle of the disc, near 0 at the edge.
+   */
   function onScreen(site: Site) {
     toVector(site.landing, 1, normal);
     direction.copy(camera.position).sub(normal).normalize();
-    if (normal.dot(direction) < 0.12) return null;
-    projected.copy(normal).multiplyScalar(1.012).project(camera);
+    const facing = normal.dot(direction);
+    if (facing < LABEL_EDGE) return null;
+    projected.copy(normal).multiplyScalar(1.006).project(camera);
     return {
       x: ((projected.x + 1) / 2) * size.width,
       y: ((1 - projected.y) / 2) * size.height,
+      facing,
     };
   }
 
   function placeLabels() {
+    const shown: { label: HTMLElement; x: number; y: number; flip: boolean }[] = [];
     for (const site of sites) {
       const label = callbacks.labelOf(site.id);
       if (!label) continue;
       const at = onScreen(site);
-      label.style.opacity = at ? '1' : '0';
-      label.style.pointerEvents = at ? 'auto' : 'none';
-      if (at) {
-        // Near the right edge the label goes to the left of its marker, so it is not cut off.
-        const flip = at.x > size.width * 0.62;
-        const x = Math.round(at.x) + (flip ? -12 : 12);
-        label.style.transform = `translate(${x}px, ${Math.round(at.y)}px) translate(${flip ? '-100%' : '0'}, -50%)`;
+      // A label fades as its site nears the edge, where the mark on the ground is a sliver.
+      const strength = at ? clamp((at.facing - LABEL_EDGE) / LABEL_FADE, 0, 1) : 0;
+      label.style.opacity = String(strength);
+      label.style.pointerEvents = strength > 0.5 ? 'auto' : 'none';
+      if (!at || strength === 0) continue;
+      // Near the right edge the label goes to the left of its marker, so it is not cut off.
+      const flip = at.x > size.width * 0.62;
+      shown.push({ label, x: Math.round(at.x) + (flip ? -LABEL_GAP : LABEL_GAP), y: at.y, flip });
+    }
+    // Two sites close together would stack their labels: the lower one moves down to clear.
+    shown.sort((one, other) => one.y - other.y);
+    for (let index = 0; index < shown.length; index += 1) {
+      const entry = shown[index];
+      for (let above = 0; above < index; above += 1) {
+        const other = shown[above];
+        const beside = other.flip === entry.flip && Math.abs(other.x - entry.x) < LABEL_WIDTH;
+        if (beside && entry.y - other.y < LABEL_HEIGHT) entry.y = other.y + LABEL_HEIGHT;
       }
+      entry.label.style.transform = `translate(${entry.x}px, ${Math.round(entry.y)}px) translate(${entry.flip ? '-100%' : '0'}, -50%)`;
     }
   }
 

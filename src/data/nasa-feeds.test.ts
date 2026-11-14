@@ -162,6 +162,23 @@ describe('rover raw images', () => {
     }
   });
 
+  it('links a frame to the largest picture the feed has, not to the page it names', () => {
+    const withLarge = {
+      ...frame('z', 'MCZ_LEFT', 12),
+      image_files: {
+        small: 'http://mars.nasa.gov/raw/z_320.jpg',
+        medium: 'http://mars.nasa.gov/raw/z_800.jpg',
+        large: 'http://mars.nasa.gov/raw/z_1200.jpg',
+        full_res: 'http://mars.nasa.gov/raw/z.png',
+      },
+    };
+    const [large, medium] = parseRawImages({ images: [withLarge, frame('y', 'MCZ_LEFT', 11)] });
+    expect(large.full).toBe('https://mars.nasa.gov/raw/z_1200.jpg');
+    // Without a large one, the next size down.
+    expect(medium.full).toBe('https://mars.nasa.gov/raw/y_800.jpg');
+    expect(medium.image).toBe('https://mars.nasa.gov/raw/y_320.jpg');
+  });
+
   it('keeps full frames over https, and prefers a mix of cameras', () => {
     const images = parseRawImages(
       {

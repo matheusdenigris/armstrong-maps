@@ -19,7 +19,7 @@ import { MiniMap } from '@/components/mini-map';
 import { PanoramaView } from '@/components/panorama-view';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { VIKING_GLOBAL } from '@/data/layers';
-import { sceneForWalk, sceneStretch } from '@/data/panoramas';
+import { panoramaUrl, sceneForWalk, sceneStretch, scenesOf } from '@/data/panoramas';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { SITES, findSite, type Site } from '@/data/sites';
 import { MARS_WIND } from '@/data/sounds';
@@ -41,7 +41,7 @@ import {
 } from '@/mission/progress';
 import { walkSafety, type SafetyAlert, type SafetyLevel, type WalkSafety } from '@/mission/safety';
 import { WALK_ASSUMPTIONS } from '@/mission/walk';
-import { useMission, useRoute } from '@/state/mission';
+import { VISOR_READY_KEY, useMission, useRoute } from '@/state/mission';
 import { AMBIENT_SOUND_AVAILABLE, useAmbientSound } from '@/state/use-ambient-sound';
 import { useFeed } from '@/state/use-feed';
 import { useNow } from '@/state/use-now';
@@ -125,6 +125,35 @@ function Visor({ site }: { site: Site }) {
   const sound = useAmbientSound(MARS_WIND.url);
   // The only weather station is at Gale; elsewhere there is no reading to put on the display.
   const weather = useFeed(site.id === 'gale' ? REMS_FEED : null, parseWeather);
+
+  // The ship console holds the start of a walk until this tab has something to show: say so
+  // once the first photograph is in, or after a while if it does not come.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    let told = false;
+    const tell = () => {
+      if (told) return;
+      told = true;
+      try {
+        window.localStorage.setItem(
+          VISOR_READY_KEY,
+          JSON.stringify({ site: site.id, at: Date.now() }),
+        );
+      } catch {
+        // No storage here: the console starts the walk by itself after a few seconds.
+      }
+    };
+    const opening = scenesOf(site.id, site.landing).scenes[0];
+    const timer = setTimeout(tell, 6000);
+    if (opening) {
+      const first = new Image();
+      first.src = panoramaUrl(opening, false);
+      first.decode().then(tell, tell);
+    } else {
+      tell();
+    }
+    return () => clearTimeout(timer);
+  }, [site]);
 
   // The arrow keys turn the head too, for whoever is not using a pointer.
   useEffect(() => {

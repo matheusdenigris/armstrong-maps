@@ -1,12 +1,23 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
+import {
+  AccessibilityInfo,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+  type ViewStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, LinearTransition, ReduceMotion } from 'react-native-reanimated';
 
 import { EnvironmentPanel } from '@/components/environment-panel';
 import { LayerPanel } from '@/components/layer-panel';
+import { MapLegend } from '@/components/map-legend';
 import { PhotosPanel } from '@/components/photos-panel';
 import { Logo } from '@/components/logo';
 import { ScaleBar } from '@/components/scale-bar';
@@ -14,13 +25,14 @@ import {
   SurfaceMap,
   type MapMarker,
   type MapPath,
+  type MapPreview,
   type MapRing,
 } from '@/components/surface-map';
 import { WalkControls } from '@/components/walk-controls';
 import { RouteActions, WalkDetails, WalkSummary } from '@/components/walk-panel';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { imageSearchUrl, parseImageSearch } from '@/data/image-library';
-import { GLOBAL_LAYERS, VIKING_GLOBAL } from '@/data/layers';
+import { GLOBAL_LAYERS, VIKING_GLOBAL, type MapLayer } from '@/data/layers';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { ROVERS, parseRoverTrack } from '@/data/rover';
 import { RAW_IMAGE_FEEDS, parseRawImages, rawImagesUrl } from '@/data/rover-images';
@@ -49,10 +61,11 @@ export function generateStaticParams() {
 }
 
 /**
- * The map opens about 11 km across on a phone: the landing point with the 5 km walk-back ring
- * just inside the screen, which is the ground a walk can cover.
+ * The map opens close to the base, at about 3 m a pixel: the scale bar reads 200 m and a phone
+ * shows about a kilometre across. Where the imagery of a site is not that sharp, the map opens
+ * at its closest instead.
  */
-const OPENING_PIXELS_PER_DEGREE = 2000;
+const OPENING_PIXELS_PER_DEGREE = 20_000;
 /** The whole planet fits on a small screen at this scale. */
 const WIDEST_PIXELS_PER_DEGREE = 2;
 /** The full three-column ship console starts here. */
@@ -81,7 +94,52 @@ const GALE = SITES[0].landing;
 const ENLIL_CACHE = { key: 'donki-enlil', freshForHours: 3 };
 const SEP_CACHE = { key: 'donki-sep', freshForHours: 3 };
 
-type Tab = 'map' | 'layers' | 'walk' | 'photos';
+/** Styles only a browser understands: transitions and keyframe animations. */
+const web = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle) : null);
+/** One curve for everything that opens, closes or comes in: quick to start, soft to land. */
+const CURVE = 'cubic-bezier(0.2, 0.7, 0.2, 1)';
+const PANEL_MS = 320;
+/** A panel changes width; what is in it comes in after and goes out before. */
+const PANEL_WIDTH = web({ transition: `width ${PANEL_MS}ms ${CURVE}` });
+const BODY_SHOWN = web({
+  visibility: 'visible',
+  transition: `opacity 240ms ease 90ms, transform ${PANEL_MS}ms ${CURVE}, visibility 0s`,
+});
+const BODY_HIDDEN = web({
+  visibility: 'hidden',
+  transition: `opacity 150ms ease, transform ${PANEL_MS}ms ${CURVE}, visibility 0s linear 150ms`,
+});
+const ARROW_TURN = web({ transition: `transform ${PANEL_MS}ms ${CURVE}` });
+const RISE = web({ animation: `armstrong-rise 260ms ${CURVE} both` });
+const SHEET_IN = web({ animation: `armstrong-sheet 300ms ${CURVE} both` });
+const KEYFRAMES = `
+  @keyframes armstrong-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @keyframes armstrong-sheet { from { opacity: 0; transform: translateY(32px); } to { opacity: 1; transform: none; } }
+`;
+
+/** True when the person has asked the system for less movement: then nothing here animates. */
+function useReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((on) => alive && setReduced(on));
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
+    return () => {
+      alive = false;
+      subscription.remove();
+    };
+  }, []);
+  return reduced;
+}
+
+type Tab = 'map' | 'layers' | 'walk' | 'site' | 'photos';
+/** What the right-hand panel of the desktop console shows: one subject at a time. */
+type PanelTab = 'walk' | 'site' | 'photos';
+const PANEL_TABS: readonly { id: PanelTab; label: string }[] = [
+  { id: 'walk', label: 'Walk' },
+  { id: 'site', label: 'Site' },
+  { id: 'photos', label: 'Photos' },
+];
 
 /** False on the page rendered ahead of time, which does not know the size of the window. */
 function useHydrated() {
@@ -121,6 +179,8 @@ function SiteMap({ site }: { site: Site }) {
   const setWalkRate = useMission((state) => state.setWalkRate);
   const endWalk = useMission((state) => state.endWalk);
   const [tab, setTab] = useState<Tab>('map');
+  const [panelTab, setPanelTab] = useState<PanelTab>('walk');
+  const calm = useReducedMotion();
 
   // The walk in progress, if there is one. Its position is simulated from the plan.
   const now = useNow(clock?.running ?? false);
@@ -147,21 +207,18 @@ function SiteMap({ site }: { site: Site }) {
   // is meaningful on a phone, but is ready with the full desktop console.
   const rover = site.rover ? ROVERS[site.rover] : null;
   const track = useFeed(rover?.feed ?? null, parseRoverTrack);
-  const weather = useFeed(desktopConsole || tab === 'walk' ? REMS_FEED : null, parseWeather);
+  const showSite = desktopConsole ? panelTab === 'site' : tab === 'site';
+  const weather = useFeed(showSite ? REMS_FEED : null, parseWeather);
   // Space weather changes the verdict, so the CME forecast is asked for at once. The addresses
   // only change once a day, and each is asked for once per visit.
   const [visitStart] = useState(() => new Date());
   const donki = useMemo(() => donkiUrls(visitStart), [visitStart]);
   const arrivals = useFeed(donki.enlil, parseMarsArrivals, ENLIL_CACHE);
-  const sep = useFeed(
-    desktopConsole || tab === 'walk' ? donki.sep : null,
-    parseSepEvents,
-    SEP_CACHE,
-  );
+  const sep = useFeed(showSite ? donki.sep : null, parseSepEvents, SEP_CACHE);
   const cmeAtMars =
     arrivals.status === 'ready' && marsSpaceWeather(arrivals.data, visitStart).level !== 'quiet';
   // Pictures wait until their panel is on screen.
-  const showPhotos = desktopConsole || tab === 'photos';
+  const showPhotos = desktopConsole ? panelTab === 'photos' : tab === 'photos';
   const rawImages = useFeed(
     showPhotos && site.rover ? rawImagesUrl(site.rover) : null,
     parseRawImages,
@@ -188,12 +245,15 @@ function SiteMap({ site }: { site: Site }) {
   const [view, setView] = useState(home);
 
   // The optical base of the site, then the overlays that are on, in catalogue order.
-  const { base, layers, sources } = useMemo(() => {
+  const { base, layers, coloured, sources } = useMemo(() => {
     const optical = [VIKING_GLOBAL, ...site.layers];
-    const stack = [...optical, ...OVERLAYS.filter((layer) => overlays[layer.id] !== undefined)];
+    const on = OVERLAYS.filter((layer) => overlays[layer.id] !== undefined);
+    const stack = [...optical, ...on];
     return {
       base: optical,
       layers: stack,
+      // The layers whose colours need a key on the map.
+      coloured: on,
       sources: [...new Set(stack.map((layer) => layer.source))].join(', '),
     };
   }, [site, overlays]);
@@ -256,6 +316,26 @@ function SiteMap({ site }: { site: Site }) {
     };
   }, [site, route, rover, track, astronaut, cmeAtMars]);
 
+  // Under a mouse pointer the map shows the leg a press would add. Not while a walk runs: the
+  // route is locked then.
+  const preview = useMemo<MapPreview | null>(() => {
+    if (clock !== null) return null;
+    const from = route.length > 0 ? route[route.length - 1] : site.landing;
+    const origin = route.length > 0 ? `waypoint ${route.length}` : 'the base';
+    return {
+      from,
+      color: Colors.nav,
+      describe: (to) => {
+        const metres = distance(from, to);
+        const hours = metres / 1000 / WALK_ASSUMPTIONS.walkingSpeedKmh;
+        return {
+          title: `Click to mark waypoint ${route.length + 1}`,
+          detail: `${formatDistance(metres)} · ${formatDuration(hours)} from ${origin}`,
+        };
+      },
+    };
+  }, [clock, route, site]);
+
   const roverSol =
     rover && track.status === 'ready' && track.data.latest
       ? String(track.data.latest.sol)
@@ -300,15 +380,17 @@ function SiteMap({ site }: { site: Site }) {
         onRate={(rate) => setWalkRate(site.id, rate)}
       />
       <WalkDetails walk={walk} stops={route.length} />
-      <View style={styles.dataDivider} />
-      <EnvironmentPanel
-        siteName={site.name}
-        distanceFromGaleM={distance(site.landing, GALE)}
-        weather={weather}
-        rover={rover ? { name: rover.name, track } : null}
-        space={{ arrivals, sep, now: visitStart }}
-      />
     </>
+  );
+
+  const siteContent = (
+    <EnvironmentPanel
+      siteName={site.name}
+      distanceFromGaleM={distance(site.landing, GALE)}
+      weather={weather}
+      rover={rover ? { name: rover.name, track } : null}
+      space={{ arrivals, sep, now: visitStart }}
+    />
   );
 
   const photosContent = (
@@ -336,9 +418,11 @@ function SiteMap({ site }: { site: Site }) {
       view={view}
       onViewChange={setView}
       onPress={(point) => addWaypoint(site.id, point)}
+      preview={preview}
       walk={walk}
       stops={route.length}
       sources={sources}
+      legends={coloured}
       desktop={desktopConsole}
       scaleAfterToggle={desktopConsole && !layersVisible}
       showFoot={desktopConsole || tab === 'map'}
@@ -351,6 +435,7 @@ function SiteMap({ site }: { site: Site }) {
       <Head>
         <title>{`${site.name} | Armstrong Maps`}</title>
         <meta name="description" content={`Map of ${site.name} on Mars. ${site.science}`} />
+        <style>{KEYFRAMES}</style>
       </Head>
 
       <ConsoleHeader
@@ -369,6 +454,7 @@ function SiteMap({ site }: { site: Site }) {
             side="left"
             visible={layersVisible}
             width={LAYERS_PANEL_WIDTH}
+            calm={calm}
             onToggle={() => setLayersVisible((visible) => !visible)}>
             {layersContent}
           </DesktopPanel>
@@ -379,10 +465,11 @@ function SiteMap({ site }: { site: Site }) {
             side="right"
             visible={walkVisible}
             width={WALK_PANEL_WIDTH}
-            onToggle={() => setWalkVisible((visible) => !visible)}>
-            {walkContent}
-            <View style={styles.dataDivider} />
-            {photosContent}
+            calm={calm}
+            onToggle={() => setWalkVisible((visible) => !visible)}
+            scrollKey={panelTab}
+            header={<PanelTabs selected={panelTab} onChange={setPanelTab} />}>
+            {panelTab === 'walk' ? walkContent : panelTab === 'site' ? siteContent : photosContent}
           </DesktopPanel>
         </View>
       ) : (
@@ -390,7 +477,14 @@ function SiteMap({ site }: { site: Site }) {
           <View style={styles.mobileMapStack}>
             {map}
             {tab !== 'map' ? (
-              <View style={[styles.mobileSheet, hydrated && { maxHeight: sheetLimit }]}>
+              <View
+                // A new sheet for each tab, so each one comes up from the foot of the screen.
+                key={tab}
+                style={[
+                  styles.mobileSheet,
+                  hydrated && { maxHeight: sheetLimit },
+                  calm ? null : SHEET_IN,
+                ]}>
                 <ScrollView
                   style={styles.mobileSheetScroll}
                   contentContainerStyle={styles.mobileSheetContent}
@@ -399,7 +493,9 @@ function SiteMap({ site }: { site: Site }) {
                     ? layersContent
                     : tab === 'photos'
                       ? photosContent
-                      : walkContent}
+                      : tab === 'site'
+                        ? siteContent
+                        : walkContent}
                 </ScrollView>
               </View>
             ) : null}
@@ -556,9 +652,11 @@ type MapStageProps = {
   view: MapView;
   onViewChange: (view: MapView) => void;
   onPress: (point: { lat: number; lon: number }) => void;
+  preview: MapPreview | null;
   walk: WalkEvaluation;
   stops: number;
   sources: string;
+  legends: readonly MapLayer[];
   desktop: boolean;
   scaleAfterToggle: boolean;
   showFoot: boolean;
@@ -577,9 +675,11 @@ function MapStage({
   view,
   onViewChange,
   onPress,
+  preview,
   walk,
   stops,
   sources,
+  legends,
   desktop,
   scaleAfterToggle,
   showFoot,
@@ -597,13 +697,17 @@ function MapStage({
         rings={rings}
         onViewChange={onViewChange}
         onPress={onPress}
-        controlsBottom={showFoot ? (desktop ? 112 : 116) : Spacing.three}
+        preview={preview}
+        // The zoom buttons stand clear of what is at the foot of the map, which is taller while
+        // the route is empty and the first step is spelled out.
+        controlsBottom={showFoot ? (stops === 0 ? 176 : desktop ? 112 : 116) : Spacing.three}
         accessibilityLabel={`Map of ${site.name}. Drag to move, pinch or use the buttons to zoom, tap to add a waypoint.`}>
         <MapHud
           view={view}
           walk={walk}
           stops={stops}
           sources={sources}
+          legends={legends}
           desktop={desktop}
           scaleAfterToggle={scaleAfterToggle}
           showFoot={showFoot}
@@ -619,6 +723,8 @@ type MapHudProps = {
   walk: WalkEvaluation;
   stops: number;
   sources: string;
+  /** The layers that are on over the base: each gets its colour key on the map. */
+  legends: readonly MapLayer[];
   desktop: boolean;
   scaleAfterToggle: boolean;
   showFoot: boolean;
@@ -631,8 +737,9 @@ function MapHud({
   walk,
   stops,
   sources,
-  desktop,
+  legends,
   scaleAfterToggle,
+  desktop,
   showFoot,
   onOpenWalk,
 }: MapHudProps) {
@@ -652,6 +759,7 @@ function MapHud({
         <View style={styles.scaleReadout} accessible accessibilityLabel="Map scale on Mars">
           <ScaleBar pixelsPerDegree={view.pixelsPerDegree} />
         </View>
+        <MapLegend layers={legends} compact={!desktop} />
       </View>
 
       {showFoot ? (
@@ -671,12 +779,21 @@ function MapHud({
               <Text style={styles.routeSummary}>{routeSummary}</Text>
             </Pressable>
           ) : null}
+          {/* With no route yet, the way to make one is the loudest thing on the map. */}
+          {stops === 0 ? (
+            <View style={styles.mapCoach}>
+              <Text style={styles.mapCoachTitle}>Click or tap the map to mark the first waypoint</Text>
+              <Text style={styles.mapCoachText}>
+                The walk goes from the base through each point you mark, and straight back.
+              </Text>
+            </View>
+          ) : null}
           <View style={styles.mapHint}>
-            <Text style={styles.mapHintText} numberOfLines={desktop ? 1 : 2}>
-              {stops === 0
-                ? 'Tap the map to add a waypoint'
-                : `${stops} ${stops === 1 ? 'waypoint' : 'waypoints'} · tap the map to add another`}
-            </Text>
+            {stops === 0 ? null : (
+              <Text style={styles.mapHintText} numberOfLines={desktop ? 1 : 2}>
+                {`${stops} ${stops === 1 ? 'waypoint' : 'waypoints'} · click or tap the map to add another`}
+              </Text>
+            )}
             <Text style={styles.mapCredit} numberOfLines={1}>
               North is up · {sources}
             </Text>
@@ -708,14 +825,32 @@ type DesktopPanelProps = {
   visible: boolean;
   width: number;
   onToggle: () => void;
+  /** Stays at the top of the panel, beside the button that folds it, while the content scrolls. */
+  header?: ReactNode;
+  /** A new key sends the content back to its top, as when the panel changes subject. */
+  scrollKey?: string;
+  /** Less movement was asked for: the panel opens and closes at once. */
+  calm: boolean;
   children: ReactNode;
 };
 
 /** A desktop panel preserves the source console's collapsible three-column framing. */
-function DesktopPanel({ side, visible, width, onToggle, children }: DesktopPanelProps) {
+function DesktopPanel({
+  side,
+  visible,
+  width,
+  onToggle,
+  header,
+  scrollKey,
+  calm,
+  children,
+}: DesktopPanelProps) {
   const expanding = side === 'left' ? 'Show layers panel' : 'Show walk plan panel';
   const collapsing = side === 'left' ? 'Hide layers panel' : 'Hide walk plan panel';
-  const arrow = side === 'left' ? (visible ? '‹' : '›') : visible ? '›' : '‹';
+  // One arrow that points at the edge the panel folds to, and turns round when it is folded.
+  const arrow = side === 'left' ? '‹' : '›';
+  // Folded, the content slides a little towards the edge it folds to as it fades.
+  const tucked = side === 'left' ? -16 : 16;
 
   return (
     <Animated.View
@@ -727,6 +862,7 @@ function DesktopPanel({ side, visible, width, onToggle, children }: DesktopPanel
         !visible && styles.desktopPanelCollapsed,
         !visible && (side === 'left' ? styles.layersPanelCollapsed : styles.walkPanelCollapsed),
         { width: visible ? width : COLLAPSED_PANEL_WIDTH },
+        calm ? null : PANEL_WIDTH,
       ]}>
       <Pressable
         onPress={onToggle}
@@ -740,16 +876,81 @@ function DesktopPanel({ side, visible, width, onToggle, children }: DesktopPanel
           !visible && styles.panelToggleCollapsed,
           pressed && styles.panelTogglePressed,
         ]}>
-        <Text style={styles.panelToggleText}>{arrow}</Text>
+        <Text
+          style={[
+            styles.panelToggleText,
+            { transform: [{ rotate: visible ? '0deg' : '180deg' }] },
+            calm ? null : ARROW_TURN,
+          ]}>
+          {arrow}
+        </Text>
       </Pressable>
-      {visible ? (
+      {/*
+        The content keeps its full width and stays pinned to the outer edge while the panel
+        changes width over it, so the text does not reflow as the panel opens or closes.
+      */}
+      <View
+        pointerEvents={visible ? 'auto' : 'none'}
+        aria-hidden={!visible}
+        style={[
+          styles.panelBody,
+          side === 'left' ? styles.panelBodyLeft : styles.panelBodyRight,
+          { width, opacity: visible ? 1 : 0, transform: [{ translateX: visible ? 0 : tucked }] },
+          calm ? web({ visibility: visible ? 'visible' : 'hidden' }) : visible ? BODY_SHOWN : BODY_HIDDEN,
+        ]}>
+        {/* A solid band behind the controls at the top: the content scrolls under it, not through it. */}
+        <View pointerEvents="none" style={styles.panelBar} />
+        {header ? (
+          <View
+            style={[
+              styles.panelHeader,
+              side === 'left' ? styles.panelHeaderLeft : styles.panelHeaderRight,
+            ]}>
+            {header}
+          </View>
+        ) : null}
         <ScrollView
+          key={scrollKey}
           style={styles.desktopPanelScroll}
           contentContainerStyle={styles.desktopPanelContent}
           showsVerticalScrollIndicator={false}>
-          {children}
+          {/* What a tab brings in rises into place. */}
+          <View key={scrollKey} style={calm ? null : RISE}>
+            {children}
+          </View>
         </ScrollView>
-      ) : null}
+      </View>
+    </View>
+  );
+}
+
+/** The subjects of the right-hand panel, as one rounded control. */
+function PanelTabs({
+  selected,
+  onChange,
+}: {
+  selected: PanelTab;
+  onChange: (tab: PanelTab) => void;
+}) {
+  return (
+    <View style={styles.panelTabs} accessibilityRole="tablist">
+      {PANEL_TABS.map(({ id, label }) => {
+        const chosen = id === selected;
+        return (
+          <Pressable
+            key={id}
+            onPress={() => onChange(id)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: chosen }}
+            style={({ pressed }) => [
+              styles.panelTab,
+              chosen && styles.tabSelected,
+              pressed && !chosen && styles.tabPressed,
+            ]}>
+            <Text style={[styles.panelTabText, chosen && styles.tabTextSelected]}>{label}</Text>
+          </Pressable>
+        );
+      })}
     </Animated.View>
   );
 }
@@ -774,6 +975,7 @@ function MobileTabs({
         onPress={() => onChange('layers')}
       />
       <TabButton label="Walk" selected={selected === 'walk'} onPress={() => onChange('walk')} />
+      <TabButton label="Site" selected={selected === 'site'} onPress={() => onChange('site')} />
       <TabButton
         label="Photos"
         selected={selected === 'photos'}
@@ -997,10 +1199,8 @@ const styles = StyleSheet.create({
     top: Spacing.three,
     left: Spacing.three,
     right: 72,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     alignItems: 'flex-start',
-    gap: Spacing.one + Spacing.half,
+    gap: Spacing.two,
   },
   mapReadoutDesktop: {
     top: Spacing.four,
@@ -1053,6 +1253,30 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontFamily: Fonts.mono,
     fontSize: 12,
+  },
+  mapCoach: {
+    alignItems: 'center',
+    gap: Spacing.half,
+    maxWidth: 420,
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.two + Spacing.one,
+    borderRadius: Radius.large,
+    backgroundColor: Colors.text,
+  },
+  mapCoachTitle: {
+    color: Colors.background,
+    fontFamily: Fonts.sans,
+    fontSize: 15,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  mapCoachText: {
+    color: Colors.surfaceRaised,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: 'center',
+    opacity: 0.72,
   },
   mapHint: {
     alignItems: 'center',
@@ -1112,7 +1336,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   desktopPanelContent: {
-    paddingTop: Spacing.three + 44,
+    paddingTop: Spacing.three + 44 + Spacing.two,
     paddingBottom: Spacing.four,
   },
   panelToggle: {
@@ -1149,6 +1373,62 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 20,
     lineHeight: 22,
+  },
+  panelBody: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+  },
+  panelBodyLeft: {
+    left: 0,
+  },
+  panelBodyRight: {
+    right: 0,
+  },
+  panelBar: {
+    position: 'absolute',
+    zIndex: 2,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: Spacing.three + 44,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+  },
+  panelHeader: {
+    position: 'absolute',
+    zIndex: 3,
+    top: Spacing.two + Spacing.one,
+    height: 36,
+  },
+  // Beside the button that folds the panel, which is 36 wide and 12 from the edge.
+  panelHeaderLeft: {
+    left: Spacing.two + Spacing.one,
+    right: Spacing.two + Spacing.one + 36 + Spacing.two,
+  },
+  panelHeaderRight: {
+    left: Spacing.two + Spacing.one + 36 + Spacing.two,
+    right: Spacing.two + Spacing.one,
+  },
+  panelTabs: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: Spacing.half,
+    padding: Spacing.half + 1,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.surfaceRaised,
+  },
+  panelTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.pill,
+  },
+  panelTabText: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
   },
   dataDivider: {
     height: Spacing.three,
@@ -1201,7 +1481,7 @@ const styles = StyleSheet.create({
   tabText: {
     color: Colors.textSoft,
     fontFamily: Fonts.sans,
-    fontSize: 14,
+    fontSize: 13,
   },
   tabTextSelected: {
     color: Colors.background,
