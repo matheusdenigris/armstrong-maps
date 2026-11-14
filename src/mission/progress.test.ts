@@ -108,21 +108,21 @@ describe('the walk clock', () => {
   const T0 = 1_800_000_000_000;
 
   it('plays walk time at its rate', () => {
-    const clock = startClock(T0);
-    expect(clock.rate).toBe(DEFAULT_RATE);
+    expect(startClock(T0).rate).toBe(DEFAULT_RATE);
+    const clock = startClock(T0, 60);
     expect(elapsedSeconds(clock, T0)).toBe(0);
     expect(elapsedSeconds(clock, T0 + 10_000)).toBe(600);
   });
 
   it('holds still while paused and carries on after', () => {
-    const paused = pauseClock(startClock(T0), T0 + 10_000);
+    const paused = pauseClock(startClock(T0, 60), T0 + 10_000);
     expect(elapsedSeconds(paused, T0 + 99_000)).toBe(600);
     const resumed = resumeClock(paused, T0 + 100_000);
     expect(elapsedSeconds(resumed, T0 + 101_000)).toBe(660);
   });
 
   it('changes speed without losing the time already passed', () => {
-    const faster = withRate(startClock(T0), 600, T0 + 10_000);
+    const faster = withRate(startClock(T0, 60), 600, T0 + 10_000);
     expect(elapsedSeconds(faster, T0 + 10_000)).toBe(600);
     expect(elapsedSeconds(faster, T0 + 11_000)).toBe(1200);
   });
