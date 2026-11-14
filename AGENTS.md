@@ -39,9 +39,13 @@ the merge. A real exception (a proper noun) goes in `scripts/english-allowlist.t
 - **Mission code is pure TypeScript** in `src/mission`, with no React and no device APIs, and it
   is tested. It returns numbers and reason codes; the interface turns them into text.
 - **Map tiles are equirectangular**, not Web Mercator. Level L has 2^(L+1) columns and 2^L rows.
-- **Longitudes** are stored as -180..180 and shown as 0..360 E.
+- **Longitudes** are stored as -180..180 and shown as 0..360 E (`src/mission/format.ts`).
+- **The map is equirectangular too.** `src/mission/camera.ts` does the projection; the gestures are
+  in `src/components/map-controller.ts`. Tiles are laid out for a settled view and follow a
+  gesture with one transform, so do not position tiles from the per-frame view.
 - **A new map layer** is checked against the product's `WMTSCapabilities.xml` on trek.nasa.gov
-  (id, image format, deepest level) before it is added. A 404 outside a layer's coverage is normal.
+  (id, image format, deepest level) before it is added to `src/data`. A 404 outside a layer's
+  coverage is normal.
 
 ## Honest data
 
@@ -63,7 +67,12 @@ screen needs a source or a "simulated" or "assumption" label.
   `assets/images` are rendered from the same drawing: change them together.
 - Do not reproduce the NASA logotype or insignia. The project has no official link to NASA.
 - Respect reduced-motion settings and keep touch targets at 44 pt or more.
-- Check every screen change at phone width (375 pt) and on the web export.
+- Check every screen change at phone width (375 pt) and at desktop width on the web export. The
+  web version is what is shown first, so mouse, wheel and keyboard must work as well as touch.
+- Routes live in `src/app`: `/` lists the landing sites and `/site/<id>` is the map of one. A
+  dynamic route exports `generateStaticParams` so the web export has a page for each address.
+- Do not add `src/app/+html.tsx` without checking the export: a custom shell dropped the style
+  sheet and the script tags from every page. Set titles with `Head` from `expo-router/head`.
 
 ## Workflow
 
@@ -73,6 +82,9 @@ screen needs a source or a "simulated" or "assumption" label.
   one. Say what was not verified.
 - Owner and priority are labels: `owner: matheus|miguel|larissa|claude`, `priority`.
 - Never commit `.env*`, `node_modules`, `dist` or the generated `android/` and `ios/` folders.
+- **`main` is the live site.** Every push deploys to https://www.armstrongmaps.us. Before pushing a
+  change to a screen or to the web shell, run `npm run build:web` and open the export in a browser;
+  tests and lint do not see a page that fails to start.
 
 ## Expo has changed — do not trust your training data
 
