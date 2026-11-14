@@ -12,7 +12,7 @@ import {
   type LayoutChangeEvent,
   type ViewStyle,
 } from 'react-native';
-import Svg, { Circle, Ellipse, Path, Polyline } from 'react-native-svg';
+import Svg, { Circle, Ellipse, G, Line, Path, Polygon, Polyline } from 'react-native-svg';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { tileUrl, type MapLayer } from '@/data/layers';
@@ -25,7 +25,7 @@ import {
   type Size,
 } from '@/mission/camera';
 import { METRES_PER_DEGREE, type LatLon } from '@/mission/geo';
-import { tileBounds, tilesFor, type TileAddress } from '@/mission/tiles';
+import { tileBounds, tilesFor, type Bounds, type TileAddress } from '@/mission/tiles';
 
 import { MapController, ZOOM_STEP, openingCamera } from './map-controller';
 
@@ -53,6 +53,31 @@ export type MapRing = {
   color: string;
 };
 
+/** A picture laid on the ground over an area, such as the slope classes of a terrain model. */
+export type MapImage = {
+  id: string;
+  uri: string;
+  bounds: Bounds;
+  opacity?: number;
+};
+
+/** A filled outline on the ground, such as a dune field. */
+export type MapArea = {
+  id: string;
+  outline: readonly LatLon[];
+  fill: string;
+  stroke: string;
+};
+
+/** An arrow on the ground, pointing along a bearing: the way a wind blew, say. */
+export type MapArrow = {
+  id: string;
+  point: LatLon;
+  /** Degrees clockwise from north. */
+  bearingDeg: number;
+  color: string;
+};
+
 type SurfaceMapProps = {
   /** Drawn from the bottom up. */
   layers: readonly MapLayer[];
@@ -64,6 +89,10 @@ type SurfaceMapProps = {
   markers?: readonly MapMarker[];
   paths?: readonly MapPath[];
   rings?: readonly MapRing[];
+  /** Laid on the ground over the tiles, under everything else. */
+  images?: readonly MapImage[];
+  areas?: readonly MapArea[];
+  arrows?: readonly MapArrow[];
   /** Called with the current view, at most once per frame. */
   onViewChange?: (view: MapView) => void;
   /** A single tap on the map (not a drag, not a double tap). */
@@ -88,6 +117,9 @@ export function SurfaceMap({
   markers = [],
   paths = [],
   rings = [],
+  images = [],
+  areas = [],
+  arrows = [],
   onViewChange,
   onPress,
   accessibilityLabel,
@@ -203,11 +235,59 @@ export function SurfaceMap({
       {size && planeStyle && (
         <View style={[StyleSheet.absoluteFill, planeStyle]} pointerEvents="none">
           <TilePlane layers={layers} opacity={opacity} base={base} size={size} />
+          {images.map((image) => {
+            const topLeft = project(base, size, { lat: image.bounds.north, lon: image.bounds.west });
+            const bottomRight = project(base, size, { lat: image.bounds.south, lon: image.bounds.east });
+            return (
+              <Image
+                key={image.id}
+                source={{ uri: image.uri }}
+                style={[
+                  styles.tile,
+                  {
+                    left: topLeft.x,
+                    top: topLeft.y,
+                    width: bottomRight.x - topLeft.x,
+                    height: bottomRight.y - topLeft.y,
+                    opacity: image.opacity ?? 1,
+                  },
+                ]}
+                contentFit="fill"
+                transition={0}
+                accessible={false}
+              />
+            );
+          })}
         </View>
       )}
 
-      {size && (paths.length > 0 || rings.length > 0) && (
+      {size && (paths.length > 0 || rings.length > 0 || areas.length > 0 || arrows.length > 0) && (
         <Svg width={size.width} height={size.height} style={styles.overlay} pointerEvents="none">
+          {areas.map((area) => (
+            <Polygon
+              key={area.id}
+              points={area.outline
+                .map((point) => {
+                  const at = project(view, size, point);
+                  return `${at.x.toFixed(1)},${at.y.toFixed(1)}`;
+                })
+                .join(' ')}
+              fill={area.fill}
+              stroke={area.stroke}
+              strokeWidth={1.5}
+            />
+          ))}
+          {arrows.map((arrow) => {
+            const at = project(view, size, arrow.point);
+            return (
+              <G
+                key={arrow.id}
+                transform={`translate(${at.x.toFixed(1)} ${at.y.toFixed(1)}) rotate(${arrow.bearingDeg.toFixed(1)})`}>
+                <Line x1={0} y1={18} x2={0} y2={-18} stroke={arrow.color} strokeWidth={3} strokeLinecap="round" />
+                <Path d="M -8 -8 L 0 -20 L 8 -8 Z" fill={arrow.color} />
+              </G>
+            );
+          })}
           {rings.map((ring) => {
             const at = project(view, size, ring.centre);
             const degrees = ring.radiusM / METRES_PER_DEGREE;

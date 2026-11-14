@@ -3,7 +3,8 @@
  *
  * The file is the MP3 that NASA publishes, unchanged, kept in `public/audio` so it plays without
  * depending on another server. It was recorded at Jezero crater; the visor plays it at every
- * site and says where it is from.
+ * site and says where it is from. The recording is faint, so the visor plays it louder than
+ * published and says that too.
  */
 export const MARS_WIND = {
   /** Served from the app's own `public` folder. */

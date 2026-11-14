@@ -99,6 +99,19 @@ export const PANORAMAS: readonly Panorama[] = [
     site: 'gale',
   },
   {
+    nasaId: 'PIA26554',
+    width: 3645,
+    height: 931,
+    horizon: 0.23,
+    band: { top: 0.17, bottom: 0.72 },
+    sky: '#6b7b8d',
+    north: null,
+    caption: 'Curiosity Mastcam at the Ubajara sampling site, sol 3815 (2023)',
+    credit: 'NASA/JPL-Caltech/MSSS',
+    point: { lat: -4.768075, lon: 137.398608 },
+    site: 'gale',
+  },
+  {
     nasaId: 'PIA24264',
     width: 9238,
     height: 2451,
@@ -122,6 +135,32 @@ export const PANORAMAS: readonly Panorama[] = [
     caption: 'Perseverance Mastcam-Z at Bright Angel, sol 1178 (2024), colour enhanced',
     credit: 'NASA/JPL-Caltech/ASU/MSSS',
     point: { lat: 18.496112, lon: 77.303836 },
+    site: 'jezero',
+  },
+  {
+    nasaId: 'PIA26474',
+    width: 5000,
+    height: 1222,
+    horizon: 0.2,
+    band: { top: 0, bottom: 0.62 },
+    sky: '#f0eeec',
+    north: null,
+    caption: 'Perseverance Mastcam-Z at Rio Chiquito, sol 1337 (2024), colour enhanced',
+    credit: 'NASA/JPL-Caltech/ASU/MSSS',
+    point: { lat: 18.46511, lon: 77.286718 },
+    site: 'jezero',
+  },
+  {
+    nasaId: 'PIA26644',
+    width: 3000,
+    height: 733,
+    horizon: 0.25,
+    band: { top: 0, bottom: 0.6 },
+    sky: '#3e73b4',
+    north: null,
+    caption: 'Perseverance Mastcam-Z at Falbreen, sol 1516 (2025), colour enhanced',
+    credit: 'NASA/JPL-Caltech/ASU/MSSS',
+    point: { lat: 18.452484, lon: 77.252956 },
     site: 'jezero',
   },
   {
@@ -165,6 +204,69 @@ export function panoramaNear(siteId: string, position: LatLon): Chosen {
     }
   }
   return { panorama: best, awayM: Number.isFinite(bestM) ? bestM : null, borrowed: false };
+}
+
+/** How far the astronaut walks, in metres, before the scenery changes. */
+export const SCENE_EVERY_M = 300;
+/** A scene stays on screen at least this long, in seconds, however fast the walk is played. */
+export const SCENE_MIN_SECONDS = 8;
+
+/**
+ * The stretch of walking each scene covers when the walk is played at `rate` times real time. At
+ * walking pace it is `SCENE_EVERY_M`; played fast, the stretch grows so that the scenery does not
+ * flicker past.
+ */
+export function sceneStretch(walkingSpeedKmh: number, rate: number): number {
+  const metresPerSecond = (walkingSpeedKmh * 1000) / 3600;
+  return Math.max(SCENE_EVERY_M, metresPerSecond * rate * SCENE_MIN_SECONDS);
+}
+
+export type Scene = Chosen & {
+  /** Which scene of the walk this is, from 0, and how many the site has. */
+  index: number;
+  count: number;
+};
+
+/**
+ * The photographs of a site in the order a walk goes through them: the one taken nearest to the
+ * landing point first, then outwards. A site without any borrows the ones from Gale.
+ */
+export function scenesOf(siteId: string, landing: LatLon): { scenes: Panorama[]; borrowed: boolean } {
+  const own = PANORAMAS.filter((panorama) => panorama.site === siteId);
+  const borrowed = own.length === 0;
+  const pool = borrowed ? PANORAMAS.filter((panorama) => panorama.site === PANORAMAS[0].site) : own;
+  // Borrowed scenes keep the order they have at their own site.
+  const from = borrowed ? (PANORAMAS[0].point ?? landing) : landing;
+  const reach = (panorama: Panorama) =>
+    panorama.point ? distance(from, panorama.point) : Number.POSITIVE_INFINITY;
+  return { scenes: [...pool].sort((a, b) => reach(a) - reach(b)), borrowed };
+}
+
+/**
+ * The scenery for an astronaut who has walked `walkedM`. A walk has no film of its own: nobody
+ * has walked on Mars. So the visor goes through the real photographs of the site, a new one every
+ * `everyM`, to give the sense of ground being covered. Each is real and from this site,
+ * but it was not taken on the route, and `awayM` says how far off it was. At the base, before the
+ * walk and after it, the scene is always the first.
+ */
+export function sceneForWalk(
+  siteId: string,
+  landing: LatLon,
+  position: LatLon,
+  walkedM: number,
+  atBase: boolean,
+  everyM: number = SCENE_EVERY_M,
+): Scene {
+  const { scenes, borrowed } = scenesOf(siteId, landing);
+  const index = atBase ? 0 : Math.floor(Math.max(0, walkedM) / everyM) % scenes.length;
+  const panorama = scenes[index];
+  return {
+    panorama,
+    awayM: borrowed || !panorama.point ? null : distance(position, panorama.point),
+    borrowed,
+    index,
+    count: scenes.length,
+  };
 }
 
 /**
