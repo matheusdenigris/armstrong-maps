@@ -14,7 +14,14 @@ type MissionState = {
   addWaypoint: (siteId: string, point: LatLon) => void;
   removeLastWaypoint: (siteId: string) => void;
   clearRoute: (siteId: string) => void;
+  /** Opacity (0..1) of each overlay layer that is on, by layer id. A layer that is off is absent. */
+  overlays: Record<string, number>;
+  toggleOverlay: (layerId: string) => void;
+  setOverlayOpacity: (layerId: string, opacity: number) => void;
 };
+
+/** An overlay comes on see-through enough to keep the ground visible under it. */
+export const DEFAULT_OVERLAY_OPACITY = 0.5;
 
 /** More waypoints than this is a mistake, not a plan. */
 export const MAX_WAYPOINTS = 24;
@@ -37,12 +44,25 @@ export const useMission = create<MissionState>()(
         })),
       clearRoute: (siteId) =>
         set((state) => ({ routes: { ...state.routes, [siteId]: [] } })),
+      overlays: {},
+      toggleOverlay: (layerId) =>
+        set((state) => {
+          const { [layerId]: current, ...others } = state.overlays;
+          return {
+            overlays:
+              current === undefined ? { ...others, [layerId]: DEFAULT_OVERLAY_OPACITY } : others,
+          };
+        }),
+      setOverlayOpacity: (layerId, opacity) =>
+        set((state) => ({
+          overlays: { ...state.overlays, [layerId]: Math.min(1, Math.max(0.05, opacity)) },
+        })),
     }),
     {
       name: 'armstrong-maps.mission',
       version: 1,
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ routes: state.routes }),
+      partialize: (state) => ({ routes: state.routes, overlays: state.overlays }),
       // The saved plan is read after the first render, in the root layout, so the page that was
       // rendered ahead of time and the first render in the browser are the same.
       skipHydration: true,
