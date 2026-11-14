@@ -27,8 +27,23 @@ The app has three views:
 - **Astronaut visor.** First person: heading, next waypoint, life support and radiation, with the
   map oriented to where you are facing.
 
-This is a hackathon build in progress. What works today is tracked in the
+## What works today
+
+- **Globe** (web): Mars textured with the Viking colour mosaic, turned by drag, pinch or wheel,
+  with the five landing sites and the outline of their high-resolution coverage. Choosing a site
+  flies there and opens its map.
+- **Surface map**: the Viking, CTX and HiRISE mosaics of each site, dragged and pinched, with a
+  scale bar measured on Mars and coordinates in 0 to 360 E.
+- **Layers**: colour relief (MOLA and HRSC), daytime and nighttime infrared (THEMIS), thermal
+  inertia, dust cover and glass and clay (TES), each with a switch and an opacity.
+- **Walk planning**: tap to add waypoints; the app draws the route and the walk-back limit and
+  gives distance, time outside, life support used, radiation dose and a go, caution or no-go
+  verdict with its reasons. The plan is saved on the device.
+
+Not built yet: the astronaut visor, weather, the rover traverses, and the globe inside the
+Android and iOS apps (they open on the list of sites). The rest of the plan is in the
 [issues](../../issues) and [milestones](../../milestones); see [docs/roadmap.md](docs/roadmap.md).
+What is measured and what is assumed is in [docs/assumptions.md](docs/assumptions.md).
 
 ## Run it
 
@@ -48,6 +63,8 @@ To run on a phone, install Expo Go and scan the QR code that `npm start` prints.
 | Part | Choice |
 |---|---|
 | App | React Native 0.88 with Expo SDK 58 and Expo Router |
+| Globe | three.js on WebGL |
+| State | Zustand, saved with AsyncStorage |
 | Targets | Android and iOS (EAS Build), web (static export on Vercel) |
 | Language | TypeScript, strict |
 | Quality | Vitest, ESLint, `tsc`, an English-only gate, GitHub Actions |
@@ -57,15 +74,16 @@ To run on a phone, install Expo Go and scan the QR code that `npm start` prints.
 Every number in the app comes from a published source or carries a "simulated" or "assumption"
 label.
 
-| Kind | Source |
-|---|---|
-| Map tiles | [Mars Trek](https://trek.nasa.gov/mars/) (NASA/JPL): Viking MDIM 2.1, MRO CTX and HiRISE, MGS MOLA, Mars Express HRSC, Mars Odyssey THEMIS, MGS TES |
-| Weather | Curiosity REMS |
-| Radiation | MSL RAD, Hassler et al. 2014 (a published value) |
-| Rover traverses | Curiosity and Perseverance waypoints (mars.nasa.gov) |
+| Kind | Source | In the app |
+|---|---|---|
+| Map tiles | [Mars Trek](https://trek.nasa.gov/mars/) (NASA/JPL): Viking MDIM 2.1, MRO CTX and HiRISE, MGS MOLA, Mars Express HRSC, Mars Odyssey THEMIS, MGS TES | Yes |
+| Radiation | MSL RAD, Hassler et al. 2014 (a published average, not a live reading) | Yes |
+| Weather | Curiosity REMS | Planned |
+| Rover traverses | Curiosity and Perseverance waypoints (mars.nasa.gov) | Planned |
 
-The astronauts' position and the walk clock are simulated. Walking speed, life-support duration
-and the turn-back limit are assumptions of this project, not NASA rules.
+The walk is a plan drawn on the map: nobody is walking it. Walking speed, life-support duration
+and the walk-back limit are assumptions of this project, not NASA rules. The stars behind the globe
+and the light on it are decoration.
 
 ## English only
 

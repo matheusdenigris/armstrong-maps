@@ -73,6 +73,14 @@ screen needs a source or a "simulated" or "assumption" label.
   dynamic route exports `generateStaticParams` so the web export has a page for each address.
 - Do not add `src/app/+html.tsx` without checking the export: a custom shell dropped the style
   sheet and the script tags from every page. Set titles with `Head` from `expo-router/head`.
+- **Pages are rendered ahead of time, without a window.** `useWindowDimensions` is 0 there, and a
+  style computed from it stays in the HTML after the app starts. Gate anything that depends on the
+  window on `useHydrated` (see `src/app/index.tsx`): layout by width, sizes by height.
+- An `Svg` that covers its parent needs `width` and `height` as numbers; a fill style is not enough
+  on the web.
+- The globe is web only for now (`mars-globe.web.tsx`); `mars-globe.tsx` is what the phone apps
+  get. Screens check `GLOBE_AVAILABLE` before giving it room.
+- The mission state is `src/state/mission.ts`. It is read from the device after the first render.
 
 ## Workflow
 
