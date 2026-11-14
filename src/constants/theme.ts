@@ -17,6 +17,8 @@ export const Colors = {
   textMuted: '#9AA4B2',
   /** Mars: the planet and the brand. */
   mars: '#E2562F',
+  /** Mars, lighter: hover on a Mars-coloured control. */
+  marsLight: '#F07A55',
   /** Navigation: routes, coverage areas, links. */
   nav: '#4C8DFF',
   /** Walk status. */

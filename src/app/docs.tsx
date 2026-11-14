@@ -35,32 +35,35 @@ const SIDEBAR_WIDTH = 272;
 const CONTENTS_WIDTH = 220;
 
 /**
- * Thin, quiet scroll bars on the web, in the colours of the theme, instead of the browser's
- * default. Phones draw their own overlay bars and ignore this.
+ * Scroll bars on the web in the style of the landing page: a Mars-coloured thumb on a clear track,
+ * slimmer here because the docs have two scrolling columns. The thumb sits inside a margin so it
+ * never touches the edge, and brightens while the pointer is over it. Phones draw their own.
  */
 const SCROLLBAR_CSS = `
-  #docs-main, #docs-nav {
-    scrollbar-width: thin;
-    scrollbar-color: ${Colors.border} transparent;
-  }
-  #docs-main:hover, #docs-nav:hover {
-    scrollbar-color: ${Colors.textMuted} transparent;
+  /* Firefox only: in Chrome these two properties would replace the shaped thumb below. */
+  @supports (-moz-appearance: none) {
+    #docs-main, #docs-nav {
+      scrollbar-width: thin;
+      scrollbar-color: ${Colors.mars} transparent;
+    }
   }
   #docs-main::-webkit-scrollbar, #docs-nav::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 10px;
     background: transparent;
   }
   #docs-main::-webkit-scrollbar-track, #docs-nav::-webkit-scrollbar-track {
     background: transparent;
+    margin: 6px 0;
   }
   #docs-main::-webkit-scrollbar-thumb, #docs-nav::-webkit-scrollbar-thumb {
-    background: ${Colors.border};
-    border-radius: 8px;
-    border: 2px solid ${Colors.background};
+    background: ${Colors.mars};
+    border: 3px solid ${Colors.background};
+    border-radius: ${Radius.large}px;
+    min-height: 48px;
   }
   #docs-main::-webkit-scrollbar-thumb:hover, #docs-nav::-webkit-scrollbar-thumb:hover {
-    background: ${Colors.textMuted};
+    background: ${Colors.marsLight};
+    border-width: 2px;
   }
 `;
 
