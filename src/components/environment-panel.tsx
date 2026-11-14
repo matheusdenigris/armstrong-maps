@@ -44,10 +44,10 @@ export function EnvironmentPanel({
 
   return (
     <View style={styles.panel}>
-      <PanelHeading number="03" title="SITE CONDITIONS" />
+      <PanelHeading title="Site conditions" />
       <SectionHeading title="WEATHER · MEASURED AT GALE CRATER" color={Colors.nav} />
       {!local ? (
-        <Text style={[styles.warning, { borderLeftColor: Colors.caution }]}>
+        <Text style={styles.warning}>
           {siteName} is {formatDistance(distanceFromGaleM)} from the weather station. These
           readings are a reference, not the weather here.
         </Text>
@@ -62,7 +62,7 @@ export function EnvironmentPanel({
         <StatusNote text="The weather feed answered without any sol." color={Colors.caution} />
       ) : null}
       {latest ? (
-        <View style={[styles.card, { borderLeftColor: Colors.nav }]}>
+        <View style={styles.card}>
           <Text style={styles.cardTitle}>
             Sol {latest.sol} · {latest.earthDate} on Earth
           </Text>
@@ -89,7 +89,7 @@ export function EnvironmentPanel({
       ) : null}
 
       <SectionHeading title="RADIATION · PUBLISHED AVERAGE" color={Colors.caution} />
-      <View style={[styles.card, { borderLeftColor: Colors.caution }]}>
+      <View style={styles.card}>
         <Text style={styles.cardTitle}>
           {SURFACE_RADIATION.msvPerDay} ± {SURFACE_RADIATION.uncertaintyMsvPerDay} mSv per Earth day
         </Text>
@@ -103,7 +103,7 @@ export function EnvironmentPanel({
       {rover ? (
         <>
           <SectionHeading title={`ROVER · ${rover.name.toUpperCase()}`} color={Colors.mars} />
-          <View style={[styles.card, { borderLeftColor: Colors.mars }]}>
+          <View style={styles.card}>
             {rover.track.status === 'loading' || rover.track.status === 'idle' ? (
               <StatusNote text="Asking for the traverse." color={Colors.mars} />
             ) : null}
@@ -150,7 +150,6 @@ const hours = (value: number) =>
 function SpaceWeatherCard({ arrivals, sep, now }: EnvironmentPanelProps['space']) {
   const forecast = arrivals.status === 'ready' ? marsSpaceWeather(arrivals.data, now) : null;
   const alert = forecast !== null && forecast.level !== 'quiet';
-  const accent = alert ? Colors.caution : Colors.cyan;
   const weakKind = forecast?.weak
     ? forecast.weak.arrival.glancing
       ? 'glancing blow'
@@ -168,7 +167,7 @@ function SpaceWeatherCard({ arrivals, sep, now }: EnvironmentPanelProps['space']
           color={Colors.noGo}
         />
       ) : null}
-      <View style={[styles.card, { borderLeftColor: accent }]}>
+      <View style={styles.card}>
         {forecast ? (
           <>
             <Text style={[styles.cardTitle, alert && { color: Colors.caution }]}>
@@ -227,12 +226,10 @@ function SpaceWeatherCard({ arrivals, sep, now }: EnvironmentPanelProps['space']
   );
 }
 
-function PanelHeading({ number, title }: { number: string; title: string }) {
+function PanelHeading({ title }: { title: string }) {
   return (
     <View style={styles.panelHeading} accessible accessibilityRole="header">
-      <Text style={styles.panelNumber}>{number}</Text>
       <Text style={styles.panelTitle}>{title}</Text>
-      <View style={styles.panelRule} />
     </View>
   );
 }
@@ -248,7 +245,7 @@ function SectionHeading({ title, color }: { title: string; color: string }) {
 
 function StatusNote({ text, color }: { text: string; color: string }) {
   return (
-    <View style={[styles.statusNote, { borderLeftColor: color }]}>
+    <View style={styles.statusNote}>
       <View style={[styles.statusDot, { backgroundColor: color }]} />
       <Text style={styles.note}>{text}</Text>
     </View>
@@ -271,29 +268,13 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.three,
   },
   panelHeading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
     paddingTop: Spacing.one,
-  },
-  panelNumber: {
-    color: Colors.mars,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
   },
   panelTitle: {
     color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-  },
-  panelRule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Colors.border,
+    fontFamily: Fonts.sans,
+    fontSize: 20,
+    letterSpacing: -0.3,
   },
   heading: {
     flexDirection: 'row',
@@ -301,72 +282,60 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   headingMarker: {
-    width: 8,
-    height: 8,
-    borderRadius: Radius.small,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   headingText: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 1.3,
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    letterSpacing: 0.6,
   },
   warning: {
     color: Colors.text,
     fontFamily: Fonts.sans,
     fontSize: 13,
     lineHeight: 18,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderLeftWidth: 3,
-    borderColor: Colors.border,
-    borderRadius: Radius.small,
-    backgroundColor: Colors.surface,
+    padding: Spacing.three,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.cautionTint,
+    overflow: 'hidden',
   },
   card: {
     gap: Spacing.two,
-    padding: Spacing.two + Spacing.one,
-    borderRadius: Radius.small,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderLeftWidth: 3,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    padding: Spacing.three,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
   },
   cardTitle: {
     color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
+    fontFamily: Fonts.sans,
+    fontSize: 15,
+    lineHeight: 20,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.one,
+    justifyContent: 'space-between',
+    rowGap: Spacing.two,
   },
   reading: {
-    width: '49%',
-    minHeight: 68,
+    width: '48.6%',
+    minHeight: 64,
     gap: Spacing.one,
-    padding: Spacing.two,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    borderRadius: Radius.small,
-    backgroundColor: Colors.surfaceRaised,
+    padding: Spacing.two + Spacing.one,
+    borderRadius: Radius.medium,
+    backgroundColor: Colors.glassLight,
   },
   readingWide: {
     width: '100%',
     minHeight: 0,
   },
   readingLabel: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 9,
-    fontWeight: '600',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 11,
   },
   readingValue: {
     color: Colors.text,
@@ -383,33 +352,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.two,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderLeftWidth: 3,
-    borderColor: Colors.border,
-    borderRadius: Radius.small,
-    backgroundColor: Colors.surface,
+    padding: Spacing.three,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
   },
   statusDot: {
     width: 6,
     height: 6,
-    borderRadius: Radius.small,
+    borderRadius: 3,
     marginTop: Spacing.one + Spacing.half,
   },
   note: {
-    color: Colors.textMuted,
+    color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 13,
     lineHeight: 18,
   },
   source: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
+    color: Colors.textFaint,
+    fontFamily: Fonts.sans,
     fontSize: 11,
     lineHeight: 15,
-    paddingTop: Spacing.one,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
   },
 });

@@ -27,16 +27,16 @@ const OPACITIES = [0.25, 0.5, 0.75, 1];
 export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: LayerPanelProps) {
   return (
     <View style={styles.panel}>
-      <PanelHeading number="02" title="MAP LAYERS" />
+      <PanelHeading title="Map layers" />
       <CategoryHeading title="OPTICAL · ALWAYS ON" color={Colors.nav} />
       {base.map((layer) => (
-        <View key={layer.id} style={[styles.layer, { borderLeftColor: Colors.nav }]}>
+        <View key={layer.id} style={styles.layer}>
           <View style={styles.layerTop}>
             <View style={styles.text}>
               <Text style={styles.name}>{layer.name}</Text>
               <Text style={[styles.source, { color: Colors.nav }]}>{layer.source}</Text>
             </View>
-            <Text style={styles.baseState}>BASE</Text>
+            <Text style={styles.baseState}>Always on</Text>
           </View>
           <Text style={styles.reads}>{layer.reads}</Text>
         </View>
@@ -54,19 +54,14 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
               return (
                 <View
                   key={layer.id}
-                  style={[
-                    styles.layer,
-                    { borderLeftColor: color },
-                    on && styles.layerOn,
-                    on && { borderColor: color },
-                  ]}>
+                  style={[styles.layer, on && styles.layerOn]}>
                   <Pressable
                     onPress={() => onToggle(layer.id)}
                     accessibilityRole="switch"
                     accessibilityState={{ checked: on }}
                     accessibilityLabel={`${layer.name}, ${layer.source}`}
                     style={({ pressed }) => [styles.toggle, pressed && styles.togglePressed]}>
-                    <View style={[styles.switch, { borderColor: color }, on && { backgroundColor: color }]}>
+                    <View style={[styles.switch, on && { backgroundColor: color }]}>
                       <View style={[styles.knob, on && styles.knobOn]} />
                     </View>
                     <View style={styles.text}>
@@ -87,12 +82,8 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
                             accessibilityRole="radio"
                             accessibilityState={{ checked: chosen }}
                             accessibilityLabel={`${layer.name} opacity ${formatShare(value)}`}
-                            style={[
-                              styles.step,
-                              chosen && styles.stepChosen,
-                              chosen && { borderColor: color },
-                            ]}>
-                            <Text style={[styles.stepText, chosen && { color }]}>
+                            style={[styles.step, chosen && styles.stepChosen]}>
+                            <Text style={[styles.stepText, chosen && styles.stepTextChosen]}>
                               {formatShare(value)}
                             </Text>
                           </Pressable>
@@ -115,12 +106,10 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
   );
 }
 
-function PanelHeading({ number, title }: { number: string; title: string }) {
+function PanelHeading({ title }: { title: string }) {
   return (
     <View style={styles.panelHeading} accessible accessibilityRole="header">
-      <Text style={styles.panelNumber}>{number}</Text>
       <Text style={styles.panelTitle}>{title}</Text>
-      <View style={styles.panelRule} />
     </View>
   );
 }
@@ -144,29 +133,13 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   panelHeading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
     paddingTop: Spacing.one,
-  },
-  panelNumber: {
-    color: Colors.mars,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
   },
   panelTitle: {
     color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-  },
-  panelRule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Colors.border,
+    fontFamily: Fonts.sans,
+    fontSize: 20,
+    letterSpacing: -0.3,
   },
   categoryHeading: {
     flexDirection: 'row',
@@ -174,28 +147,24 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   kind: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 1.5,
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    letterSpacing: 0.6,
   },
   categoryMarker: {
-    width: 8,
-    height: 8,
-    borderRadius: Radius.small,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   layer: {
     gap: Spacing.two,
-    padding: Spacing.two + Spacing.one,
-    borderRadius: Radius.small,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderLeftWidth: 3,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    padding: Spacing.three,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
   },
   layerOn: {
-    backgroundColor: Colors.surfaceRaised,
+    backgroundColor: Colors.glassHover,
   },
   layerTop: {
     flexDirection: 'row',
@@ -212,22 +181,20 @@ const styles = StyleSheet.create({
     opacity: 0.76,
   },
   switch: {
-    width: 34,
-    height: 20,
-    borderRadius: Radius.small,
+    width: 44,
+    height: 26,
+    borderRadius: 13,
     padding: Spacing.half,
-    backgroundColor: Colors.border,
-    borderWidth: 1,
+    backgroundColor: Colors.glassBorder,
   },
   knob: {
-    width: 14,
-    height: 14,
-    borderRadius: Radius.small,
-    backgroundColor: Colors.textMuted,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.white,
   },
   knobOn: {
-    backgroundColor: Colors.text,
-    marginLeft: 14,
+    marginLeft: 18,
   },
   text: {
     flex: 1,
@@ -236,33 +203,28 @@ const styles = StyleSheet.create({
   name: {
     color: Colors.text,
     fontFamily: Fonts.sans,
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
+    fontSize: 15,
+    lineHeight: 20,
   },
   source: {
-    fontFamily: Fonts.mono,
-    fontSize: 9,
-    fontWeight: '600',
-    letterSpacing: 0.8,
-  },
-  baseState: {
-    color: Colors.nav,
-    fontFamily: Fonts.mono,
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderRadius: Radius.small,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.nav,
-  },
-  reads: {
-    color: Colors.textMuted,
     fontFamily: Fonts.sans,
     fontSize: 12,
-    lineHeight: 17,
+  },
+  baseState: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 11,
+    paddingHorizontal: Spacing.two + Spacing.half,
+    paddingVertical: Spacing.one,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.glassLight,
+    overflow: 'hidden',
+  },
+  reads: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
   },
   opacity: {
     flexDirection: 'row',
@@ -270,41 +232,37 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.one,
     paddingTop: Spacing.one,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
   },
   opacityLabel: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 9,
-    fontWeight: '600',
-    letterSpacing: 0.8,
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
     paddingRight: Spacing.two,
   },
   step: {
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: 52,
+    minHeight: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: Radius.small,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.glassLight,
   },
   stepChosen: {
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.text,
   },
   stepText: {
-    color: Colors.textMuted,
+    color: Colors.textSoft,
     fontFamily: Fonts.mono,
     fontSize: 12,
   },
+  stepTextChosen: {
+    color: Colors.background,
+  },
   credit: {
-    color: Colors.textMuted,
+    color: Colors.textFaint,
     fontFamily: Fonts.sans,
     fontSize: 11,
     lineHeight: 16,
-    paddingTop: Spacing.three,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
+    paddingTop: Spacing.two,
   },
 });

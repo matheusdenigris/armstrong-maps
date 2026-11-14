@@ -59,11 +59,11 @@ export function WalkControls({
     <View style={styles.block}>
       <SectionHeading
         title={clock === null ? 'SIMULATED WALK · READY' : 'SIMULATED WALK · IN PROGRESS'}
-        color={clock === null ? Colors.textMuted : Colors.go}
+        color={clock === null ? Colors.textFaint : over ? Colors.textSoft : Colors.go}
       />
 
       {clock === null ? (
-        <View style={[styles.card, { borderLeftColor: Colors.borderStrong }]}>
+        <View style={styles.card}>
           <Text style={styles.note}>
             {stops === 0
               ? 'Add a waypoint on the map, then start the walk.'
@@ -78,7 +78,7 @@ export function WalkControls({
           />
         </View>
       ) : (
-        <View style={[styles.card, { borderLeftColor: over ? Colors.textMuted : Colors.go }]}>
+        <View style={styles.card}>
           <Text style={styles.status} accessibilityLiveRegion="polite">
             {describe(progress.phase, progress, over)}
           </Text>
@@ -179,35 +179,31 @@ const styles = StyleSheet.create({
   card: {
     gap: Spacing.two,
     padding: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderLeftWidth: 3,
-    borderColor: Colors.border,
-    borderRadius: Radius.small,
-    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
   },
   note: {
-    color: Colors.textMuted,
+    color: Colors.textFaint,
     fontFamily: Fonts.sans,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 16,
   },
   status: {
     color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 19,
+    fontFamily: Fonts.sans,
+    fontSize: 15,
+    lineHeight: 21,
   },
   mono: {
-    color: Colors.textMuted,
+    color: Colors.textSoft,
     fontFamily: Fonts.mono,
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 12,
+    lineHeight: 16,
   },
   meter: {
-    height: 7,
-    borderRadius: Radius.small,
-    backgroundColor: Colors.border,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.glassBorder,
     overflow: 'hidden',
   },
   meterFill: {
@@ -226,12 +222,9 @@ const styles = StyleSheet.create({
     gap: Spacing.one,
   },
   rateLabel: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 9,
-    fontWeight: '600',
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
     paddingRight: Spacing.one,
   },
   rate: {
@@ -240,69 +233,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.two,
-    borderRadius: Radius.small,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.glassLight,
   },
   rateChosen: {
-    borderColor: Colors.nav,
-    backgroundColor: Colors.navTint,
+    backgroundColor: Colors.text,
   },
   rateText: {
-    color: Colors.textMuted,
+    color: Colors.textSoft,
     fontFamily: Fonts.mono,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontSize: 12,
   },
   rateTextChosen: {
-    color: Colors.text,
+    color: Colors.background,
   },
   button: {
     flex: 1,
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.two,
-    borderRadius: Radius.small,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.glassLight,
   },
   buttonPrimary: {
-    borderColor: Colors.go,
-    backgroundColor: 'rgba(74, 222, 128, 0.14)',
+    backgroundColor: Colors.text,
   },
   buttonPressed: {
-    backgroundColor: Colors.surfaceRaised,
+    opacity: 0.8,
   },
   buttonDisabled: {
     opacity: 0.45,
   },
   buttonText: {
     color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
+    fontFamily: Fonts.sans,
+    fontSize: 14,
   },
   buttonTextPrimary: {
-    color: Colors.go,
+    color: Colors.background,
   },
   visor: {
-    color: Colors.cyan,
-    fontFamily: Fonts.mono,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
     textAlign: 'center',
-    paddingVertical: Spacing.three,
-    borderRadius: Radius.small,
-    borderWidth: 1,
-    borderColor: Colors.cyan,
-    backgroundColor: Colors.surface,
+    paddingVertical: Spacing.three - Spacing.half,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.glassLight,
   },
 });

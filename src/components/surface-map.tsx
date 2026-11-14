@@ -218,7 +218,7 @@ export function SurfaceMap({
   return (
     <View
       ref={node}
-      style={[styles.map, webOnly({ touchAction: 'none', userSelect: 'none', cursor: 'grab' })]}
+      style={[styles.map, webOnly({ touchAction: 'none', userSelect: 'none', cursor: 'default' })]}
       onLayout={onLayout}
       accessible
       accessibilityRole="image"
@@ -239,12 +239,6 @@ export function SurfaceMap({
         </View>
       )}
 
-      <View pointerEvents="none" style={styles.frame}>
-        <View style={[styles.corner, styles.cornerTopLeft]} />
-        <View style={[styles.corner, styles.cornerTopRight]} />
-        <View style={[styles.corner, styles.cornerBottomLeft]} />
-        <View style={[styles.corner, styles.cornerBottomRight]} />
-      </View>
 
       {size && (paths.length > 0 || rings.length > 0) && (
         <Svg width={size.width} height={size.height} style={styles.overlay} pointerEvents="none">
@@ -463,44 +457,6 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
   },
-  frame: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-  },
-  corner: {
-    position: 'absolute',
-    width: 18,
-    height: 18,
-    borderColor: Colors.textMuted,
-    opacity: 0.62,
-  },
-  cornerTopLeft: {
-    top: Spacing.two,
-    left: Spacing.two,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderLeftWidth: StyleSheet.hairlineWidth,
-  },
-  cornerTopRight: {
-    top: Spacing.two,
-    right: Spacing.two,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderRightWidth: StyleSheet.hairlineWidth,
-  },
-  cornerBottomLeft: {
-    bottom: Spacing.two,
-    left: Spacing.two,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderLeftWidth: StyleSheet.hairlineWidth,
-  },
-  cornerBottomRight: {
-    right: Spacing.two,
-    bottom: Spacing.two,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
   marker: {
     position: 'absolute',
     flexDirection: 'row',
@@ -519,16 +475,14 @@ const styles = StyleSheet.create({
   },
   markerLabel: {
     color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.half,
-    borderRadius: Radius.small,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    paddingHorizontal: Spacing.two + Spacing.half,
+    paddingVertical: Spacing.one,
+    borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    backgroundColor: Colors.glass,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.glassStrong,
     overflow: 'hidden',
   },
   controls: {
@@ -536,9 +490,9 @@ const styles = StyleSheet.create({
     right: Spacing.three,
     gap: 0,
     overflow: 'hidden',
-    borderRadius: Radius.small,
+    borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
+    borderColor: Colors.glassBorder,
     backgroundColor: Colors.glassStrong,
   },
   button: {
@@ -547,14 +501,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.glassStrong,
+    borderBottomColor: Colors.glassBorder,
   },
   buttonLast: {
     borderBottomWidth: 0,
   },
   buttonPressed: {
-    backgroundColor: Colors.surfaceRaised,
+    backgroundColor: Colors.glassHover,
   },
   buttonDisabled: {
     opacity: 0.42,

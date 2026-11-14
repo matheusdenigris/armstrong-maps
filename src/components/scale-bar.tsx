@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { formatDistance, roundLength } from '@/mission/format';
 import { METRES_PER_DEGREE } from '@/mission/geo';
 
@@ -19,7 +19,7 @@ export function ScaleBar({ pixelsPerDegree, maxWidth = 96 }: ScaleBarProps) {
   return (
     <View accessible accessibilityLabel={`Scale: this bar is ${label}`} style={styles.wrap}>
       <Text style={styles.label}>
-        <Text style={styles.caption}>MAP SCALE · </Text>
+        <Text style={styles.caption}>Scale · </Text>
         {label}
       </Text>
       <View style={[styles.bar, { width: length / metresPerPixel }]}>
@@ -33,20 +33,12 @@ export function ScaleBar({ pixelsPerDegree, maxWidth = 96 }: ScaleBarProps) {
 const styles = StyleSheet.create({
   wrap: {
     alignItems: 'flex-start',
-    gap: Spacing.half,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    borderRadius: Radius.small,
-    backgroundColor: Colors.surface,
+    gap: Spacing.one,
   },
   caption: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 8,
-    fontWeight: '700',
-    letterSpacing: 1,
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
   },
   bar: {
     position: 'relative',
@@ -73,8 +65,6 @@ const styles = StyleSheet.create({
   label: {
     color: Colors.text,
     fontFamily: Fonts.mono,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.6,
+    fontSize: 12,
   },
 });

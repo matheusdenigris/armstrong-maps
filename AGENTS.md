@@ -61,7 +61,21 @@ screen needs a source or a "simulated" or "assumption" label.
 
 ## Interface
 
-- Visual language: mission control. Tokens live in `src/constants/theme.ts`. Dark only.
+- Visual language: minimal and rounded, on the Armstrong palette. Tokens live in
+  `src/constants/theme.ts`. Dark only.
+  - Surfaces are glass: a faint fill (`glassLight`) with no outline or a hairline one
+    (`glassBorder`). Cards have `Radius.card`, panels `Radius.pane`, buttons and chips
+    `Radius.pill`. No boxes with a coloured left edge, no corner brackets, no numbered headings.
+  - Type: Space Grotesk for text, in sentence case; JetBrains Mono only for numbers and
+    coordinates; Michroma only for the ARMSTRONG MAPS wordmark. Secondary text is `textSoft`,
+    captions `textFaint`.
+  - One primary action per panel, as a light pill with dark text. A chosen option is the same
+    light pill; hover and press only change the fill. Nothing moves, grows or lights up on hover.
+  - The pointer is an arrow over the globe and the map. It becomes a hand only over a button, a
+    link or a landing site.
+  - The home screen is the globe with a headline and one dock of landing sites: no side cards,
+    no vignette bands, no statistics.
+  - The map never shows the empty space beside the planet (`clampView` with the size of the map).
 - Styling is `StyleSheet` with the tokens; no hard-coded colours in screens.
 - The logo is `src/components/logo.tsx`; masters are in `assets/brand`. The app icons under
   `assets/images` are rendered from the same drawing: change them together.

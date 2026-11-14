@@ -2,13 +2,11 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 
-/** The numbered title of a panel of the ship console, with a rule to the edge. */
-export function PanelHeading({ number, title }: { number: string; title: string }) {
+/** The title of a panel of the ship console. */
+export function PanelHeading({ title }: { title: string }) {
   return (
     <View style={styles.panelHeading} accessible accessibilityRole="header">
-      <Text style={styles.panelNumber}>{number}</Text>
       <Text style={styles.panelTitle}>{title}</Text>
-      <View style={styles.panelRule} />
     </View>
   );
 }
@@ -35,29 +33,13 @@ export function StatusNote({ text, color }: { text: string; color: string }) {
 
 const styles = StyleSheet.create({
   panelHeading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
     paddingTop: Spacing.one,
-  },
-  panelNumber: {
-    color: Colors.mars,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
   },
   panelTitle: {
     color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-  },
-  panelRule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Colors.border,
+    fontFamily: Fonts.sans,
+    fontSize: 20,
+    letterSpacing: -0.3,
   },
   heading: {
     flexDirection: 'row',
@@ -65,39 +47,34 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   headingMarker: {
-    width: 8,
-    height: 8,
-    borderRadius: Radius.small,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   headingText: {
     flex: 1,
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 1.3,
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    letterSpacing: 0.6,
   },
   statusNote: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.two,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderLeftWidth: 3,
-    borderColor: Colors.border,
-    borderRadius: Radius.small,
-    backgroundColor: Colors.surface,
+    padding: Spacing.three,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
   },
   statusDot: {
     width: 6,
     height: 6,
-    borderRadius: Radius.small,
+    borderRadius: 3,
     marginTop: Spacing.one + Spacing.half,
   },
   statusText: {
     flex: 1,
-    color: Colors.textMuted,
+    color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 13,
     lineHeight: 18,

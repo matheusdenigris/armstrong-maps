@@ -19,7 +19,7 @@ type PhotosPanelProps = {
 export function PhotosPanel({ siteName, rover, library }: PhotosPanelProps) {
   return (
     <View style={styles.panel}>
-      <PanelHeading number="04" title="SITE PHOTOS" />
+      <PanelHeading title="Site photos" />
       {rover ? (
         <>
           <SectionHeading
@@ -141,15 +141,12 @@ const styles = StyleSheet.create({
   },
   photo: {
     width: '48.5%',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    borderRadius: Radius.small,
-    backgroundColor: Colors.surface,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
     overflow: 'hidden',
   },
   photoPressed: {
-    borderColor: Colors.borderStrong,
-    backgroundColor: Colors.surfaceRaised,
+    backgroundColor: Colors.glassHover,
   },
   image: {
     width: '100%',
@@ -167,20 +164,14 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   photoDetail: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 9,
-    fontWeight: '600',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 11,
   },
   source: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
+    color: Colors.textFaint,
+    fontFamily: Fonts.sans,
     fontSize: 11,
     lineHeight: 15,
-    paddingTop: Spacing.one,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
   },
 });

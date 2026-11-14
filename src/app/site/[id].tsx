@@ -423,10 +423,10 @@ function ConsoleHeader({
     <TelemetryStrip
       desktop={desktop}
       items={[
-        { label: 'BASE', value: formatLatLon(site.landing, 2) },
-        { label: 'CENTRE', value: formatLatLon(view, 2) },
-        { label: 'SOL', value: roverSol },
-        { label: 'LAYERS', value: String(layers) },
+        { label: 'Base', value: formatLatLon(site.landing, 2) },
+        { label: 'Centre', value: formatLatLon(view, 2) },
+        { label: 'Sol', value: roverSol },
+        { label: 'Layers', value: String(layers) },
       ]}
     />
   );
@@ -446,15 +446,17 @@ function ConsoleHeader({
             style={({ pressed }) => [styles.brand, pressed && styles.brandPressed]}>
             <View style={styles.brandIdentity}>
               <Logo size={26} />
-              <Text numberOfLines={1} style={styles.brandName}>
-                ARMSTRONG MAPS
-              </Text>
+              {desktop ? (
+                <Text numberOfLines={1} style={styles.brandName}>
+                  ARMSTRONG <Text style={styles.brandAccent}>MAPS</Text>
+                </Text>
+              ) : null}
             </View>
           </Pressable>
         </Link>
         <View style={[styles.siteIdentity, desktop && styles.siteIdentityDesktop]}>
           <Text style={styles.siteName} numberOfLines={1}>
-            {site.name.toUpperCase()}
+            {site.name}
           </Text>
           <Text style={styles.siteMission} numberOfLines={1}>
             {site.mission}
@@ -584,15 +586,9 @@ function MapHud({ view, walk, stops, sources, desktop, showFoot, onOpenWalk }: M
   const routeSummary = `${formatDistance(walk.totalM)} · ${formatDuration(walk.durationHours)}`;
 
   return (
-    <View pointerEvents="box-none">
-      <View pointerEvents="none" style={[styles.corner, styles.cornerTopLeft]} />
-      <View pointerEvents="none" style={[styles.corner, styles.cornerTopRight]} />
-      <View pointerEvents="none" style={[styles.corner, styles.cornerBottomLeft]} />
-      <View pointerEvents="none" style={[styles.corner, styles.cornerBottomRight]} />
-
+    // It fills the map: without a size of its own, what is pinned to its bottom lands above it.
+    <View pointerEvents="box-none" style={styles.hud}>
       <View pointerEvents="none" style={[styles.mapReadout, desktop && styles.mapReadoutDesktop]}>
-        <HudTag label="NORTH" value="UP" />
-        <HudTag label="IMAGERY" value="MARS TREK" />
         <View style={styles.scaleReadout} accessible accessibilityLabel="Map scale on Mars">
           <ScaleBar pixelsPerDegree={view.pixelsPerDegree} />
         </View>
@@ -618,24 +614,15 @@ function MapHud({ view, walk, stops, sources, desktop, showFoot, onOpenWalk }: M
           <View style={styles.mapHint}>
             <Text style={styles.mapHintText} numberOfLines={desktop ? 1 : 2}>
               {stops === 0
-                ? 'PLAN MODE · TAP THE MAP TO ADD A WAYPOINT'
-                : `PLAN MODE · ${stops} ${stops === 1 ? 'WAYPOINT' : 'WAYPOINTS'} · TAP TO EXTEND`}
+                ? 'Tap the map to add a waypoint'
+                : `${stops} ${stops === 1 ? 'waypoint' : 'waypoints'} · tap the map to add another`}
             </Text>
             <Text style={styles.mapCredit} numberOfLines={1}>
-              {sources}
+              North is up · {sources}
             </Text>
           </View>
         </View>
       ) : null}
-    </View>
-  );
-}
-
-function HudTag({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.hudTag}>
-      <Text style={styles.hudTagLabel}>{label}</Text>
-      <Text style={styles.hudTagValue}>{value}</Text>
     </View>
   );
 }
@@ -712,7 +699,9 @@ function MobileTabs({
   bottomInset: number;
 }) {
   return (
-    <View style={[styles.mobileTabs, { paddingBottom: bottomInset }]} accessibilityRole="tablist">
+    <View
+      style={[styles.mobileTabs, { marginBottom: bottomInset + Spacing.two }]}
+      accessibilityRole="tablist">
       <TabButton label="Map" selected={selected === 'map'} onPress={() => onChange('map')} />
       <TabButton
         label="Layers"
@@ -742,7 +731,7 @@ function TabButton({ label, selected, onPress }: TabButtonProps) {
         selected && styles.tabSelected,
         pressed && styles.tabPressed,
       ]}>
-      <Text style={[styles.tabText, selected && styles.tabTextSelected]}>{label.toUpperCase()}</Text>
+      <Text style={[styles.tabText, selected && styles.tabTextSelected]}>{label}</Text>
     </Pressable>
   );
 }
@@ -754,13 +743,13 @@ function UnknownSite() {
         <title>Site not found | Armstrong Maps</title>
       </Head>
       <Logo size={52} />
-      <Text style={styles.unknownTitle}>SITE NOT FOUND</Text>
+      <Text style={styles.unknownTitle}>Site not found</Text>
       <Text style={styles.unknownText}>There is no landing site with this address.</Text>
       <Link href="/" asChild>
         <Pressable
           accessibilityRole="link"
           style={({ pressed }) => [styles.unknownLink, pressed && styles.brandPressed]}>
-          <Text style={styles.unknownLinkText}>RETURN TO SITES</Text>
+          <Text style={styles.unknownLinkText}>Back to the sites</Text>
         </Pressable>
       </Link>
     </View>
@@ -778,13 +767,11 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.two,
-    backgroundColor: Colors.glassStrong,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
+    backgroundColor: Colors.background,
   },
   controlBarDesktop: {
     paddingHorizontal: Spacing.four,
-    paddingBottom: Spacing.three,
+    paddingBottom: Spacing.two,
   },
   headerTop: {
     flexDirection: 'row',
@@ -798,16 +785,14 @@ const styles = StyleSheet.create({
   brand: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    width: 156,
     flexShrink: 0,
     minHeight: 44,
-    paddingHorizontal: Spacing.one,
+    paddingRight: Spacing.two,
     justifyContent: 'center',
-    borderRadius: Radius.small,
+    borderRadius: Radius.pill,
   },
   brandPressed: {
-    backgroundColor: Colors.surfaceRaised,
+    opacity: 0.7,
   },
   brandIdentity: {
     flexDirection: 'row',
@@ -817,10 +802,12 @@ const styles = StyleSheet.create({
   brandName: {
     flexShrink: 0,
     color: Colors.text,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.display,
     fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.6,
+    letterSpacing: 1.2,
+  },
+  brandAccent: {
+    color: Colors.mars,
   },
   siteIdentity: {
     flex: 1,
@@ -830,29 +817,26 @@ const styles = StyleSheet.create({
   siteIdentityDesktop: {
     flex: 0,
     minWidth: 210,
-    paddingLeft: Spacing.three,
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    borderLeftColor: Colors.border,
+    paddingLeft: Spacing.two,
   },
   siteName: {
     color: Colors.text,
     fontFamily: Fonts.sans,
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 1.3,
+    fontSize: 17,
+    letterSpacing: -0.2,
   },
   siteMission: {
-    color: Colors.textMuted,
+    color: Colors.textSoft,
     fontFamily: Fonts.sans,
-    fontSize: 11,
+    fontSize: 12,
   },
   science: {
     flex: 1,
     minWidth: 0,
-    color: Colors.textMuted,
+    color: Colors.textSoft,
     fontFamily: Fonts.sans,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
   },
   telemetryScroll: {
     minHeight: 36,
@@ -873,27 +857,29 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
   },
   telemetryLabel: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 1.2,
+    color: Colors.textFaint,
+    fontFamily: Fonts.sans,
+    fontSize: 11,
   },
   telemetryValue: {
-    color: Colors.cyan,
+    color: Colors.text,
     fontFamily: Fonts.mono,
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
   },
   desktopMain: {
     flex: 1,
     minHeight: 0,
     flexDirection: 'row',
+    gap: Spacing.two + Spacing.one,
+    paddingHorizontal: Spacing.two + Spacing.one,
+    paddingBottom: Spacing.two + Spacing.one,
   },
   mapColumn: {
     flex: 1,
     minWidth: 0,
     minHeight: 0,
+    borderRadius: Radius.pane,
+    overflow: 'hidden',
   },
   mobileMain: {
     flex: 1,
@@ -910,36 +896,12 @@ const styles = StyleSheet.create({
     minHeight: 0,
     backgroundColor: Colors.mapBackground,
   },
-  corner: {
+  hud: {
     position: 'absolute',
-    width: 18,
-    height: 18,
-    borderColor: Colors.white,
-    opacity: 0.58,
-  },
-  cornerTopLeft: {
-    top: Spacing.two,
-    left: Spacing.two,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderLeftWidth: StyleSheet.hairlineWidth,
-  },
-  cornerTopRight: {
-    top: Spacing.two,
-    right: Spacing.two,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderRightWidth: StyleSheet.hairlineWidth,
-  },
-  cornerBottomLeft: {
-    bottom: Spacing.two,
-    left: Spacing.two,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderLeftWidth: StyleSheet.hairlineWidth,
-  },
-  cornerBottomRight: {
-    right: Spacing.two,
-    bottom: Spacing.two,
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   mapReadout: {
     position: 'absolute',
@@ -955,38 +917,14 @@ const styles = StyleSheet.create({
     top: Spacing.four,
     left: Spacing.four,
   },
-  hudTag: {
-    gap: Spacing.half,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one + Spacing.half,
-    backgroundColor: Colors.glassStrong,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.borderStrong,
-    borderRadius: Radius.small,
-  },
-  hudTagLabel: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 8,
-    fontWeight: '700',
-    letterSpacing: 1.1,
-  },
-  hudTagValue: {
-    color: Colors.cyan,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-  },
   scaleReadout: {
     alignItems: 'flex-start',
-  },
-  scaleLabel: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 8,
-    fontWeight: '700',
-    letterSpacing: 1.1,
+    paddingHorizontal: Spacing.two + Spacing.one,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.glassStrong,
   },
   mapFoot: {
     position: 'absolute',
@@ -1008,111 +946,102 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: Spacing.three,
     backgroundColor: Colors.glassStrong,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: Radius.small,
+    borderWidth: 1,
+    borderRadius: Radius.pill,
   },
   routeStatusPressed: {
-    backgroundColor: Colors.surfaceRaised,
+    opacity: 0.8,
   },
   routeVerdict: {
-    fontFamily: Fonts.mono,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.1,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    letterSpacing: 0.6,
   },
   routeSummary: {
     color: Colors.text,
     fontFamily: Fonts.mono,
-    fontSize: 11,
+    fontSize: 12,
   },
   mapHint: {
     alignItems: 'center',
     gap: Spacing.half,
     maxWidth: '100%',
     paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one + Spacing.half,
+    paddingVertical: Spacing.two,
     backgroundColor: Colors.glassStrong,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.borderStrong,
-    borderRadius: Radius.small,
+    borderColor: Colors.glassBorder,
+    borderRadius: Radius.card,
   },
   mapHintText: {
     color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.75,
-    lineHeight: 15,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
     textAlign: 'center',
   },
   mapCredit: {
-    color: Colors.textMuted,
+    color: Colors.textFaint,
     fontFamily: Fonts.sans,
-    fontSize: 9,
+    fontSize: 10,
   },
   desktopPanel: {
     position: 'relative',
     flexShrink: 0,
     minHeight: 0,
     overflow: 'hidden',
+    borderRadius: Radius.pane,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
     backgroundColor: Colors.surface,
   },
   layersPanel: {
-    borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: Colors.border,
+    flexGrow: 0,
   },
   walkPanel: {
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    borderLeftColor: Colors.border,
+    flexGrow: 0,
   },
   desktopPanelScroll: {
     flex: 1,
   },
   desktopPanelContent: {
-    // The 44 pt panel control sits in the top band, away from the first heading on either side.
-    paddingTop: Spacing.three + 52,
+    paddingTop: Spacing.three + 44,
     paddingBottom: Spacing.four,
   },
   panelToggle: {
     position: 'absolute',
     zIndex: 3,
-    top: Spacing.three,
-    width: 44,
-    height: 44,
+    top: Spacing.two + Spacing.one,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surfaceRaised,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.borderStrong,
-    borderRadius: Radius.small,
+    backgroundColor: Colors.glassLight,
+    borderRadius: Radius.pill,
   },
   layersToggle: {
-    right: Spacing.two,
+    right: Spacing.two + Spacing.one,
   },
   walkToggle: {
-    left: Spacing.two,
+    left: Spacing.two + Spacing.one,
   },
   layersToggleCollapsed: {
-    right: Spacing.one,
+    right: Spacing.two,
   },
   walkToggleCollapsed: {
-    left: Spacing.one,
+    left: Spacing.two,
   },
   panelTogglePressed: {
-    backgroundColor: Colors.selectedSurface,
-    borderColor: Colors.cyan,
+    backgroundColor: Colors.glassHover,
   },
   panelToggleText: {
-    color: Colors.cyan,
-    fontFamily: Fonts.mono,
-    fontSize: 24,
-    lineHeight: 26,
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 20,
+    lineHeight: 22,
   },
   dataDivider: {
-    height: StyleSheet.hairlineWidth,
-    marginHorizontal: Spacing.three,
-    marginVertical: Spacing.two,
-    backgroundColor: Colors.border,
+    height: Spacing.three,
   },
   mobileSheet: {
     position: 'absolute',
@@ -1123,52 +1052,49 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: Colors.glassStrong,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.borderStrong,
-    borderTopLeftRadius: Radius.large,
-    borderTopRightRadius: Radius.large,
-    shadowColor: Colors.background,
-    shadowOpacity: 0.84,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: -10 },
-    elevation: 18,
+    borderTopColor: Colors.glassBorder,
+    borderTopLeftRadius: Radius.pane,
+    borderTopRightRadius: Radius.pane,
   },
   mobileSheetScroll: {
     flexGrow: 0,
   },
   mobileSheetContent: {
-    paddingTop: Spacing.two,
+    paddingTop: Spacing.three,
     paddingBottom: Spacing.three,
   },
   mobileTabs: {
     zIndex: 7,
     flexDirection: 'row',
-    backgroundColor: Colors.glassStrong,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
+    gap: Spacing.one,
+    marginHorizontal: Spacing.three,
+    marginTop: Spacing.two,
+    padding: Spacing.one,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.glassLight,
   },
   tab: {
     flex: 1,
-    minHeight: 52,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderTopWidth: 2,
-    borderTopColor: Colors.glassStrong,
+    borderRadius: Radius.pill,
   },
   tabSelected: {
-    borderTopColor: Colors.mars,
+    backgroundColor: Colors.text,
   },
   tabPressed: {
-    backgroundColor: Colors.surfaceRaised,
+    backgroundColor: Colors.glassHover,
   },
   tabText: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.3,
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
   },
   tabTextSelected: {
-    color: Colors.text,
+    color: Colors.background,
   },
   unknown: {
     alignItems: 'center',
@@ -1178,10 +1104,9 @@ const styles = StyleSheet.create({
   },
   unknownTitle: {
     color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 1.8,
+    fontFamily: Fonts.sans,
+    fontSize: 28,
+    letterSpacing: -0.6,
   },
   unknownText: {
     maxWidth: 320,
@@ -1195,16 +1120,13 @@ const styles = StyleSheet.create({
     minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.three,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.nav,
-    borderRadius: Radius.small,
+    paddingHorizontal: Spacing.four,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.text,
   },
   unknownLinkText: {
-    color: Colors.nav,
-    fontFamily: Fonts.mono,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
+    color: Colors.background,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
   },
 });
