@@ -20,7 +20,11 @@ export default function RootLayout() {
     <ThemeProvider value={theme}>
       <StatusBar style="light" />
       <Stack
-        screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.background } }}
+        screenOptions={{
+          title: 'Armstrong Maps',
+          headerShown: false,
+          contentStyle: { backgroundColor: Colors.background },
+        }}
       />
     </ThemeProvider>
   );
