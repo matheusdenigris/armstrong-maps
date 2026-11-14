@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatDistance, formatLat, formatLatLon, formatLon, roundLength } from './format';
+import {
+  formatDistance,
+  formatDose,
+  formatDuration,
+  formatLat,
+  formatLatLon,
+  formatLon,
+  formatShare,
+  roundLength,
+} from './format';
 
 describe('coordinates', () => {
   it('writes the hemisphere instead of a sign', () => {
@@ -29,6 +38,30 @@ describe('formatDistance', () => {
     expect(formatDistance(1250)).toBe('1.25 km');
     expect(formatDistance(12_440)).toBe('12.4 km');
     expect(formatDistance(340_400)).toBe('340 km');
+  });
+});
+
+describe('formatDuration', () => {
+  it('uses minutes below an hour', () => {
+    expect(formatDuration(0)).toBe('0 min');
+    expect(formatDuration(0.75)).toBe('45 min');
+  });
+
+  it('uses hours and two-digit minutes from an hour', () => {
+    expect(formatDuration(1)).toBe('1 h 00 min');
+    expect(formatDuration(1 + 5 / 60)).toBe('1 h 05 min');
+    expect(formatDuration(7.999)).toBe('8 h 00 min');
+  });
+});
+
+describe('formatShare and formatDose', () => {
+  it('writes a share as a whole percentage', () => {
+    expect(formatShare(0.142)).toBe('14%');
+    expect(formatShare(1.25)).toBe('125%');
+  });
+
+  it('writes a dose with three decimals', () => {
+    expect(formatDose(0.0302)).toBe('0.030 mSv');
   });
 });
 

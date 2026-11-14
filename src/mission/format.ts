@@ -29,6 +29,23 @@ export function formatDistance(metres: number): string {
   return `${Math.round(km)} km`;
 }
 
+/** "45 min", "1 h 05 min", "8 h 00 min". */
+export function formatDuration(hours: number): string {
+  const minutes = Math.round(hours * 60);
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')} min`;
+}
+
+/** A share as a whole percentage: 0.142 is "14%". */
+export function formatShare(fraction: number): string {
+  return `${Math.round(fraction * 100)}%`;
+}
+
+/** A dose equivalent in millisieverts, with three decimals: a walk is a few hundredths. */
+export function formatDose(msv: number): string {
+  return `${msv.toFixed(3)} mSv`;
+}
+
 /** The longest round length (1, 2 or 5 times a power of ten) that fits in `maxMetres`. */
 export function roundLength(maxMetres: number): number {
   if (!(maxMetres > 0)) return 0;
