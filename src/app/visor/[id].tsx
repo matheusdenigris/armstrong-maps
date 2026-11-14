@@ -177,6 +177,9 @@ function Visor({ site }: { site: Site }) {
     stretch,
   );
   const { panorama, awayM, borrowed } = scene;
+  // How far through this scene's stretch the astronaut is: the view moves that far into it.
+  const advance =
+    progress.phase === 'at-base' ? 0 : (progress.walkedM % stretch) / stretch;
   // Steps lift the view a little, near real time only: played fast it would be a blur.
   const stepping =
     clock?.running === true &&
@@ -337,6 +340,7 @@ function Visor({ site }: { site: Site }) {
           pitch={look.pitch}
           size={size}
           sway={sway}
+          advance={advance}
         />
       ) : null}
 
@@ -498,7 +502,7 @@ function Visor({ site }: { site: Site }) {
               : 'It is lined up with the compass.'}{' '}
             Black areas are where the camera took no frame; the sky above the frames is filled in.
             {scene.count > 1
-              ? ` The scenery changes every ${formatDistance(stretch)} walked, through the ${scene.count} photographs of this site, to give the sense of ground being covered: no camera filmed the way between them, and the dust in the cut from one to the next is drawn.`
+              ? ` The scenery changes every ${formatDistance(stretch)} walked, through the ${scene.count} photographs of this site, to give the sense of ground being covered. Within a scene the view moves slowly into the still photograph. No camera filmed the way between two of them, and the dust in the cut from one to the next is drawn.`
               : ''}
           </Text>
           <Text style={styles.sourcesText}>

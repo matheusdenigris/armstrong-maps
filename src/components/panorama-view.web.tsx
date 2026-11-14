@@ -11,6 +11,11 @@ export type PanoramaViewProps = {
   size: { width: number; height: number };
   /** Vertical sway of a step, in pixels. Zero when standing still. */
   sway?: number;
+  /**
+   * How far through this scene's stretch of walking the astronaut is, 0 to 1. The view moves
+   * that far into the photograph, which gives the walk its depth.
+   */
+  advance?: number;
 };
 
 /** The picture is wrapped round the astronaut in this many flat strips; four degrees each. */
@@ -33,6 +38,13 @@ const FADE_MS = 900;
  */
 const CUT_MS = 2200;
 const DUST = '#b9987a';
+/**
+ * How far into the photograph the view has moved by the end of a scene, as a share of the
+ * distance to the picture. At 0.36 what is straight ahead is a little over one and a half times
+ * larger than at the start. It is a move into a still picture, not over the ground: nothing in
+ * the photograph shifts against anything else.
+ */
+const DEPTH = 0.36;
 /** How far the view pushes into the scene it leaves, and how far back it starts in the next. */
 const PUSH_OUT = 0.26;
 const PUSH_IN = 0.12;
@@ -150,9 +162,26 @@ const Cylinder = memo(function Cylinder({
  * all the way round. When the walk moves on to another photograph, a short cut carries the
  * astronaut there.
  */
-export function PanoramaView({ panorama, heading, pitch, size, sway = 0 }: PanoramaViewProps) {
+export function PanoramaView({
+  panorama,
+  heading,
+  pitch,
+  size,
+  sway = 0,
+  advance = 0,
+}: PanoramaViewProps) {
   // The scene on screen, which lags the one asked for by half a cut.
   const [scene, setScene] = useState(panorama);
+  // How far into the scene on screen the view is. It follows the walk while the walk is in that
+  // scene; when the walk has moved on and the cut is still leaving, it holds where it was, so the
+  // view does not spring back before the dust covers it.
+  const [depth, setDepth] = useState({ id: panorama.nasaId, advance });
+  if (
+    scene.nasaId === panorama.nasaId &&
+    (depth.id !== panorama.nasaId || depth.advance !== advance)
+  ) {
+    setDepth({ id: panorama.nasaId, advance });
+  }
   // How far through the cut, 0 to 1, or null when standing in a scene.
   const [cut, setCut] = useState<number | null>(null);
   // The scene the walk last asked for, so one request starts one cut.
@@ -210,7 +239,9 @@ export function PanoramaView({ panorama, heading, pitch, size, sway = 0 }: Panor
   // Leaving: stride into the scene while the dust rises. Arriving: settle as it clears.
   const leaving = cut !== null && cut < 0.5;
   const part = cut === null ? 0 : leaving ? cut / 0.5 : (cut - 0.5) / 0.5;
-  const push = cut === null ? 0 : leaving ? ease(part) * PUSH_OUT : -(1 - ease(part)) * PUSH_IN;
+  const stridePush =
+    cut === null ? 0 : leaving ? ease(part) * PUSH_OUT : -(1 - ease(part)) * PUSH_IN;
+  const push = Math.min(1, Math.max(0, depth.advance)) * DEPTH + stridePush;
   const dust = cut === null ? 0 : leaving ? part ** 1.4 : (1 - part) ** 1.4;
   const stride = cut === null ? 0 : Math.abs(Math.sin(cut * Math.PI * STRIDES)) * STRIDE;
 
