@@ -19,12 +19,11 @@ export const Colors = {
   textMuted: '#8794A6',
   /** Mars: the planet and the brand. */
   mars: '#FC3D21',
-  /** A lighter Mars accent for the documentation scrollbar hover state. */
-  marsLight: '#FF745F',
-  /** Source cards on the documentation screen. A colour only, never the NASA insignia. */
+  /** The light of the planet behind the documentation, just off the top of the screen. */
+  marsGlow: 'rgba(252, 61, 33, 0.1)',
+  /** The mark of a NASA source in the documentation. A colour only, never the NASA insignia. */
   nasa: '#FC3D21',
-  /** Documentation navigation fills, derived from the active accent colours. */
-  navTint: 'rgba(47, 107, 255, 0.14)',
+  /** The fill behind the icon of a NASA source. */
   nasaTint: 'rgba(252, 61, 33, 0.14)',
   /** Navigation: routes, coverage areas, links. */
   nav: '#2F6BFF',

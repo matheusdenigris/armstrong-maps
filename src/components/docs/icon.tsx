@@ -79,11 +79,11 @@ export function Icon({ name, size = 18, color }: IconProps) {
   );
 }
 
-/** A square tile with an icon, for the cards. */
+/** A round tile with an icon, for the cards. */
 export function IconTile({ name, color, background }: { name: IconName; color: string; background: string }) {
   return (
     <Svg width={36} height={36} viewBox="0 0 36 36">
-      <Rect x={0} y={0} width={36} height={36} rx={9} fill={background} />
+      <Rect x={0} y={0} width={36} height={36} rx={18} fill={background} />
       <Svg x={8} y={8} width={20} height={20} viewBox="0 0 24 24" fill="none">
         {PATHS[name].map((d, index) => (
           <Path

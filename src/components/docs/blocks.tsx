@@ -1,6 +1,6 @@
 import { Link, type Href } from 'expo-router';
 import { Fragment } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, type TextStyle, type ViewStyle } from 'react-native';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import type { Block } from '@/data/docs-pages';
@@ -15,6 +15,21 @@ type BlockViewProps = {
   wide: boolean;
 };
 
+/** Styles only a browser understands. */
+const web = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle) : null);
+const EASE = web({ transition: 'background-color 160ms ease' });
+/** An address has no spaces to break at: let it break anywhere before it leaves the card. */
+const BREAK_ANYWHERE = web({ overflowWrap: 'anywhere' }) as TextStyle | null;
+
+type Hoverable = { pressed: boolean; hovered?: boolean };
+const over = (state: { pressed: boolean }) => (state as Hoverable).hovered || state.pressed;
+
+/** A link that leaves the app opens in a new tab; `asChild` does not pass this on by itself. */
+const NEW_TAB =
+  Platform.OS === 'web' ? { hrefAttrs: { target: '_blank', rel: 'noopener noreferrer' } } : null;
+
+const TONES = { note: Colors.nav, warning: Colors.caution, nasa: Colors.nasa } as const;
+
 /** One block of a docs page. */
 export function BlockView({ block, onOpen, wide }: BlockViewProps) {
   switch (block.kind) {
@@ -23,7 +38,7 @@ export function BlockView({ block, onOpen, wide }: BlockViewProps) {
 
     case 'steps':
       return (
-        <View style={styles.steps}>
+        <View>
           {block.items.map((item, index) => (
             <View key={item.title} style={styles.step}>
               <View style={styles.stepRail}>
@@ -45,19 +60,16 @@ export function BlockView({ block, onOpen, wide }: BlockViewProps) {
       return (
         <View style={styles.cards}>
           {block.items.map((item) => {
-            const body = (state: { pressed: boolean; hovered?: boolean }) => (
-              <View
-                style={[
-                  styles.card,
-                  wide && styles.cardHalf,
-                  item.page && state.hovered ? styles.cardHovered : null,
-                  item.page && state.pressed ? styles.cardPressed : null,
-                ]}>
-                <IconTile
-                  name={item.icon}
-                  color={item.nasa ? Colors.nasa : Colors.nav}
-                  background={item.nasa ? Colors.nasaTint : Colors.navTint}
-                />
+            const body = (lit: boolean) => (
+              <View style={[styles.card, EASE, wide && styles.cardHalf, lit && styles.cardOver]}>
+                <View style={styles.cardTop}>
+                  <IconTile
+                    name={item.icon}
+                    color={item.nasa ? Colors.nasa : Colors.text}
+                    background={item.nasa ? Colors.nasaTint : Colors.glassHover}
+                  />
+                  {item.page ? <Icon name="chevron" size={16} color={Colors.textFaint} /> : null}
+                </View>
                 <Text style={styles.cardTitle}>{item.title}</Text>
                 <Text style={styles.cardText} numberOfLines={4}>
                   {item.text}
@@ -71,11 +83,11 @@ export function BlockView({ block, onOpen, wide }: BlockViewProps) {
                 accessibilityRole="link"
                 accessibilityLabel={`${item.title}. ${item.text}`}
                 style={wide ? styles.cardSlotHalf : styles.cardSlot}>
-                {(state) => body(state as { pressed: boolean; hovered?: boolean })}
+                {(state) => body(Boolean(over(state)))}
               </Pressable>
             ) : (
               <View key={item.title} style={wide ? styles.cardSlotHalf : styles.cardSlot}>
-                {body({ pressed: false })}
+                {body(false)}
               </View>
             );
           })}
@@ -87,35 +99,33 @@ export function BlockView({ block, onOpen, wide }: BlockViewProps) {
         <View style={styles.flow} accessible accessibilityLabel={block.items.join(', then ')}>
           {block.items.map((item, index) => (
             <Fragment key={item}>
-              <View style={styles.flowBox}>
+              <View style={styles.flowStop}>
                 <Text style={styles.flowText}>{item}</Text>
               </View>
               {index < block.items.length - 1 ? (
-                <Icon name="chevron" size={16} color={Colors.textMuted} />
+                <Icon name="chevron" size={14} color={Colors.textFaint} />
               ) : null}
             </Fragment>
           ))}
         </View>
       );
 
-    case 'callout': {
-      const color =
-        block.tone === 'warning' ? Colors.caution : block.tone === 'nasa' ? Colors.nasa : Colors.nav;
+    case 'callout':
       return (
-        <View style={[styles.callout, { borderLeftColor: color }]}>
-          <Text style={[styles.calloutTitle, { color }]}>{block.title}</Text>
+        <View style={[styles.callout, block.tone === 'warning' && styles.calloutWarning]}>
+          <View style={styles.calloutHead}>
+            <View style={[styles.calloutDot, { backgroundColor: TONES[block.tone] }]} />
+            <Text style={styles.calloutTitle}>{block.title}</Text>
+          </View>
           <Text style={styles.calloutText}>{block.text}</Text>
         </View>
       );
-    }
 
     case 'code':
       return (
         <View style={styles.code}>
-          <View style={styles.codeBar}>
-            <Text style={styles.codeLabel}>{block.label}</Text>
-          </View>
-          <Text style={styles.codeText} selectable>
+          <Text style={styles.codeLabel}>{block.label}</Text>
+          <Text style={[styles.codeText, BREAK_ANYWHERE]} selectable>
             {block.text}
           </Text>
         </View>
@@ -129,7 +139,9 @@ export function BlockView({ block, onOpen, wide }: BlockViewProps) {
               key={`${label}-${index}`}
               style={[styles.row, index > 0 && styles.rowDivider, !wide && styles.rowStacked]}>
               <Text style={[styles.rowLabel, wide && styles.rowLabelWide]}>{label}</Text>
-              <Text style={styles.rowValue}>{value}</Text>
+              <Text style={[styles.rowValue, wide && styles.rowValueWide, BREAK_ANYWHERE]}>
+                {value}
+              </Text>
             </View>
           ))}
         </View>
@@ -137,13 +149,15 @@ export function BlockView({ block, onOpen, wide }: BlockViewProps) {
 
     case 'link':
       return (
-        <Link
-          href={block.url as Href}
-          target="_blank"
-          rel="noopener noreferrer"
-          accessibilityRole="link"
-          style={styles.link}>
-          {block.label} {'↗'}
+        <Link href={block.url as Href} asChild>
+          <Pressable accessibilityRole="link" style={styles.linkSlot} {...NEW_TAB}>
+            {(state) => (
+              <View style={[styles.link, EASE, over(state) && styles.cardOver]}>
+                <Text style={styles.linkText}>{block.label}</Text>
+                <Icon name="external" size={14} color={Colors.textSoft} />
+              </View>
+            )}
+          </Pressable>
         </Link>
       );
   }
@@ -153,12 +167,10 @@ const styles = StyleSheet.create({
   text: {
     color: Colors.text,
     fontFamily: Fonts.sans,
-    fontSize: 15,
-    lineHeight: 25,
+    fontSize: 16,
+    lineHeight: 26,
   },
-  steps: {
-    gap: 0,
-  },
+
   step: {
     flexDirection: 'row',
     gap: Spacing.three,
@@ -170,47 +182,46 @@ const styles = StyleSheet.create({
   stepNumber: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceRaised,
+    backgroundColor: Colors.glassHover,
   },
   stepNumberText: {
     color: Colors.text,
     fontFamily: Fonts.mono,
     fontSize: 12,
-    fontWeight: '700',
   },
   stepLine: {
     flex: 1,
-    width: 1,
+    width: StyleSheet.hairlineWidth,
     minHeight: 12,
-    backgroundColor: Colors.border,
+    marginVertical: Spacing.one,
+    backgroundColor: Colors.glassBorder,
   },
   stepBody: {
     flex: 1,
     gap: Spacing.half,
-    paddingBottom: Spacing.three,
+    paddingBottom: Spacing.three + Spacing.one,
     paddingTop: Spacing.one,
   },
   stepTitle: {
     color: Colors.text,
     fontFamily: Fonts.sans,
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    lineHeight: 21,
   },
   stepText: {
-    color: Colors.textMuted,
+    color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 14,
     lineHeight: 21,
   },
+
   cards: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -Spacing.one - Spacing.half,
+    margin: -(Spacing.one + Spacing.half),
   },
   cardSlot: {
     width: '100%',
@@ -222,115 +233,117 @@ const styles = StyleSheet.create({
   },
   card: {
     gap: Spacing.two,
-    padding: Spacing.three,
-    borderRadius: Radius.medium,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    padding: Spacing.three + Spacing.one,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
   },
   cardHalf: {
     flexGrow: 1,
-    minHeight: 150,
+    minHeight: 164,
   },
-  cardHovered: {
-    borderColor: Colors.nav,
+  cardOver: {
+    backgroundColor: Colors.glassHover,
   },
-  cardPressed: {
-    backgroundColor: Colors.surfaceRaised,
+  cardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingBottom: Spacing.one,
   },
   cardTitle: {
     color: Colors.text,
     fontFamily: Fonts.sans,
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    lineHeight: 21,
+    letterSpacing: -0.2,
   },
   cardText: {
-    color: Colors.textMuted,
+    color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 13,
     lineHeight: 19,
   },
+
   flow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: Spacing.two,
-    padding: Spacing.three,
-    borderRadius: Radius.medium,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
   },
-  flowBox: {
-    paddingHorizontal: Spacing.two + Spacing.one,
-    paddingVertical: Spacing.two,
-    borderRadius: Radius.small,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.background,
+  flowStop: {
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.glassLight,
   },
   flowText: {
     color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 12,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
   },
+
   callout: {
-    gap: Spacing.one,
-    padding: Spacing.three,
-    borderRadius: Radius.medium,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderLeftWidth: 3,
-    backgroundColor: Colors.surface,
+    gap: Spacing.one + Spacing.half,
+    padding: Spacing.three + Spacing.one,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
+  },
+  calloutWarning: {
+    backgroundColor: Colors.cautionTint,
+  },
+  calloutHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  calloutDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   calloutTitle: {
+    flex: 1,
+    color: Colors.text,
     fontFamily: Fonts.sans,
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    lineHeight: 20,
   },
   calloutText: {
-    color: Colors.text,
+    color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 14,
     lineHeight: 22,
   },
+
   code: {
-    borderRadius: Radius.medium,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.background,
-    overflow: 'hidden',
-  },
-  codeBar: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-    backgroundColor: Colors.surface,
+    gap: Spacing.two,
+    padding: Spacing.three + Spacing.one,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
   },
   codeLabel: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 11,
-    letterSpacing: 1,
+    color: Colors.textFaint,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    letterSpacing: 0.6,
   },
   codeText: {
     color: Colors.text,
     fontFamily: Fonts.mono,
     fontSize: 12,
     lineHeight: 20,
-    padding: Spacing.three,
   },
+
   table: {
-    borderRadius: Radius.medium,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
+    overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
     gap: Spacing.three,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.three + Spacing.one,
     paddingVertical: Spacing.two + Spacing.one,
   },
   rowStacked: {
@@ -338,32 +351,45 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
   },
   rowDivider: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.glassBorder,
   },
   rowLabel: {
-    color: Colors.text,
+    color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 14,
-    fontWeight: '600',
+    lineHeight: 21,
   },
   rowLabelWide: {
     width: 170,
   },
   rowValue: {
-    flex: 1,
-    color: Colors.textMuted,
+    color: Colors.text,
     fontFamily: Fonts.sans,
     fontSize: 14,
     lineHeight: 21,
   },
-  link: {
+  rowValueWide: {
+    flex: 1,
+  },
+
+  linkSlot: {
     alignSelf: 'flex-start',
-    color: Colors.nav,
-    fontFamily: Fonts.sans,
-    fontSize: 15,
-    fontWeight: '600',
-    paddingVertical: Spacing.two + Spacing.one,
+  },
+  link: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
     minHeight: 44,
+    paddingHorizontal: Spacing.three + Spacing.half,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.glassLight,
+  },
+  linkText: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
   },
 });
