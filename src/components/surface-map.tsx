@@ -428,10 +428,10 @@ export const TilePlane = memo(function TilePlane({
         }).filter((tile) => tile.level < sharpLevel);
         return (
           <LayerTiles
-          <LayerTiles
             key={layer.id}
             layer={layer}
             tiles={[...coarse, ...sharp]}
+            sharpLevel={sharpLevel}
             place={place}
             opacity={opacity?.[layer.id] ?? 1}
             animateIn={opacity?.[layer.id] !== undefined}
@@ -443,21 +443,65 @@ export const TilePlane = memo(function TilePlane({
   );
 });
 
+const keyOf = (tile: TileAddress) => `${tile.level}/${tile.row}/${tile.col}`;
+
+/** How long the tiles of the last view may stay under the new ones that have not all arrived. */
+const HOLD_MS = 2500;
+/** How many tiles of earlier views are kept at most. */
+const HELD_AT_MOST = 120;
+
 type LayerTilesProps = {
   layer: MapLayer;
+  /** The tiles for the view as it is now, coarse ones first. */
   tiles: readonly TileAddress[];
-  place: (tile: TileAddress) => { left: number; top: number; width: number; height: number };
+  sharpLevel: number;
   opacity: number;
+  place: (tile: TileAddress) => { left: number; top: number; width: number; height: number };
   animateIn: boolean;
   reduceMotion: boolean;
 };
 
-/** A newly enabled overlay fades in as one sheet, so its coarse tiles do not show through. */
-function LayerTiles({ layer, tiles, place, opacity, animateIn, reduceMotion }: LayerTilesProps) {
+/**
+ * The tiles of one layer. When the scale changes, the tiles of the scale before stay underneath
+ * until the new sharp ones have arrived: the map goes from one sharpness to the next without
+ * falling back to a blur, or to nothing, in between.
+ */
+function LayerTiles({
+  layer,
+  tiles,
+  sharpLevel,
+  opacity,
+  place,
+  animateIn,
+  reduceMotion,
+}: LayerTilesProps) {
+  const signature = tiles.map(keyOf).join(' ');
+  const [shown, setShown] = useState({ signature, tiles });
+  const [held, setHeld] = useState<readonly TileAddress[]>([]);
   const [shownOpacity] = useState(
     () => new Animated.Value(animateIn && !reduceMotion ? 0 : opacity),
   );
   const hasEntered = useRef(!animateIn || reduceMotion);
+  if (shown.signature !== signature) {
+    // The view asked for other tiles: what was on screen is held, less what is asked for again.
+    const coming = new Set(tiles.map(keyOf));
+    const kept = new Map<string, TileAddress>();
+    for (const tile of [...held, ...shown.tiles]) {
+      if (!coming.has(keyOf(tile))) kept.set(keyOf(tile), tile);
+    }
+    setHeld([...kept.values()].slice(-HELD_AT_MOST));
+    setShown({ signature, tiles });
+  }
+
+  // Which tiles have been drawn at least once; a tile that stays on screen does not report again.
+  const arrived = useRef(new Set<string>());
+
+  // Held tiles go in any case after a while: a tile that never answers must not pin them.
+  useEffect(() => {
+    if (held.length === 0) return;
+    const timer = setTimeout(() => setHeld([]), HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [held]);
 
   useEffect(() => {
     if (reduceMotion || !animateIn) {
@@ -483,69 +527,6 @@ function LayerTiles({ layer, tiles, place, opacity, animateIn, reduceMotion }: L
     return () => transition.stop();
   }, [animateIn, opacity, reduceMotion, shownOpacity]);
 
-  return (
-    <Animated.View style={[StyleSheet.absoluteFill, { opacity: shownOpacity }]}>
-      {tiles.map((tile) => (
-        <Image
-          key={`${tile.level}/${tile.row}/${tile.col}`}
-          source={{ uri: tileUrl(layer, tile) }}
-          style={[styles.tile, place(tile)]}
-          contentFit="fill"
-          cachePolicy="memory-disk"
-          transition={0}
-          accessible={false}
-        />
-      ))}
-    </Animated.View>
-  );
-});
-
-const keyOf = (tile: TileAddress) => `${tile.level}/${tile.row}/${tile.col}`;
-
-/** How long the tiles of the last view may stay under the new ones that have not all arrived. */
-const HOLD_MS = 2500;
-/** How many tiles of earlier views are kept at most. */
-const HELD_AT_MOST = 120;
-
-type LayerTilesProps = {
-  layer: MapLayer;
-  /** The tiles for the view as it is now, coarse ones first. */
-  tiles: readonly TileAddress[];
-  sharpLevel: number;
-  opacity: number;
-  place: (tile: TileAddress) => { left: number; top: number; width: number; height: number };
-};
-
-/**
- * The tiles of one layer. When the scale changes, the tiles of the scale before stay underneath
- * until the new sharp ones have arrived: the map goes from one sharpness to the next without
- * falling back to a blur, or to nothing, in between.
- */
-function LayerTiles({ layer, tiles, sharpLevel, opacity, place }: LayerTilesProps) {
-  const signature = tiles.map(keyOf).join(' ');
-  const [shown, setShown] = useState({ signature, tiles });
-  const [held, setHeld] = useState<readonly TileAddress[]>([]);
-  if (shown.signature !== signature) {
-    // The view asked for other tiles: what was on screen is held, less what is asked for again.
-    const coming = new Set(tiles.map(keyOf));
-    const kept = new Map<string, TileAddress>();
-    for (const tile of [...held, ...shown.tiles]) {
-      if (!coming.has(keyOf(tile))) kept.set(keyOf(tile), tile);
-    }
-    setHeld([...kept.values()].slice(-HELD_AT_MOST));
-    setShown({ signature, tiles });
-  }
-
-  // Which tiles have been drawn at least once; a tile that stays on screen does not report again.
-  const arrived = useRef(new Set<string>());
-
-  // Held tiles go in any case after a while: a tile that never answers must not pin them.
-  useEffect(() => {
-    if (held.length === 0) return;
-    const timer = setTimeout(() => setHeld([]), HOLD_MS);
-    return () => clearTimeout(timer);
-  }, [held]);
-
   const settle = (key: string) => {
     const seen = arrived.current;
     seen.add(key);
@@ -563,7 +544,7 @@ function LayerTiles({ layer, tiles, sharpLevel, opacity, place }: LayerTilesProp
 
   // The layer fades as one sheet, so the coarse pass does not show through the sharp one.
   return (
-    <View style={[StyleSheet.absoluteFill, { opacity }]}>
+    <Animated.View style={[StyleSheet.absoluteFill, { opacity: shownOpacity }]}>
       {drawn.map((tile) => {
         const key = keyOf(tile);
         return (
@@ -581,7 +562,7 @@ function LayerTiles({ layer, tiles, sharpLevel, opacity, place }: LayerTilesProp
           />
         );
       })}
-    </View>
+    </Animated.View>
   );
 }
 

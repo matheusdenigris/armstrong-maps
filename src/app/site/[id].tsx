@@ -920,7 +920,7 @@ function DesktopPanel({
           </View>
         </ScrollView>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -951,7 +951,7 @@ function PanelTabs({
           </Pressable>
         );
       })}
-    </Animated.View>
+    </View>
   );
 }
 
