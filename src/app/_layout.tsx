@@ -1,7 +1,9 @@
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 
 import { Colors } from '@/constants/theme';
+import { useMission } from '@/state/mission';
 
 const theme = {
   ...DarkTheme,
@@ -16,6 +18,11 @@ const theme = {
 };
 
 export default function RootLayout() {
+  // Bring back the plan saved on this device.
+  useEffect(() => {
+    void useMission.persist.rehydrate();
+  }, []);
+
   return (
     <ThemeProvider value={theme}>
       <StatusBar style="light" />
