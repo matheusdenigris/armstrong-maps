@@ -57,6 +57,9 @@ const PITCH_DOWN = -14;
 /** Length of a step, in metres, and how far it lifts the view, in pixels. */
 const STEP = 0.75;
 const SWAY = 5;
+/** At a stop the view rises and falls a little, like someone standing: pixels, and seconds a cycle. */
+const IDLE_SWAY = 2;
+const IDLE_SECONDS = 5;
 /** The minimap shows about 300 m around the astronaut. */
 const MINIMAP_PIXELS_PER_DEGREE = 26_000;
 /** From this width the instruments sit in one row along the rim of the helmet. */
@@ -185,7 +188,13 @@ function Visor({ site }: { site: Site }) {
     clock?.running === true &&
     clock.rate <= 10 &&
     (progress.phase === 'walking' || progress.phase === 'returning');
-  const sway = stepping ? Math.abs(Math.sin((progress.walkedM / STEP) * Math.PI)) * SWAY : 0;
+  // Standing at a stop is not a frozen picture: the view keeps the slight movement of a person.
+  const standing = clock?.running === true && !over && progress.phase === 'working';
+  const sway = stepping
+    ? Math.abs(Math.sin((progress.walkedM / STEP) * Math.PI)) * SWAY
+    : standing
+      ? Math.sin((now / 1000 / IDLE_SECONDS) * 2 * Math.PI) * IDLE_SWAY
+      : 0;
   const layers = [VIKING_GLOBAL, ...site.layers];
   const path = [site.landing, ...route, site.landing];
   const latest = weather.status === 'ready' ? weather.data[0] : undefined;
@@ -426,7 +435,14 @@ function Visor({ site }: { site: Site }) {
       {/* Through the glass: the point to walk to. */}
       <View style={[styles.through, { bottom: rim }]} pointerEvents="none">
         <View style={styles.reticle} />
-        {moving ? <Target progress={progress} offTarget={offTarget} etaHours={etaHours} /> : null}
+        {moving ? (
+          <Target
+            progress={progress}
+            offTarget={offTarget}
+            etaHours={etaHours}
+            stops={route.length}
+          />
+        ) : null}
         {clock === null ? (
           <Text style={styles.waiting}>
             {route.length === 0
@@ -562,10 +578,40 @@ function Reading({ label, value, color }: { label: string; value: string; color?
   );
 }
 
-type TargetProps = { progress: WalkProgress; offTarget: number; etaHours: number };
+type TargetProps = {
+  progress: WalkProgress;
+  offTarget: number;
+  etaHours: number;
+  /** How many waypoints the route has. */
+  stops: number;
+};
 
-/** The next point to reach: how far, which way, and when. */
-function Target({ progress, offTarget, etaHours }: TargetProps) {
+/**
+ * The next point to reach: how far, which way, and when. At a stop it is the work in hand
+ * instead: how long is left of it, and where the walk goes afterwards.
+ */
+function Target({ progress, offTarget, etaHours, stops }: TargetProps) {
+  if (progress.phase === 'working') {
+    const stop = progress.stop ?? 0;
+    const stopHours = WALK_ASSUMPTIONS.minutesPerStop / 60;
+    const done = Math.min(1, Math.max(0, 1 - progress.phaseHoursLeft / stopHours));
+    const next = stop + 1 < stops ? `waypoint ${stop + 2}` : 'the base';
+    return (
+      <View style={styles.target}>
+        <Text style={styles.targetLabel}>{`WORKING AT WAYPOINT ${stop + 1}`}</Text>
+        <Text style={styles.targetValue}>{formatClock(progress.phaseHoursLeft)}</Text>
+        <View
+          style={styles.work}
+          accessibilityRole="progressbar"
+          accessibilityLabel={`Work done at this stop: ${formatShare(done)}`}>
+          <View style={[styles.workDone, { width: `${done * 100}%` }]} />
+        </View>
+        <Text style={styles.targetHint}>
+          {`Work left here · then ${next}, ${formatDistance(progress.distanceToTargetM)} at ${bearingText(progress.bearingToTarget)}`}
+        </Text>
+      </View>
+    );
+  }
   return (
     <View style={styles.target}>
       <Text style={styles.targetLabel}>
@@ -573,11 +619,9 @@ function Target({ progress, offTarget, etaHours }: TargetProps) {
       </Text>
       <Text style={styles.targetValue}>{formatDistance(progress.distanceToTargetM)}</Text>
       <Text style={styles.targetHint}>
-        {progress.phase === 'working'
-          ? `Next after the work here · ${bearingText(progress.bearingToTarget)}`
-          : Math.abs(offTarget) < 8
-            ? `Ahead · ${bearingText(progress.bearingToTarget)} · ${formatDuration(etaHours)}`
-            : `${offTarget < 0 ? '◀ Look left' : 'Look right ▶'} ${Math.round(Math.abs(offTarget))}°`}
+        {Math.abs(offTarget) < 8
+          ? `Ahead · ${bearingText(progress.bearingToTarget)} · ${formatDuration(etaHours)}`
+          : `${offTarget < 0 ? '◀ Look left' : 'Look right ▶'} ${Math.round(Math.abs(offTarget))}°`}
       </Text>
     </View>
   );
@@ -769,6 +813,17 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontFamily: Fonts.sans,
     fontSize: 14,
+  },
+  work: {
+    alignSelf: 'stretch',
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.border,
+    overflow: 'hidden',
+  },
+  workDone: {
+    height: 4,
+    backgroundColor: Colors.nav,
   },
   cluster: {
     position: 'absolute',
