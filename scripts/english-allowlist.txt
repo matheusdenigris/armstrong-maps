@@ -1,0 +1,2 @@
+# Tokens the English-only gate should accept, one per line.
+# Use this for proper nouns only (a person, a place, a published source).
