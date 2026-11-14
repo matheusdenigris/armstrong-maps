@@ -26,6 +26,12 @@ type MissionState = {
   toggleOverlay: (layerId: string) => void;
   setOverlayOpacity: (layerId: string, opacity: number) => void;
   /**
+   * The sets of mission points that are switched off, by set id. A set is on unless it is listed,
+   * so the published places are on the map from the first visit.
+   */
+  hiddenPoints: Record<string, true>;
+  togglePoints: (setId: string) => void;
+  /**
    * The clock of the walk in progress at each site. The ship console is the only screen that
    * changes it; the visor reads it. A site without a walk has no entry.
    */
@@ -112,6 +118,12 @@ export const useMission = create<MissionState>()(
         set((state) => ({
           overlays: { ...state.overlays, [layerId]: Math.min(1, Math.max(0, opacity)) },
         })),
+      hiddenPoints: {},
+      togglePoints: (setId) =>
+        set((state) => {
+          const { [setId]: hidden, ...others } = state.hiddenPoints;
+          return { hiddenPoints: hidden ? others : { ...others, [setId]: true } };
+        }),
     }),
     {
       name: 'armstrong-maps.mission', // MISSION_STORAGE_KEY
@@ -120,6 +132,7 @@ export const useMission = create<MissionState>()(
       partialize: (state) => ({
         routes: state.routes,
         overlays: state.overlays,
+        hiddenPoints: state.hiddenPoints,
         clocks: state.clocks,
       }),
       // The saved plan is read after the first render, in the root layout, so the page that was

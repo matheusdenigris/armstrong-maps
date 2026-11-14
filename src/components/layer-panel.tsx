@@ -13,7 +13,20 @@ import Animated, {
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import type { LayerKind, MapLayer } from '@/data/layers';
+import type { PointSet, PointSetId } from '@/data/mission-points';
 import { formatShare } from '@/mission/format';
+
+import { POINT_COLORS } from './mission-points';
+
+/** One set of mission points of the site, and what the map has of it. */
+export type PointSetRow = {
+  set: PointSet;
+  on: boolean;
+  /** Where the file of the set stands. A set that is off has not been asked for. */
+  status: 'off' | 'loading' | 'ready' | 'failed';
+  /** How many places of the set are on the map. */
+  count: number;
+};
 
 type LayerPanelProps = {
   /** The optical mosaics of the site. They are the base of the map and are always on. */
@@ -24,7 +37,18 @@ type LayerPanelProps = {
   active: Readonly<Record<string, number>>;
   onToggle: (id: string) => void;
   onOpacity: (id: string, opacity: number) => void;
+  /** The sets of published places of the site. A site without any leaves the group out. */
+  points?: readonly PointSetRow[];
+  onTogglePoints?: (id: PointSetId) => void;
 };
+
+/** What the map has of a set that is on, in words. A gap is said, never filled. */
+function pointState({ status, count }: PointSetRow): string {
+  if (status === 'loading') return 'Fetching the file from NASA';
+  if (status === 'failed') return 'The file did not answer, so nothing is drawn';
+  if (count === 0) return 'The file has no place the app can read';
+  return `${count} on the map`;
+}
 
 const KINDS: { kind: LayerKind; title: string; color: string }[] = [
   { kind: 'topographic', title: 'TOPOGRAPHIC', color: Colors.topographic },
@@ -38,7 +62,15 @@ const LAYER_LAYOUT_TRANSITION = LinearTransition.duration(LAYER_CONTROL_TRANSITI
   .reduceMotion(ReduceMotion.System);
 
 /** The layers of the map by kind of data, with a switch and adjustable opacity for each overlay. */
-export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: LayerPanelProps) {
+export function LayerPanel({
+  base,
+  overlays,
+  active,
+  onToggle,
+  onOpacity,
+  points = [],
+  onTogglePoints,
+}: LayerPanelProps) {
   return (
     <View style={styles.panel}>
       <PanelHeading title="Map layers" />
@@ -55,6 +87,37 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
           <Text style={styles.reads}>{layer.reads}</Text>
         </View>
       ))}
+
+      {points.length > 0 ? (
+        <View style={styles.group}>
+          <CategoryHeading title="MISSION POINTS" color={Colors.cyan} />
+          {points.map((row) => {
+            const { set, on } = row;
+            const color = POINT_COLORS[set.id];
+            return (
+              <Animated.View
+                key={set.id}
+                layout={LAYER_LAYOUT_TRANSITION}
+                style={[styles.layer, on && styles.layerOn]}>
+                <Pressable
+                  onPress={() => onTogglePoints?.(set.id)}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: on }}
+                  accessibilityLabel={`${set.name}, ${set.source}`}
+                  style={({ pressed }) => [styles.toggle, pressed && styles.togglePressed]}>
+                  <LayerSwitch on={on} color={color} />
+                  <View style={styles.text}>
+                    <Text style={styles.name}>{set.name}</Text>
+                    <Text style={[styles.source, { color }]}>{set.source}</Text>
+                  </View>
+                </Pressable>
+                <Text style={styles.reads}>{set.reads}</Text>
+                {on ? <Text style={styles.pointState}>{pointState(row)}</Text> : null}
+              </Animated.View>
+            );
+          })}
+        </View>
+      ) : null}
 
       {KINDS.map(({ kind, title, color }) => {
         const group = overlays.filter((layer) => layer.kind === kind);
@@ -117,8 +180,8 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
       })}
 
       <Text style={styles.credit}>
-        Every layer is served by NASA/JPL Mars Trek. A layer is blank where its instrument has no
-        coverage.
+        Every map layer is served by NASA/JPL Mars Trek. A layer is blank where its instrument has
+        no coverage.
       </Text>
     </View>
   );
@@ -265,6 +328,11 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 13,
     lineHeight: 18,
+  },
+  pointState: {
+    color: Colors.text,
+    fontFamily: Fonts.mono,
+    fontSize: 12,
   },
   opacity: {
     gap: Spacing.half,

@@ -16,15 +16,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, LinearTransition, ReduceMotion } from 'react-native-reanimated';
 
 import { EnvironmentPanel } from '@/components/environment-panel';
-import { LayerPanel } from '@/components/layer-panel';
+import { LayerPanel, type PointSetRow } from '@/components/layer-panel';
 import { MapLegend } from '@/components/map-legend';
+import { POINT_COLORS, PointCard, PointsKey } from '@/components/mission-points';
 import { PhotosPanel } from '@/components/photos-panel';
 import { Logo } from '@/components/logo';
 import { ScaleBar } from '@/components/scale-bar';
 import {
   SurfaceMap,
+  type MapCard,
   type MapMarker,
   type MapPath,
+  type MapPoint,
   type MapPreview,
   type MapRing,
 } from '@/components/surface-map';
@@ -33,6 +36,18 @@ import { RouteActions, WalkDetails, WalkSummary } from '@/components/walk-panel'
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { imageSearchUrl, parseImageSearch } from '@/data/image-library';
 import { GLOBAL_LAYERS, VIKING_GLOBAL, type MapLayer } from '@/data/layers';
+import {
+  HELICOPTER_FEED,
+  POINT_SETS,
+  SAMPLE_DEPOT,
+  SAMPLE_SITES_FEED,
+  SITE_POINT_SETS,
+  parseHelicopterFlights,
+  parseSampleSites,
+  type MissionPoint,
+  type PointSet,
+  type PointSetId,
+} from '@/data/mission-points';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { ROVERS, parseRoverTrack } from '@/data/rover';
 import { RAW_IMAGE_FEEDS, parseRawImages, rawImagesUrl } from '@/data/rover-images';
@@ -51,7 +66,7 @@ import { distance } from '@/mission/geo';
 import { walkHoursPlayed, walkProgress } from '@/mission/progress';
 import { TILE_PIXELS, tileSpan } from '@/mission/tiles';
 import { WALK_ASSUMPTIONS, evaluateWalk, type WalkEvaluation } from '@/mission/walk';
-import { useMission, useRoute } from '@/state/mission';
+import { MAX_WAYPOINTS, useMission, useRoute } from '@/state/mission';
 import { useFeed } from '@/state/use-feed';
 import { useNow } from '@/state/use-now';
 
@@ -83,6 +98,9 @@ const PANEL_LAYOUT_TRANSITION = LinearTransition.duration(240)
 
 /** Layers that go over the optical base: everything planet-wide except the base itself. */
 const OVERLAYS = GLOBAL_LAYERS.filter((layer) => layer !== VIKING_GLOBAL);
+
+/** A site NASA publishes no mission points for. The same list every time. */
+const NO_POINT_SETS: readonly PointSetId[] = [];
 
 /** The weather station is on Curiosity, which landed at Gale crater. */
 const GALE = SITES[0].landing;
@@ -212,6 +230,54 @@ function SiteMap({ site }: { site: Site }) {
   // is meaningful on a phone, but is ready with the full desktop console.
   const rover = site.rover ? ROVERS[site.rover] : null;
   const track = useFeed(rover?.feed ?? null, parseRoverTrack);
+
+  // The places NASA publishes inside the site. A file is asked for only while its set is on.
+  const pointSetIds = SITE_POINT_SETS[site.id] ?? NO_POINT_SETS;
+  const hiddenPoints = useMission((state) => state.hiddenPoints);
+  const togglePoints = useMission((state) => state.togglePoints);
+  const showsPoints = (set: PointSetId) => pointSetIds.includes(set) && !hiddenPoints[set];
+  const sampleSites = useFeed(showsPoints('samples') ? SAMPLE_SITES_FEED : null, parseSampleSites);
+  const flights = useFeed(showsPoints('flights') ? HELICOPTER_FEED : null, parseHelicopterFlights);
+  const [chosenPointId, setChosenPointId] = useState<string | null>(null);
+  const { pointRows, pointKeys, missionPoints, mapPoints } = useMemo(() => {
+    const rows: PointSetRow[] = [];
+    const found: MissionPoint[] = [];
+    for (const id of pointSetIds) {
+      const on = !hiddenPoints[id];
+      const feed = id === 'samples' ? sampleSites : id === 'flights' ? flights : null;
+      // The depot is in the code; the other two are read from NASA.
+      const ready = id === 'depot' || feed?.status === 'ready';
+      const places = !on
+        ? []
+        : id === 'depot'
+          ? SAMPLE_DEPOT
+          : feed?.status === 'ready'
+            ? feed.data
+            : [];
+      rows.push({
+        set: POINT_SETS[id],
+        on,
+        status: !on ? 'off' : ready ? 'ready' : feed?.status === 'failed' ? 'failed' : 'loading',
+        count: places.length,
+      });
+      // The first set of the site is drawn last, on top of the others.
+      found.unshift(...places);
+    }
+    return {
+      pointRows: rows,
+      pointKeys: rows.filter((row) => row.count > 0).map((row) => row.set),
+      missionPoints: found,
+      mapPoints: found.map(
+        (place): MapPoint => ({
+          id: place.id,
+          point: place.point,
+          color: POINT_COLORS[place.set],
+          label: place.name,
+        }),
+      ),
+    };
+  }, [pointSetIds, hiddenPoints, sampleSites, flights]);
+  const chosenPoint = missionPoints.find((place) => place.id === chosenPointId) ?? null;
   const showSite = desktopConsole ? panelTab === 'site' : tab === 'site';
   const weather = useFeed(showSite ? REMS_FEED : null, parseWeather);
   // Space weather changes the verdict, so the CME forecast is asked for at once. The addresses
@@ -324,7 +390,8 @@ function SiteMap({ site }: { site: Site }) {
   // Under a mouse pointer the map shows the leg a press would add. Not while a walk runs: the
   // route is locked then.
   const preview = useMemo<MapPreview | null>(() => {
-    if (clock !== null) return null;
+    // Nor while a mission point is open: the next press closes it.
+    if (clock !== null || chosenPointId !== null) return null;
     const from = route.length > 0 ? route[route.length - 1] : site.landing;
     const origin = route.length > 0 ? `waypoint ${route.length}` : 'the base';
     return {
@@ -339,7 +406,31 @@ function SiteMap({ site }: { site: Site }) {
         };
       },
     };
-  }, [clock, route, site]);
+  }, [clock, chosenPointId, route, site]);
+
+  // What NASA published about the chosen place, beside its mark. It can join the walk while
+  // the route can still change.
+  const canAddPoint = clock === null && route.length < MAX_WAYPOINTS;
+  const pointCard: MapCard | null = chosenPoint
+    ? {
+        point: chosenPoint.point,
+        content: (
+          <PointCard
+            point={chosenPoint}
+            set={POINT_SETS[chosenPoint.set]}
+            onAdd={
+              canAddPoint
+                ? () => {
+                    addWaypoint(site.id, chosenPoint.point);
+                    setChosenPointId(null);
+                  }
+                : undefined
+            }
+            onClose={() => setChosenPointId(null)}
+          />
+        ),
+      }
+    : null;
 
   const roverSol =
     rover && track.status === 'ready' && track.data.latest
@@ -355,6 +446,8 @@ function SiteMap({ site }: { site: Site }) {
       active={overlays}
       onToggle={toggleOverlay}
       onOpacity={setOverlayOpacity}
+      points={pointRows}
+      onTogglePoints={togglePoints}
     />
   );
 
@@ -420,9 +513,19 @@ function SiteMap({ site }: { site: Site }) {
       markers={markers}
       paths={paths}
       rings={rings}
+      points={mapPoints}
+      chosenPoint={chosenPoint?.id ?? null}
+      onPointPress={(pointId) =>
+        setChosenPointId((current) => (current === pointId ? null : pointId))
+      }
+      card={pointCard}
+      pointKeys={pointKeys}
       view={view}
       onViewChange={setView}
-      onPress={(point) => addWaypoint(site.id, point)}
+      // With a mission point open, a press on the ground closes it and marks nothing.
+      onPress={(point) =>
+        chosenPoint ? setChosenPointId(null) : addWaypoint(site.id, point)
+      }
       preview={preview}
       coach={route.length === 0 && !coachClosed}
       onCloseCoach={() => setCoachClosed(true)}
@@ -656,6 +759,12 @@ type MapStageProps = {
   markers: readonly MapMarker[];
   paths: readonly MapPath[];
   rings: readonly MapRing[];
+  points: readonly MapPoint[];
+  chosenPoint: string | null;
+  onPointPress: (id: string) => void;
+  card: MapCard | null;
+  /** The sets of mission points on the map: each gets its mark in the key. */
+  pointKeys: readonly PointSet[];
   view: MapView;
   onViewChange: (view: MapView) => void;
   onPress: (point: { lat: number; lon: number }) => void;
@@ -682,6 +791,11 @@ function MapStage({
   markers,
   paths,
   rings,
+  points,
+  chosenPoint,
+  onPointPress,
+  card,
+  pointKeys,
   view,
   onViewChange,
   onPress,
@@ -707,6 +821,10 @@ function MapStage({
         markers={markers}
         paths={paths}
         rings={rings}
+        points={points}
+        chosenPoint={chosenPoint}
+        onPointPress={onPointPress}
+        card={card}
         onViewChange={onViewChange}
         onPress={onPress}
         preview={preview}
@@ -720,6 +838,7 @@ function MapStage({
           stops={stops}
           sources={sources}
           legends={legends}
+          pointKeys={pointKeys}
           coach={coach}
           onCloseCoach={onCloseCoach}
           desktop={desktop}
@@ -739,6 +858,7 @@ type MapHudProps = {
   sources: string;
   /** The layers that are on over the base: each gets its colour key on the map. */
   legends: readonly MapLayer[];
+  pointKeys: readonly PointSet[];
   coach: boolean;
   onCloseCoach: () => void;
   desktop: boolean;
@@ -754,6 +874,7 @@ function MapHud({
   stops,
   sources,
   legends,
+  pointKeys,
   coach,
   onCloseCoach,
   scaleAfterToggle,
@@ -778,6 +899,7 @@ function MapHud({
           <ScaleBar pixelsPerDegree={view.pixelsPerDegree} />
         </View>
         <MapLegend layers={legends} compact={!desktop} />
+        <PointsKey sets={pointKeys} />
       </View>
 
       {showFoot ? (
