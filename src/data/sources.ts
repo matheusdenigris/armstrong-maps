@@ -7,6 +7,7 @@
  * NASA hosts.
  */
 import { DUNE_CREDIT } from './dunes';
+import { HORIZONS_API, HORIZONS_CREDIT } from './horizons';
 import { IMAGE_LIBRARY_API } from './image-library';
 import { SURFACE_RADIATION } from './radiation';
 import { PANORAMAS } from './panoramas';
@@ -105,6 +106,20 @@ export const SOURCES: readonly DataSource[] = [
     key: 'api.nasa.gov key, or the shared DEMO_KEY',
     notes: `The direction is where the wind blew from, within 11.25°. The lander has been silent since 2022. The push of the wind is compared with the Earth using air density: ${AIR_DENSITY_SOURCE}.`,
     reference: 'https://mars.nasa.gov/insight/weather/',
+  },
+  {
+    id: 'jpl-horizons',
+    name: 'JPL Horizons: the Sun over each site',
+    publisher: HORIZONS_CREDIT,
+    nasa: true,
+    kind: 'live',
+    gives: "The Sun's elevation seen from the landing point, every 10 minutes over three days: sunrise, sunset and how high the Sun is during a walk.",
+    usedIn: 'The Mars clock of the Site tab, the daylight line of the safety check, and the daylight reasons of the verdict.',
+    endpoint: `${HORIZONS_API}?COMMAND='10'&CENTER='coord@499'&SITE_COORD='{-east lon},{lat},0'&QUANTITIES='4'&STEP_SIZE='10 m'&format=json`,
+    key: 'None',
+    notes:
+      'Horizons sends no CORS header, so the web app asks through its own forwarder (api/horizons.js); the phone apps ask directly. When it does not answer, the app computes the Sun with the Mars24 algorithm of NASA GISS, which agrees within about a minute.',
+    reference: 'https://ssd-api.jpl.nasa.gov/doc/horizons.html',
   },
   {
     id: 'rover-waypoints',

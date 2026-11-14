@@ -113,20 +113,45 @@ export function season(ls: number, lat: number): 'spring' | 'summer' | 'autumn' 
 
 const MS_PER_SOL = SOL_IN_EARTH_DAYS * 86_400_000;
 
+/** The Sun's elevation at a site, in degrees, at a moment given in milliseconds since the epoch. */
+export type SunAt = (ms: number) => number;
+
+/** The Sun of a site from this module's own algorithm, which works with no network. */
+export function mars24Sun(lat: number, lonEast: number): SunAt {
+  return (ms) => sunElevation(marsTime(new Date(ms)), lat, lonEast);
+}
+
 /**
- * The next time after `from` that the Sun crosses `elevation` at a site, going up (`rising`) or
- * down. Searched in steps of about four Mars minutes, then refined. Null if it does not happen
- * within two sols (polar day or night; never at the landing sites).
+ * The Sun from a table of elevations at regular times (an ephemeris), linearly interpolated, and
+ * from `fallback` outside the table.
  */
-export function nextSunCrossing(
-  from: Date,
-  lat: number,
-  lonEast: number,
-  rising: boolean,
-  elevation = 0,
-): Date | null {
+export function tableSun(
+  table: { times: readonly number[]; elevations: readonly number[] },
+  fallback: SunAt,
+): SunAt {
+  const { times, elevations } = table;
+  return (ms) => {
+    if (times.length < 2 || ms < times[0] || ms > times[times.length - 1]) return fallback(ms);
+    let low = 0;
+    let high = times.length - 1;
+    while (high - low > 1) {
+      const middle = (low + high) >> 1;
+      if (times[middle] <= ms) low = middle;
+      else high = middle;
+    }
+    const t = (ms - times[low]) / (times[high] - times[low] || 1);
+    return elevations[low] + (elevations[high] - elevations[low]) * t;
+  };
+}
+
+/**
+ * The next time after `from` that the Sun crosses `elevation`, going up (`rising`) or down.
+ * Searched in steps of about four Mars minutes, then refined. Null if it does not happen within two
+ * sols (polar day or night; never at the landing sites).
+ */
+export function nextSunCrossing(from: Date, sun: SunAt, rising: boolean, elevation = 0): Date | null {
   const step = MS_PER_SOL / 360;
-  const height = (ms: number) => sunElevation(marsTime(new Date(ms)), lat, lonEast) - elevation;
+  const height = (ms: number) => sun(ms) - elevation;
   let previous = height(from.getTime());
   for (let t = from.getTime() + step; t <= from.getTime() + 2 * MS_PER_SOL; t += step) {
     const current = height(t);
@@ -161,34 +186,20 @@ export type WalkDaylight = {
 };
 
 /** Follows the Sun over a walk that starts at `start` and lasts `durationHours` Earth hours. */
-export function walkDaylight(
-  start: Date,
-  durationHours: number,
-  lat: number,
-  lonEast: number,
-): WalkDaylight {
+export function walkDaylight(start: Date, durationHours: number, sun: SunAt): WalkDaylight {
   const startMs = start.getTime();
   const endMs = startMs + durationHours * 3_600_000;
-  const at = (ms: number) => sunElevation(marsTime(new Date(ms)), lat, lonEast);
-  let lowest = at(startMs);
+  let lowest = sun(startMs);
   const steps = Math.max(1, Math.ceil((endMs - startMs) / (5 * 60_000)));
-  for (let i = 1; i <= steps; i += 1) lowest = Math.min(lowest, at(startMs + ((endMs - startMs) * i) / steps));
-  const sunset = at(startMs) >= 0 ? nextSunCrossing(start, lat, lonEast, false) : null;
+  for (let i = 1; i <= steps; i += 1) lowest = Math.min(lowest, sun(startMs + ((endMs - startMs) * i) / steps));
+  const sunset = sun(startMs) >= 0 ? nextSunCrossing(start, sun, false) : null;
   return {
-    startElevation: at(startMs),
+    startElevation: sun(startMs),
     lowestElevation: lowest,
     endsAt: new Date(endMs),
     sunset,
     hoursToSpare: sunset ? (sunset.getTime() - endMs) / 3_600_000 : null,
   };
-}
-
-/**
- * The next moment the Sun stands at `elevation` on its way up at a site: when a walk planned for
- * "the morning" would start.
- */
-export function nextMorning(from: Date, lat: number, lonEast: number, elevation: number): Date | null {
-  return nextSunCrossing(from, lat, lonEast, true, elevation);
 }
 
 /** "HH:MM" from decimal hours. */
