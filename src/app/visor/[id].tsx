@@ -21,11 +21,13 @@ import { VIKING_GLOBAL } from '@/data/layers';
 import { panoramaNear } from '@/data/panoramas';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { SITES, findSite, type Site } from '@/data/sites';
+import { MARS_WIND } from '@/data/sounds';
 import { elapsedSeconds } from '@/mission/clock';
 import { formatDistance, formatDose, formatDuration, formatShare } from '@/mission/format';
 import { walkProgress } from '@/mission/progress';
 import { WALK_ASSUMPTIONS } from '@/mission/walk';
 import { useMission, useRoute } from '@/state/mission';
+import { AMBIENT_SOUND_AVAILABLE, useAmbientSound } from '@/state/use-ambient-sound';
 import { useNow } from '@/state/use-now';
 
 /** One page per site in the static web export. */
@@ -72,6 +74,8 @@ function Visor({ site }: { site: Site }) {
   // The walk decides where the astronaut is and which way they walk; the head is theirs to turn.
   const [look, setLook] = useState<Look>(AHEAD);
   const drag = useRef<{ x: number; y: number; look: Look } | null>(null);
+  // Real wind, recorded on Mars. It starts only when the astronaut asks for it.
+  const sound = useAmbientSound(MARS_WIND.url);
 
   // The arrow keys turn the head too, for whoever is not using a pointer.
   useEffect(() => {
@@ -218,6 +222,18 @@ function Visor({ site }: { site: Site }) {
             {status}
           </Text>
           <Text style={styles.heading}>HDG {bearingText(heading)}</Text>
+          {AMBIENT_SOUND_AVAILABLE ? (
+            <Pressable
+              onPress={() => void sound.toggle()}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: sound.playing }}
+              accessibilityLabel="Sound of the wind on Mars, recorded by Perseverance"
+              style={[styles.sound, sound.playing && styles.soundOn]}>
+              <Text style={styles.soundText}>
+                {sound.failed ? 'No sound' : sound.playing ? 'Sound on' : 'Sound off'}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -328,7 +344,13 @@ function Visor({ site }: { site: Site }) {
             ? 'It is not lined up with the compass.'
             : 'It is lined up with the compass.'}{' '}
           It is a mosaic: black areas are where the camera took no frame, and the sky above the
-          frames is filled in. Dose at {SURFACE_RADIATION.msvPerDay} mSv a day (
+          frames is filled in.{' '}
+          {sound.playing
+            ? `Sound: real wind recorded by the SuperCam microphone of Perseverance at Jezero Crater on ${MARS_WIND.when}, on a loop${
+                site.id === MARS_WIND.site ? '' : '; it was not recorded at this site'
+              }. ${MARS_WIND.credit}. `
+            : ''}
+          Dose at {SURFACE_RADIATION.msvPerDay} mSv a day (
           {SURFACE_RADIATION.source}).
         </Text>
       </View>
@@ -404,6 +426,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1,
     ...glow,
+  },
+  sound: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.small,
+    borderWidth: 1,
+    borderColor: 'rgba(184, 255, 224, 0.45)',
+  },
+  soundOn: {
+    borderColor: DISPLAY,
+    backgroundColor: 'rgba(61, 214, 140, 0.18)',
+  },
+  soundText: {
+    color: DISPLAY,
+    fontFamily: Fonts.mono,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   heading: {
     color: DISPLAY,
