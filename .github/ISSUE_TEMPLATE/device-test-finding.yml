@@ -1,0 +1,67 @@
+name: Device test finding
+description: A problem found while testing on a real phone (see docs/device-testing.md)
+title: "[device] "
+labels: ["ux"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One problem per issue, with a screenshot. Write in English.
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: "Pixel 7, Android 15, Chrome 140 / iPhone 13, iOS 19, Safari"
+    validations:
+      required: true
+  - type: dropdown
+    id: screen
+    attributes:
+      label: Screen
+      options:
+        - Globe and site list (/)
+        - Site map (/site/...)
+        - Sheet and tabs (Walk, Layers, Site, Photos)
+        - The walk
+        - Visor (/visor/...)
+        - Docs (/docs)
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: orientation
+    attributes:
+      label: Orientation
+      options:
+        - Upright
+        - Sideways
+        - Both
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      placeholder: |
+        1. Open /site/gale
+        2. Tap More
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Drag the image here.
+    validations:
+      required: true
