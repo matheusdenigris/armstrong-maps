@@ -55,6 +55,11 @@ The app has three views:
   the verdict.
 - **Photos**: the newest raw frames from Curiosity and Perseverance, and archive pictures of every
   site from the NASA Image and Video Library, each linked to its NASA page.
+- **Hazardous ground**: slopes too steep to walk, computed from NASA elevation models (1 m HiRISE
+  at Gale and Gusev) near the base and from the 200 m MOLA and HRSC blend around it, and mapped
+  dune fields of loose sand. Both are shaded on the map and enter the verdict.
+- **Wind**: the last sols measured by InSight, with a wind rose and how hard the gusts push compared
+  with the Earth, and the prevailing wind written in the slip faces of the region's dunes.
 - **Docs** (`/docs`): every NASA API and source the app reads, the address it calls, where it
   shows up, and what is measured, forecast, assumed or simulated. NASA sources come first.
 
@@ -109,6 +114,9 @@ label.
 | Space weather | [DONKI](https://ccmc.gsfc.nasa.gov/tools/DONKI/) (NASA CCMC, Goddard) through api.nasa.gov: WSA-Enlil CME arrivals at Mars (a model forecast) and SEP events (seen near the Earth) | Yes |
 | Rover pictures | Raw-image feed of Curiosity and Perseverance (NASA/JPL-Caltech, mars.nasa.gov) | Yes |
 | Archive pictures | [NASA Image and Video Library](https://images.nasa.gov) (images-api.nasa.gov) | Yes |
+| Slope | Elevation models served by NASA/JPL Mars Trek: HiRISE (1 m), the InSight mosaic, and the MOLA and HRSC blend (200 m) | Yes |
+| Dune fields | [Mars Global Digital Dune Database](https://pubs.usgs.gov/of/2007/1158/) (Hayward et al. 2007, USGS), via Mars Trek | Yes |
+| Wind | InSight TWINS through [api.nasa.gov](https://api.nasa.gov) (October 2020, Elysium Planitia) | Yes |
 | Sound | [Wind recorded by the SuperCam microphone of Perseverance](https://science.nasa.gov/resource/perseverance-rovers-supercam-records-wind-on-mars/), Jezero, sol 4 (22 February 2021). NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero | Yes |
 | Visor photographs | Seven 360-degree panoramas from the NASA Image and Video Library: Curiosity (PIA16101, PIA20840, PIA22545, PIA26019), Perseverance (PIA24264, PIA26369) and Spirit (PIA16440). Listed in `src/data/panoramas.ts` | Yes |
 

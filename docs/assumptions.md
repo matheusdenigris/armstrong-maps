@@ -19,8 +19,10 @@ every number follows.
 | Warning threshold near the walk-back limit | 80% of it | Assumption |
 | A CME counts against a walk from this long before its forecast arrival at Mars | 72 h | Assumption |
 | ... and until this long after it | 24 h | Assumption |
+| Ground too steep for a caution | 15° or more under the route | Assumption |
+| Ground too steep to walk | 25° or more under the route | Assumption |
 | Return leg | A straight line from the last waypoint to the base | Simplification |
-| Terrain | Flat: slopes and obstacles do not slow the walk | Simplification |
+| Terrain | Slopes do not slow the walk; they only change the verdict | Simplification |
 
 ## The verdict
 
@@ -33,8 +35,48 @@ every number follows.
 | A waypoint is beyond the walk-back limit | No-go |
 | A waypoint is past the warning threshold of the walk-back limit | Caution |
 | NASA DONKI's WSA-Enlil model forecasts a CME hitting Mars inside the window above, not rated minor or glancing | Caution |
+| The route, out and back, crosses ground of 25° or more | No-go |
+| The route, out and back, crosses ground of 15° or more | Caution |
+| The route enters a mapped dune field (loose sand) | Caution |
 
 Most forecast arrivals at Mars are rated minor or a glancing blow (all ten in the 30 days to 2026-11-14). Counting them would have kept walks on caution 61% of the time, so they are shown in the Site tab but do not change the verdict.
+
+## Hazardous ground
+
+The slope comes from elevation models served by NASA/JPL Mars Trek, read in two areas around each
+base:
+
+| Site | Near the base (about 12 km across) | Around it (about 120 km across) |
+|---|---|---|
+| Gale | HiRISE model, 1 m, read as about 60 m cells | MOLA and HRSC blend, 200 m |
+| Gusev | HiRISE model of the Columbia Hills, 1 m, clipped to its coverage | MOLA and HRSC blend, 200 m |
+| Elysium | InSight mosaic (HiRISE, CTX, HRSC), about 20 m | MOLA and HRSC blend, 200 m |
+| Jezero, Meridiani | MOLA and HRSC blend, 200 m | MOLA and HRSC blend, 200 m |
+
+The app computes the slope of each cell from its neighbours, with the radius of Mars. A model gives
+the mean slope over a cell, so a ledge or a boulder smaller than a cell does not show: real ground
+can be steeper than the shading. Jezero's sharper models (CTX at 20 m, HiRISE at 1 m) are listed in
+the Mars Trek catalogue, but no image service serves their heights and the subset service failed
+for them on 2026-11-14, so Jezero uses the 200 m blend.
+
+Dune fields come from the Mars Global Digital Dune Database (Hayward et al. 2007, USGS), served by
+Mars Trek. It maps fields between 65° S and 65° N from orbit; small patches of sand are not in it.
+
+## Wind
+
+- **Measured:** NASA serves wind measurements from one lander only, InSight at Elysium Planitia,
+  through api.nasa.gov. The feed keeps the last seven sols it sent, in October 2020. Elsewhere the
+  app shows it as a reference with the distance to InSight.
+- **Not available:** Curiosity's wind sensor was damaged at landing (the REMS feed reports no
+  wind), and the public MEDA feed of Perseverance carries temperature and pressure only, up to
+  April 2024.
+- **Written in the dunes:** the slip faces of a dune field face downwind; the dune database gives
+  their direction, which the map draws as arrows. It is the prevailing wind of the last time the
+  dunes changed much, not today's.
+- **Why wind does not enter the verdict:** the air of Mars is about 75 times thinner than the
+  Earth's (NASA fact sheets: about 0.016 against 1.217 kg/m³), so the strongest gust InSight
+  measured in the feed pushes like a light breeze on Earth. The dust it lifts is the risk, and
+  opacity is not served yet.
 
 Daylight and weather do not change the verdict yet. The dose stays the published average; a CME
 only adds a caution, because DONKI forecasts its arrival, not the dose it brings. When DONKI does
@@ -53,6 +95,9 @@ not answer, the verdict leaves space weather out and the Site tab says so.
 | Solar particle events | Seen near the Earth, read live: the last 30 days | NASA DONKI, SEP |
 | Rover pictures | The newest raw frames, read live | NASA/JPL-Caltech raw-image feed on mars.nasa.gov |
 | Archive pictures | Read live | NASA Image and Video Library |
+| Slope near and around the base | Read live, computed in the app | Elevation models on NASA/JPL Mars Trek (HiRISE, MOLA, HRSC) |
+| Dune fields and their slip faces | Read live | Mars Global Digital Dune Database, Hayward et al. 2007 (USGS) |
+| Wind speed and direction | The last seven sols in the feed (October 2020) | InSight TWINS, NASA/JPL and Cornell |
 
 The weather is measured at Gale crater only. At the other sites the app shows it as a reference
 and says how far the station is. The feed can be weeks behind the current date, so the app shows
