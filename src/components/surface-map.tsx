@@ -12,7 +12,7 @@ import {
   type LayoutChangeEvent,
   type ViewStyle,
 } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Ellipse, Path, Polyline } from 'react-native-svg';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { tileUrl, type MapLayer } from '@/data/layers';
@@ -24,7 +24,7 @@ import {
   type ScaleLimits,
   type Size,
 } from '@/mission/camera';
-import type { LatLon } from '@/mission/geo';
+import { METRES_PER_DEGREE, type LatLon } from '@/mission/geo';
 import { tileBounds, tilesFor, type TileAddress } from '@/mission/tiles';
 
 import { MapController, ZOOM_STEP, openingCamera } from './map-controller';
@@ -36,6 +36,23 @@ export type MapMarker = {
   color?: string;
 };
 
+/** A line through places on the map: a planned route, a rover traverse. */
+export type MapPath = {
+  id: string;
+  points: readonly LatLon[];
+  color: string;
+  width?: number;
+  dashed?: boolean;
+};
+
+/** A circle of a given radius on the ground around a place. */
+export type MapRing = {
+  id: string;
+  centre: LatLon;
+  radiusM: number;
+  color: string;
+};
+
 type SurfaceMapProps = {
   /** Drawn from the bottom up. */
   layers: readonly MapLayer[];
@@ -43,6 +60,8 @@ type SurfaceMapProps = {
   home: MapView;
   limits: ScaleLimits;
   markers?: readonly MapMarker[];
+  paths?: readonly MapPath[];
+  rings?: readonly MapRing[];
   /** Called with the current view, at most once per frame. */
   onViewChange?: (view: MapView) => void;
   /** A single tap on the map (not a drag, not a double tap). */
@@ -64,6 +83,8 @@ export function SurfaceMap({
   home,
   limits,
   markers = [],
+  paths = [],
+  rings = [],
   onViewChange,
   onPress,
   accessibilityLabel,
@@ -180,6 +201,53 @@ export function SurfaceMap({
         <View style={[StyleSheet.absoluteFill, planeStyle]} pointerEvents="none">
           <TilePlane layers={layers} base={base} size={size} />
         </View>
+      )}
+
+      {size && (paths.length > 0 || rings.length > 0) && (
+        <Svg
+          width={size.width}
+          height={size.height}
+          style={styles.overlay}
+          pointerEvents="none">
+          {rings.map((ring) => {
+            const at = project(view, size, ring.centre);
+            const degrees = ring.radiusM / METRES_PER_DEGREE;
+            // A degree of longitude is shorter than a degree of latitude away from the equator,
+            // and the map gives both the same pixels, so a circle on the ground is drawn wider.
+            const stretch = 1 / Math.cos((ring.centre.lat * Math.PI) / 180);
+            return (
+              <Ellipse
+                key={ring.id}
+                cx={at.x}
+                cy={at.y}
+                rx={degrees * stretch * view.pixelsPerDegree}
+                ry={degrees * view.pixelsPerDegree}
+                fill="none"
+                stroke={ring.color}
+                strokeWidth={1.5}
+                strokeDasharray="6 6"
+                opacity={0.9}
+              />
+            );
+          })}
+          {paths.map((path) => (
+            <Polyline
+              key={path.id}
+              points={path.points
+                .map((point) => {
+                  const at = project(view, size, point);
+                  return `${at.x.toFixed(1)},${at.y.toFixed(1)}`;
+                })
+                .join(' ')}
+              fill="none"
+              stroke={path.color}
+              strokeWidth={path.width ?? 3}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              strokeDasharray={path.dashed ? '8 8' : undefined}
+            />
+          ))}
+        </Svg>
       )}
 
       {size &&
@@ -325,6 +393,12 @@ const styles = StyleSheet.create({
   },
   tile: {
     position: 'absolute',
+  },
+  // The drawing needs its size as numbers; a style that fills the parent is not enough on the web.
+  overlay: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
   },
   marker: {
     position: 'absolute',
