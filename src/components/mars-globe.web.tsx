@@ -1,0 +1,117 @@
+import { useEffect, useImperativeHandle, useRef, useState, type ComponentRef } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+
+import { startGlobe, type GlobeEngine } from './globe/engine';
+import type { MarsGlobeProps } from './globe/types';
+
+export type { GlobeHandle } from './globe/types';
+
+export const GLOBE_AVAILABLE = true;
+
+/**
+ * Mars from orbit. Drag to turn it, pinch or use the wheel to move in, and pick a landing site.
+ * The blue outlines are the regions where Mars Trek has high-resolution mosaics.
+ */
+export function MarsGlobe({ sites, onOpen, ref }: MarsGlobeProps) {
+  const host = useRef<ComponentRef<typeof View>>(null);
+  const labels = useRef(new Map<string, HTMLElement>());
+  const engine = useRef<GlobeEngine | null>(null);
+  const open = useRef(onOpen);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    open.current = onOpen;
+  }, [onOpen]);
+
+  useImperativeHandle(ref, () => ({ flyTo: (site) => engine.current?.flyTo(site) }), []);
+
+  useEffect(() => {
+    const element = host.current as unknown as HTMLElement | null;
+    if (!element) return;
+    let started: GlobeEngine;
+    try {
+      started = startGlobe(element, sites, {
+        onOpen: (site) => open.current(site),
+        labelOf: (id) => labels.current.get(id),
+      });
+    } catch {
+      // No WebGL here (an old browser, or the GPU is blocked): say so instead of a blank box.
+      queueMicrotask(() => setFailed(true));
+      return;
+    }
+    engine.current = started;
+    return () => {
+      started.stop();
+      engine.current = null;
+    };
+  }, [sites]);
+
+  return (
+    <View
+      ref={host}
+      style={styles.host}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel="Globe of Mars. Drag to turn it and pick a landing site, or use the list of sites.">
+      {failed ? (
+        <Text style={styles.failed}>
+          This browser cannot draw the 3D globe. Choose a landing site from the list.
+        </Text>
+      ) : (
+        sites.map((site) => (
+          <Pressable
+            key={site.id}
+            ref={(node) => {
+              const element = node as unknown as HTMLElement | null;
+              if (element) labels.current.set(site.id, element);
+              else labels.current.delete(site.id);
+            }}
+            // The list of sites is the accessible way in; these repeat it for the pointer.
+            accessible={false}
+            tabIndex={-1}
+            onPress={() => engine.current?.flyTo(site)}
+            style={styles.label}>
+            <Text style={styles.labelText} numberOfLines={1}>
+              {site.name}
+            </Text>
+          </Pressable>
+        ))
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  host: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  label: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    // Hidden until the first frame places it.
+    opacity: 0,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+    borderRadius: Radius.small,
+    backgroundColor: 'rgba(7, 9, 13, 0.72)',
+  },
+  labelText: {
+    color: Colors.text,
+    fontFamily: Fonts.mono,
+    fontSize: 12,
+  },
+  failed: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    padding: Spacing.four,
+    margin: 'auto',
+    maxWidth: 320,
+  },
+});
