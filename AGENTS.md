@@ -69,8 +69,24 @@ screen needs a source or a "simulated" or "assumption" label.
 - Respect reduced-motion settings and keep touch targets at 44 pt or more.
 - Check every screen change at phone width (375 pt) and at desktop width on the web export. The
   web version is what is shown first, so mouse, wheel and keyboard must work as well as touch.
-- Routes live in `src/app`: `/` lists the landing sites and `/site/<id>` is the map of one. A
-  dynamic route exports `generateStaticParams` so the web export has a page for each address.
+- Routes live in `src/app`: `/` is the globe and the list of sites, `/site/<id>` is the ship
+  console of one, and `/visor/<id>` is the astronaut's visor. A dynamic route exports
+  `generateStaticParams` so the web export has a page for each address.
+- **The ship owns the walk.** Only the console starts, pauses or ends it; the visor reads the
+  state. The clock (`src/mission/clock.ts`) stores an anchor instead of ticking, so every tab
+  works out the same time. Tabs follow each other through the saved state and the browser's
+  `storage` event (`src/app/_layout.tsx`).
+- **The visor is the astronaut's helmet, and it is a mission tool.** What goes on its display is
+  what keeps the astronaut alive and the mission on course: life support, the way back, the next
+  waypoint, alerts. Safety numbers and alert codes come from `src/mission/safety.ts`; the screen
+  only writes the sentences. The lower rim of the helmet holds the instruments and hides the
+  bottom of the photograph, where the rover that took it shows.
+- **The visor shows real photographs, not a drawn scene.** A 3D terrain with a painted sky was
+  tried and rejected as game-like: do not bring it back. `src/components/panorama-view.web.tsx`
+  wraps a real 360-degree mosaic round the astronaut with plain strips, because the NASA image
+  library does not let its files be used as WebGL textures. Each picture in
+  `src/data/panoramas.ts` has a `band` that keeps the black gaps of the mosaic out of view. The
+  visor has to say where the photograph was taken and whether it is lined up with the compass.
 - Do not add `src/app/+html.tsx` without checking the export: a custom shell dropped the style
   sheet and the script tags from every page. Set titles with `Head` from `expo-router/head`.
 - **Pages are rendered ahead of time, without a window.** `useWindowDimensions` is 0 there, and a
@@ -81,6 +97,9 @@ screen needs a source or a "simulated" or "assumption" label.
 - The globe is web only for now (`mars-globe.web.tsx`); `mars-globe.tsx` is what the phone apps
   get. Screens check `GLOBE_AVAILABLE` before giving it room.
 - The mission state is `src/state/mission.ts`. It is read from the device after the first render.
+- Static files for the web go in `public/` and are served from the root: the recording of wind in
+  `public/audio` is NASA's file, unchanged. Do not edit or re-encode it without saying so in
+  `docs/assumptions.md`. Sound starts only from a press, never on its own.
 
 ## Workflow
 

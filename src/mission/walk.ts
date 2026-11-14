@@ -41,13 +41,25 @@ export type WalkReason =
   | 'life-support-exceeded'
   | 'into-reserve'
   | 'beyond-walk-back-limit'
-  | 'near-walk-back-limit';
+  | 'near-walk-back-limit'
+  | 'cme-at-mars';
 
 const SEVERITY: Record<WalkReason, Verdict> = {
   'life-support-exceeded': 'no-go',
   'into-reserve': 'caution',
   'beyond-walk-back-limit': 'no-go',
   'near-walk-back-limit': 'caution',
+  'cme-at-mars': 'caution',
+};
+
+/** What is happening around the walk, from live sources. Unknown is left out. */
+export type WalkConditions = {
+  /**
+   * A coronal mass ejection is forecast to reach Mars around the time of the walk, or has just
+   * reached it (NASA DONKI, WSA-Enlil model). It can bring solar particles that raise the dose
+   * above the average the evaluation uses.
+   */
+  cmeAtMars?: boolean;
 };
 
 export type WalkEvaluation = {
@@ -77,6 +89,7 @@ export function evaluateWalk(
   waypoints: readonly LatLon[],
   doseRateMsvPerDay: number,
   assumptions: WalkAssumptions = WALK_ASSUMPTIONS,
+  conditions: WalkConditions = {},
 ): WalkEvaluation {
   const outboundM = pathLength([base, ...waypoints]);
   const last = waypoints[waypoints.length - 1];
@@ -97,6 +110,9 @@ export function evaluateWalk(
   const limitM = assumptions.walkBackLimitKm * 1000;
   if (farthestM > limitM) reasons.push('beyond-walk-back-limit');
   else if (farthestM > limitM * assumptions.nearLimitFraction) reasons.push('near-walk-back-limit');
+
+  // Space weather only matters once there is a walk to take.
+  if (conditions.cmeAtMars && waypoints.length > 0) reasons.push('cme-at-mars');
 
   const verdict: Verdict = reasons.some((reason) => SEVERITY[reason] === 'no-go')
     ? 'no-go'

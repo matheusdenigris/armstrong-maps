@@ -42,9 +42,29 @@ The app has three views:
 - **Live data**: the real traverse and latest position of Curiosity at Gale and of Perseverance
   at Jezero, and the latest sol of weather from Curiosity's REMS station, each with its source.
   A feed that does not answer is shown as a gap.
+- **The walk, from two seats**: the ship console starts a simulated walk, and an astronaut
+  follows the route on the map. The astronaut's visor opens in another tab: first person, through
+  the glass of the helmet, over a real 360-degree photograph of the site that you turn with the
+  mouse or a finger. The display of the helmet carries what keeps the astronaut alive and the
+  mission on course: life support left, the time the way back takes and the time to spare before
+  turning back, the next waypoint with its bearing and arrival time, waypoints done, the mission
+  clock, the radiation dose, the weather where there is a station, and a round map turned so that
+  ahead is up. It raises an alert when the walk nears a limit, and says to turn back when the way
+  home would eat the reserve. Pause the walk in one tab and the other holds. The **Sound** button
+  plays real wind recorded on Mars by the microphone of Perseverance.
+- **Space weather**: NASA DONKI's WSA-Enlil forecast of coronal mass ejections reaching Mars, and
+  the solar particle events of the last 30 days. A CME forecast to hit Mars squarely around the walk adds a caution to
+  the verdict.
+- **Photos**: the newest raw frames from Curiosity and Perseverance, and archive pictures of every
+  site from the NASA Image and Video Library, each linked to its NASA page.
+- **Docs** (`/docs`): every NASA API and source the app reads, the address it calls, where it
+  shows up, and what is measured, forecast, assumed or simulated. NASA sources come first.
 
-Not built yet: the astronaut visor, and the globe inside the Android and iOS apps (they open on
-the list of sites). The rest of the plan is in the
+To see both seats: open a site, tap the map to add waypoints, press **Start the walk**, then
+**Open the astronaut visor**.
+
+Not built yet: the globe inside the Android and iOS apps (they open on the list of sites), and
+the link between two different devices (the two tabs have to be in the same browser). The rest of the plan is in the
 [issues](../../issues) and [milestones](../../milestones); see [docs/roadmap.md](docs/roadmap.md).
 What is measured and what is assumed is in [docs/assumptions.md](docs/assumptions.md).
 
@@ -60,6 +80,11 @@ npm run build:web  # static web export to dist/
 ```
 
 To run on a phone, install Expo Go and scan the QR code that `npm start` prints.
+
+DONKI, on api.nasa.gov, is the only source that takes a key. Without one the app uses the shared
+`DEMO_KEY`, which allows only a few calls an hour per address. Set your own key (free at
+https://api.nasa.gov) in `EXPO_PUBLIC_NASA_API_KEY`, in `.env.local` or in the Vercel project.
+The web app is a static export, so the key is visible in the page: use one made for this app only.
 
 ## Stack
 
@@ -83,10 +108,19 @@ label.
 | Radiation | MSL RAD, Hassler et al. 2014 (a published average, not a live reading) | Yes |
 | Weather | Curiosity REMS, an outreach feed of the Centro de Astrobiologia (CSIC-INTA). Measured at Gale only | Yes |
 | Rover traverses | Curiosity and Perseverance waypoints (mars.nasa.gov) | Yes |
+| Space weather | [DONKI](https://ccmc.gsfc.nasa.gov/tools/DONKI/) (NASA CCMC, Goddard) through api.nasa.gov: WSA-Enlil CME arrivals at Mars (a model forecast) and SEP events (seen near the Earth) | Yes |
+| Rover pictures | Raw-image feed of Curiosity and Perseverance (NASA/JPL-Caltech, mars.nasa.gov) | Yes |
+| Archive pictures | [NASA Image and Video Library](https://images.nasa.gov) (images-api.nasa.gov) | Yes |
+| Sound | [Wind recorded by the SuperCam microphone of Perseverance](https://science.nasa.gov/resource/perseverance-rovers-supercam-records-wind-on-mars/), Jezero, sol 4 (22 February 2021). NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero | Yes |
+| Visor photographs | Seven 360-degree panoramas from the NASA Image and Video Library: Curiosity (PIA16101, PIA20840, PIA22545, PIA26019), Perseverance (PIA24264, PIA26369) and Spirit (PIA16440). Listed in `src/data/panoramas.ts` | Yes |
 
-The walk is a plan drawn on the map: nobody is walking it. Walking speed, life-support duration
-and the walk-back limit are assumptions of this project, not NASA rules. The stars behind the globe
-and the light on it are decoration.
+The full list, with each endpoint, is in the app at `/docs` and in `src/data/sources.ts`.
+
+The walk is simulated: the astronaut's position follows the plan at an assumed speed. Walking
+speed, life-support duration and the walk-back limit are assumptions of this project, not NASA
+rules. The photographs in the visor are real, and each was taken from one fixed spot: there is no
+video of anyone walking on Mars, so the view does not move forward between two photographs. The
+stars behind the globe and the light on it are decoration.
 
 ## English only
 

@@ -22,6 +22,8 @@ export type Site = {
   region: Bounds;
   /** Why the place matters. */
   science: string;
+  /** What to search for in the NASA Image and Video Library. */
+  photoQuery: string;
   /** The rover whose traverse NASA publishes, when there is one. */
   rover?: Rover;
   /** Optical layers of the site, from the widest to the sharpest. */
@@ -42,6 +44,7 @@ export const SITES: readonly Site[] = [
     landing: { lat: -4.589467, lon: 137.441633, name: 'Bradbury Landing' },
     region: GALE,
     science: 'The sedimentary layers of Mount Sharp, a record of ancient water.',
+    photoQuery: 'Curiosity Gale Crater',
     rover: 'curiosity',
     layers: [
       ctxMosaic('Gale_CTX_BlockAdj_dd', GALE),
@@ -59,6 +62,7 @@ export const SITES: readonly Site[] = [
     landing: { lat: 18.4447, lon: 77.4508, name: 'Octavia E. Butler Landing' },
     region: JEZERO,
     science: 'The delta of an ancient river, one of the best places to look for signs of past life.',
+    photoQuery: 'Perseverance Jezero',
     rover: 'perseverance',
     layers: [
       ctxMosaic('Jezero_CTX_BlockAdj_dd', JEZERO),
@@ -76,6 +80,7 @@ export const SITES: readonly Site[] = [
     landing: { lat: -1.9462, lon: -5.5266, name: 'Eagle Crater' },
     region: MERIDIANI,
     science: 'Hematite spherules and sulfates, evidence of acidic water in the past.',
+    photoQuery: 'Opportunity Meridiani',
     layers: [
       ctxMosaic('S_Meridiani_Sinus_Planium_CTX_BlockAdj_dd', MERIDIANI),
       hiriseMosaic(
@@ -92,6 +97,7 @@ export const SITES: readonly Site[] = [
     landing: { lat: -14.5684, lon: 175.4726, name: 'Columbia Memorial Station' },
     region: GUSEV,
     science: 'Silica from hot springs at Home Plate, an environment that could have hosted life.',
+    photoQuery: 'Spirit rover Gusev',
     layers: [
       ctxMosaic('Gusev_CTX_BlockAdj_dd', GUSEV),
       hiriseMosaic(
@@ -108,6 +114,7 @@ export const SITES: readonly Site[] = [
     landing: { lat: 4.5024, lon: 135.6234, name: 'InSight landing site' },
     region: ELYSIUM,
     science: 'A smooth plain where InSight measured marsquakes and the interior of the planet.',
+    photoQuery: 'InSight lander surface',
     layers: [ctxMosaic('InSightCTXMosaic_112917', ELYSIUM, 13)],
   },
 ];

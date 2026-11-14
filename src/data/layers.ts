@@ -25,7 +25,93 @@ export type MapLayer = {
   coverage: Bounds;
   /** What a crew member reads from this layer. */
   reads: string;
+  /** The key to its colours, for layers whose colour stands for a quantity. */
+  legend?: LayerLegend;
 };
+
+/**
+ * What the colours of a layer mean. Mars Trek does not publish the calibration from colour to
+ * value for these tiles, so numbers are given only where the science source publishes them.
+ */
+export type LayerLegend = {
+  /** What the colour measures. */
+  quantity: string;
+  /** Its unit, or null when the scale is relative. */
+  unit: string | null;
+  /** The colour ramp from low to high, as read from the level-0 tiles. */
+  colors: readonly string[];
+  low: string;
+  high: string;
+  /** The span of values, only where the source publishes it. */
+  range?: string;
+  /** The science reference for the product. */
+  source: string;
+};
+
+/**
+ * Colour ramps read from the level-0 tiles of each product on 2026-11-14. The TES maps and the
+ * MOLA relief run from violet and blue (low) to red; the relief ends in white on the highest
+ * volcanoes. THEMIS is greyscale.
+ */
+const RAINBOW = ['#4b1fc4', '#2448f0', '#13b6e8', '#36d455', '#e8e23a', '#f08a1e', '#dc2518'];
+const RELIEF = [...RAINBOW, '#f4f0ec'];
+const GREY = ['#141414', '#f2f2f2'];
+
+const THEMIS_SOURCE = 'Mars Odyssey THEMIS, Christensen et al. 2004, Space Science Reviews 110';
+
+export const LEGENDS = {
+  relief: {
+    quantity: 'Elevation',
+    unit: 'm',
+    colors: RELIEF,
+    low: 'Low: the floor of the Hellas basin',
+    high: 'High: the Tharsis volcanoes',
+    range:
+      'Mars spans about 30 km of relief, from about -8 km in Hellas to +21 km on Olympus Mons, relative to the MOLA areoid.',
+    source: 'Smith et al. 2001, JGR 106 (MOLA); Jaumann et al. 2007, Planetary and Space Science 55 (HRSC)',
+  },
+  themisDay: {
+    quantity: 'Daytime surface temperature',
+    unit: null,
+    colors: GREY,
+    low: 'Dark: cooler, shaded slopes',
+    high: 'Bright: warmer, sunward slopes',
+    source: THEMIS_SOURCE,
+  },
+  themisNight: {
+    quantity: 'Nighttime surface temperature',
+    unit: null,
+    colors: GREY,
+    low: 'Dark: dust and loose sand',
+    high: 'Bright: rock that holds heat',
+    source: THEMIS_SOURCE,
+  },
+  inertia: {
+    quantity: 'Thermal inertia',
+    unit: 'J m⁻² K⁻¹ s⁻½',
+    colors: RAINBOW,
+    low: 'Low: fine dust',
+    high: 'High: rock and bedrock',
+    source: 'MGS TES, Putzig et al. 2005, Icarus 173',
+  },
+  dust: {
+    quantity: 'Dust cover',
+    unit: null,
+    colors: RAINBOW,
+    low: 'Less dust',
+    high: 'More dust',
+    source: 'MGS TES dust cover index, Ruff and Christensen 2002, JGR 107',
+  },
+  glassClay: {
+    quantity: 'Sheet silicates and high-silica glass',
+    unit: null,
+    colors: RAINBOW,
+    low: 'Low concentration',
+    high: 'High concentration',
+    range: 'Share of the surface: 0 to 0.10 in bright regions, up to 0.20 in the dark northern plains.',
+    source: 'MGS TES, Bandfield 2002, JGR 107',
+  },
+} satisfies Record<string, LayerLegend>;
 
 const TREK = 'https://trek.nasa.gov/tiles/Mars/EQ';
 
@@ -57,6 +143,7 @@ export const GLOBAL_LAYERS: readonly MapLayer[] = [
     maxLevel: 8,
     coverage: WHOLE_PLANET,
     reads: 'Elevation and the shape of the terrain, at 200 m per pixel. Blue is low, red and white are high.',
+    legend: LEGENDS.relief,
   },
   {
     id: 'THEMIS_DayIR_ControlledMosaics_100m_v2_oct2018',
@@ -67,6 +154,7 @@ export const GLOBAL_LAYERS: readonly MapLayer[] = [
     maxLevel: 9,
     coverage: { west: -180, south: -65, east: 180, north: 65 },
     reads: 'Ground temperature by day, at 100 m per pixel. Slopes that face the Sun look bright.',
+    legend: LEGENDS.themisDay,
   },
   {
     id: 'THEMIS_NightIR_ControlledMosaics_100m_v2_oct2018',
@@ -77,6 +165,7 @@ export const GLOBAL_LAYERS: readonly MapLayer[] = [
     maxLevel: 9,
     coverage: { west: -180, south: -65, east: 180, north: 65 },
     reads: 'Ground that holds heat at night. Exposed rock looks bright; dust and loose sand look dark.',
+    legend: LEGENDS.themisNight,
   },
   {
     id: 'TES_Thermal_Inertia',
@@ -87,6 +176,7 @@ export const GLOBAL_LAYERS: readonly MapLayer[] = [
     maxLevel: 1,
     coverage: WHOLE_PLANET,
     reads: 'Firm ground (high inertia) against loose dust (low). A regional view only.',
+    legend: LEGENDS.inertia,
   },
   {
     id: 'TES_Dust',
@@ -97,6 +187,7 @@ export const GLOBAL_LAYERS: readonly MapLayer[] = [
     maxLevel: 1,
     coverage: WHOLE_PLANET,
     reads: 'Where dust hides the rock. A regional view only.',
+    legend: LEGENDS.dust,
   },
   {
     id: 'TES_Glass_Clay',
@@ -107,6 +198,7 @@ export const GLOBAL_LAYERS: readonly MapLayer[] = [
     maxLevel: 1,
     coverage: WHOLE_PLANET,
     reads: 'Minerals altered by water, a science target. A regional view only.',
+    legend: LEGENDS.glassClay,
   },
 ];
 

@@ -342,7 +342,7 @@ type TilePlaneProps = {
  * Every layer in two passes: a coarse one over a wide area, so something is there while panning
  * and while sharp tiles load, and a sharp one over the screen.
  */
-const TilePlane = memo(function TilePlane({ layers, opacity, base, size }: TilePlaneProps) {
+export const TilePlane = memo(function TilePlane({ layers, opacity, base, size }: TilePlaneProps) {
   // Phones pack two or three device pixels in a point; ask for a deeper level so tiles stay crisp.
   const density = Math.min(PixelRatio.get(), 2);
   const sharpArea = visibleBounds(base, size, 0.25);

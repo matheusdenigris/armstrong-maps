@@ -71,6 +71,23 @@ describe('evaluateWalk', () => {
     expect(walk.reasons).toEqual(['into-reserve']);
   });
 
+  it('adds a caution when a CME is at Mars', () => {
+    const walk = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, { cmeAtMars: true });
+    expect(walk.verdict).toBe('caution');
+    expect(walk.reasons).toEqual(['cme-at-mars']);
+  });
+
+  it('ignores space weather until there is a walk', () => {
+    const walk = evaluateWalk(BASE, [], DOSE_RATE, WALK_ASSUMPTIONS, { cmeAtMars: true });
+    expect(walk.verdict).toBe('go');
+  });
+
+  it('keeps a no-go when a CME is also at Mars', () => {
+    const walk = evaluateWalk(BASE, [at(5200)], DOSE_RATE, WALK_ASSUMPTIONS, { cmeAtMars: true });
+    expect(walk.verdict).toBe('no-go');
+    expect(walk.reasons).toEqual(['beyond-walk-back-limit', 'cme-at-mars']);
+  });
+
   it('refuses a walk longer than the life support', () => {
     const stops = Array.from({ length: 25 }, (_, index) => at(1 + index * 0.01));
     const walk = evaluateWalk(BASE, stops, DOSE_RATE);

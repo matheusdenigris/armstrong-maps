@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { SURFACE_RADIATION } from '@/data/radiation';
+import { CME_WINDOW, DONKI_CREDIT } from '@/data/space-weather';
 import { formatDistance, formatDose, formatDuration, formatShare } from '@/mission/format';
 import {
   WALK_ASSUMPTIONS,
@@ -24,6 +25,8 @@ type WalkSummaryProps = {
 type WalkDetailsProps = {
   walk: WalkEvaluation;
   stops: number;
+  /** A walk is in progress: the route cannot be changed. */
+  locked?: boolean;
   onUndo: () => void;
   onClear: () => void;
 };
@@ -45,6 +48,8 @@ function explain(reason: WalkReason, a: WalkAssumptions): string {
       return `A waypoint is more than ${a.walkBackLimitKm} km from the base, the walk-back limit.`;
     case 'near-walk-back-limit':
       return `A waypoint is past ${formatShare(a.nearLimitFraction)} of the ${a.walkBackLimitKm} km walk-back limit.`;
+    case 'cme-at-mars':
+      return `NASA's WSA-Enlil model forecasts a coronal mass ejection hitting Mars squarely (not minor, not glancing) within ${CME_WINDOW.aheadHours} h (or one passed in the last ${CME_WINDOW.behindHours} h). Solar particles could raise the dose above the average used here. Source: ${DONKI_CREDIT}; the window is a project assumption.`;
   }
 }
 
@@ -82,10 +87,10 @@ export function WalkSummary({ walk, stops, collapsible, expanded, onToggle }: Wa
 }
 
 /** Why the verdict is what it is, the numbers behind it, and what was assumed. */
-export function WalkDetails({ walk, stops, onUndo, onClear }: WalkDetailsProps) {
+export function WalkDetails({ walk, stops, locked, onUndo, onClear }: WalkDetailsProps) {
   const verdict = VERDICT[walk.verdict];
   const a = WALK_ASSUMPTIONS;
-  const empty = stops === 0;
+  const empty = stops === 0 || locked === true;
   const used = Math.min(1, walk.lifeSupportUsed);
 
   return (
