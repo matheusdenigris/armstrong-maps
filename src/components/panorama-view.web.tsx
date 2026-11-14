@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 
 import { headingToFraction, panoramaUrl, type Panorama } from '@/data/panoramas';
 
@@ -26,7 +26,22 @@ const BELOW = '#0d0907';
 const FILL = 3000;
 const FADE_MS = 900;
 
+/**
+ * The cut from one scene to the next: the astronaut strides forward into a gust of dust, and it
+ * clears on the next place. It stands for the ground covered between two photographs, which no
+ * camera filmed. The dust is drawn.
+ */
+const CUT_MS = 2200;
+const DUST = '#b9987a';
+/** How far the view pushes into the scene it leaves, and how far back it starts in the next. */
+const PUSH_OUT = 0.26;
+const PUSH_IN = 0.12;
+/** Extra lift of the strides during the cut, in pixels, and how many of them. */
+const STRIDE = 9;
+const STRIDES = 4;
+
 const RAD = Math.PI / 180;
+const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
 /** Distance from the eye to the picture, in pixels, for a lens that suits the shape of the screen. */
 function eyeDistance(size: { width: number; height: number }): number {
@@ -67,11 +82,7 @@ const Cylinder = memo(function Cylinder({
   const fade = fading ? `armstrong-fade ${FADE_MS}ms ease-out both` : undefined;
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        transformStyle: 'preserve-3d',
-      }}>
+    <div style={{ position: 'absolute', transformStyle: 'preserve-3d' }}>
       {Array.from({ length: STRIPS }, (_, index) => {
         // How many strips away from straight ahead, going the short way round.
         const away = Math.abs(((index - ahead + STRIPS * 1.5) % STRIPS) - STRIPS / 2);
@@ -136,25 +147,40 @@ const Cylinder = memo(function Cylinder({
 
 /**
  * A real 360-degree photograph seen from where it was taken. Turning the heading turns the view
- * all the way round. When the photograph changes, the new one fades in over the old one.
+ * all the way round. When the walk moves on to another photograph, a short cut carries the
+ * astronaut there.
  */
 export function PanoramaView({ panorama, heading, pitch, size, sway = 0 }: PanoramaViewProps) {
-  const [shown, setShown] = useState<{ current: Panorama; previous: Panorama | null }>({
-    current: panorama,
-    previous: null,
-  });
-  if (shown.current.nasaId !== panorama.nasaId) {
-    setShown({ current: panorama, previous: shown.current });
-  }
+  // The scene on screen, which lags the one asked for by half a cut.
+  const [scene, setScene] = useState(panorama);
+  // How far through the cut, 0 to 1, or null when standing in a scene.
+  const [cut, setCut] = useState<number | null>(null);
+  // The scene the walk last asked for, so one request starts one cut.
+  const asked = useRef(panorama.nasaId);
 
   useEffect(() => {
-    if (!shown.previous) return;
-    const timer = setTimeout(
-      () => setShown((layers) => ({ current: layers.current, previous: null })),
-      FADE_MS + 100,
-    );
-    return () => clearTimeout(timer);
-  }, [shown]);
+    if (asked.current === panorama.nasaId) return;
+    asked.current = panorama.nasaId;
+    // Fetch the next picture while the dust is still rising.
+    const next = new Image();
+    next.src = panoramaUrl(panorama, false);
+
+    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const started = performance.now();
+    let frame = 0;
+    let swapped = false;
+    const step = (time: number) => {
+      const t = calm ? 1 : Math.min(1, (time - started) / CUT_MS);
+      if (!swapped && t >= 0.5) {
+        swapped = true;
+        setScene(panorama);
+      }
+      setCut(t < 1 ? t : null);
+      if (t < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [panorama]);
 
   const radius = eyeDistance(size);
   const wideScreen = size.width >= 900;
@@ -166,12 +192,12 @@ export function PanoramaView({ panorama, heading, pitch, size, sway = 0 }: Panor
     if (!wideScreen) return;
     let wanted = true;
     const full = new Image();
-    full.src = panoramaUrl(panorama, true);
+    full.src = panoramaUrl(scene, true);
     // Wait until it is decoded, not just downloaded, or the view goes blank during the swap.
     full
       .decode()
       .then(() => {
-        if (wanted) setSharp(panorama.nasaId);
+        if (wanted) setSharp(scene.nasaId);
       })
       .catch(() => {
         // The full picture did not arrive or is too large for this device: stay on the light one.
@@ -179,57 +205,66 @@ export function PanoramaView({ panorama, heading, pitch, size, sway = 0 }: Panor
     return () => {
       wanted = false;
     };
-  }, [panorama, wideScreen]);
-  const world = (picture: Panorama) =>
-    `translateZ(${radius}px) rotateX(${pitch}deg) rotateY(${headingToFraction(picture, heading) * 360}deg)`;
-  const aheadOf = (picture: Panorama) =>
-    Math.floor(headingToFraction(picture, heading) * STRIPS) % STRIPS;
+  }, [scene, wideScreen]);
+
+  // Leaving: stride into the scene while the dust rises. Arriving: settle as it clears.
+  const leaving = cut !== null && cut < 0.5;
+  const part = cut === null ? 0 : leaving ? cut / 0.5 : (cut - 0.5) / 0.5;
+  const push = cut === null ? 0 : leaving ? ease(part) * PUSH_OUT : -(1 - ease(part)) * PUSH_IN;
+  const dust = cut === null ? 0 : leaving ? part ** 1.4 : (1 - part) ** 1.4;
+  const stride = cut === null ? 0 : Math.abs(Math.sin(cut * Math.PI * STRIDES)) * STRIDE;
+
+  const ahead = Math.floor(headingToFraction(scene, heading) * STRIPS) % STRIPS;
 
   return (
     <div
       role="img"
-      aria-label={`${panorama.caption}. A real 360-degree photograph; drag to look around.`}
+      aria-label={`${scene.caption}. A real 360-degree photograph; drag to look around.`}
       style={{
         position: 'absolute',
         inset: 0,
         overflow: 'hidden',
         // What shows through the hairline between two strips: sky, where it is least noticed.
-        background: panorama.sky,
+        background: scene.sky,
         perspective: `${radius}px`,
         pointerEvents: 'none',
       }}>
       <style>{'@keyframes armstrong-fade { from { opacity: 0 } to { opacity: 1 } }'}</style>
-      {[shown.previous, shown.current].map((picture, layer) =>
-        picture ? (
-          <div
-            key={picture.nasaId}
-            style={{
-              position: 'absolute',
-              left: size.width / 2,
-              top: size.height / 2 + sway,
-              transformStyle: 'preserve-3d',
-              transform: world(picture),
-            }}>
-            <Cylinder
-              panorama={picture}
-              radius={radius}
-              wideScreen={false}
-              fading={layer === 1 && shown.previous !== null}
-              ahead={aheadOf(picture)}
-            />
-            {/* The full picture fades in over the light one, which stays until it is painted. */}
-            {wideScreen && sharp === picture.nasaId ? (
-              <Cylinder
-                panorama={picture}
-                radius={radius}
-                wideScreen
-                fading
-                ahead={aheadOf(picture)}
-              />
-            ) : null}
-          </div>
-        ) : null,
-      )}
+      <div
+        key={scene.nasaId}
+        style={{
+          position: 'absolute',
+          left: size.width / 2,
+          top: size.height / 2 + sway + stride,
+          transformStyle: 'preserve-3d',
+          transform: `translateZ(${radius * (1 + push)}px) rotateX(${pitch}deg) rotateY(${
+            headingToFraction(scene, heading) * 360
+          }deg)`,
+        }}>
+        <Cylinder
+          panorama={scene}
+          radius={radius}
+          wideScreen={false}
+          fading={false}
+          ahead={ahead}
+        />
+        {/* The full picture fades in over the light one, which stays until it is painted. */}
+        {wideScreen && sharp === scene.nasaId ? (
+          <Cylinder panorama={scene} radius={radius} wideScreen fading ahead={ahead} />
+        ) : null}
+      </div>
+
+      {/* The gust of dust that covers the change of scene. */}
+      {cut !== null ? (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            opacity: dust,
+            background: `radial-gradient(ellipse at 50% 58%, ${DUST} 0%, ${DUST} 45%, #8f7258 100%)`,
+          }}
+        />
+      ) : null}
     </div>
   );
 }
