@@ -93,8 +93,8 @@ export function MiniMap({
 const styles = StyleSheet.create({
   frame: {
     overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: Colors.text,
+    borderWidth: 1,
+    borderColor: Colors.glassBorder,
     backgroundColor: Colors.background,
   },
   turning: {

@@ -76,11 +76,11 @@ export function HeadingTape({ heading, target, width }: HeadingTapeProps) {
 
 const styles = StyleSheet.create({
   tape: {
-    height: 46,
+    height: 42,
     overflow: 'hidden',
-    backgroundColor: 'rgba(7, 9, 13, 0.72)',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.text,
+    backgroundColor: Colors.glassDark,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.glassBorder,
   },
   tick: {
     position: 'absolute',
@@ -90,24 +90,24 @@ const styles = StyleSheet.create({
   },
   line: {
     width: 1,
-    height: 8,
-    backgroundColor: Colors.textMuted,
+    height: 7,
+    backgroundColor: Colors.textFaint,
   },
   lineMajor: {
-    width: 2,
-    height: 12,
+    width: 1,
+    height: 11,
     backgroundColor: Colors.text,
   },
   label: {
-    color: Colors.textMuted,
+    color: Colors.textSoft,
     fontFamily: Fonts.mono,
     fontSize: 11,
     paddingTop: 4,
   },
   labelMajor: {
     color: Colors.text,
-    fontSize: 14,
-    fontWeight: '700',
+    fontFamily: Fonts.sans,
+    fontSize: 13,
     paddingTop: 2,
   },
   caret: {
@@ -121,7 +121,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     width: 14,
-    height: 6,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: Colors.nav,
   },
   away: {
