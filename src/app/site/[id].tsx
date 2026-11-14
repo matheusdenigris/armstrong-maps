@@ -5,18 +5,24 @@ import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EnvironmentPanel } from '@/components/environment-panel';
+import { HazardPanel } from '@/components/hazard-panel';
 import { LayerPanel } from '@/components/layer-panel';
 import { PhotosPanel } from '@/components/photos-panel';
 import { ScaleBar } from '@/components/scale-bar';
 import {
   SurfaceMap,
   type MapMarker,
+  type MapArea,
+  type MapArrow,
+  type MapImage,
   type MapPath,
   type MapRing,
 } from '@/components/surface-map';
 import { WalkControls } from '@/components/walk-controls';
 import { WalkDetails, WalkSummary } from '@/components/walk-panel';
+import { WindPanel } from '@/components/wind-panel';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { duneQueryUrl, parseDunes } from '@/data/dunes';
 import { imageSearchUrl, parseImageSearch } from '@/data/image-library';
 import { GLOBAL_LAYERS, VIKING_GLOBAL } from '@/data/layers';
 import { SURFACE_RADIATION } from '@/data/radiation';
@@ -30,6 +36,7 @@ import {
   parseSepEvents,
 } from '@/data/space-weather';
 import { REMS_FEED, parseWeather } from '@/data/weather';
+import { INSIGHT_SITE, insightWeatherUrl, parseInsightWind } from '@/data/wind';
 import type { MapView } from '@/mission/camera';
 import { elapsedSeconds } from '@/mission/clock';
 import { formatLatLon } from '@/mission/format';
@@ -39,6 +46,8 @@ import { TILE_PIXELS, tileSpan } from '@/mission/tiles';
 import { WALK_ASSUMPTIONS, evaluateWalk } from '@/mission/walk';
 import { useMission, useRoute } from '@/state/mission';
 import { useFeed } from '@/state/use-feed';
+import { useTerrain } from '@/state/use-terrain';
+import { routeCrosses, routeSlope } from '@/mission/terrain';
 import { useNow } from '@/state/use-now';
 
 /** One page per site in the static web export. */
@@ -66,6 +75,9 @@ const GALE = SITES[0].landing;
  */
 const ENLIL_CACHE = { key: 'donki-enlil', freshForHours: 3 };
 const SEP_CACHE = { key: 'donki-sep', freshForHours: 3 };
+/** Wind InSight measured in 2020 does not change; the dune outlines barely do. */
+const INSIGHT_CACHE = { key: 'insight-wind', freshForHours: 24 };
+const DUNES_CACHE_HOURS = 24 * 7;
 
 type Tab = 'walk' | 'layers' | 'site' | 'photos';
 
@@ -146,6 +158,61 @@ function SiteMap({ site }: { site: Site }) {
     parseRawImages,
   );
   const library = useFeed(tab === 'photos' ? imageSearchUrl(site.photoQuery) : null, parseImageSearch);
+  // The ground: slope from NASA elevation models near the base and around it, and dune fields.
+  // Both enter the verdict, so they are asked for at once.
+  const terrain = useTerrain(site);
+  const dunesCache = useMemo(
+    () => ({ key: `dunes-${site.id}`, freshForHours: DUNES_CACHE_HOURS }),
+    [site.id],
+  );
+  const dunes = useFeed(duneQueryUrl(site.region), parseDunes, dunesCache);
+  const wind = useFeed(tab === 'site' ? insightWeatherUrl() : null, parseInsightWind, INSIGHT_CACHE);
+  const [hazards, setHazards] = useState({ slope: true, dunes: true });
+
+  // The ground under the whole walk, out and back.
+  const { groundSlope, crossesDunes } = useMemo(() => {
+    if (route.length === 0) return { groundSlope: null, crossesDunes: false };
+    const loop = [site.landing, ...route, site.landing];
+    const grids = [terrain.near, terrain.around].flatMap((feed) =>
+      feed.status === 'ready' ? [feed.data.slopes] : [],
+    );
+    return {
+      groundSlope: grids.length > 0 ? routeSlope(loop, grids) : null,
+      crossesDunes:
+        dunes.status === 'ready' &&
+        routeCrosses(
+          loop,
+          dunes.data.flatMap((field) => field.outlines),
+        ),
+    };
+  }, [site, route, terrain.near, terrain.around, dunes]);
+
+  // What the map draws for the hazards: the slope pictures (the wide one under the near one), the
+  // dune outlines and the way their wind blew.
+  const { hazardImages, hazardAreas, windArrows } = useMemo(() => {
+    const images: MapImage[] = hazards.slope
+      ? [terrain.around, terrain.near].flatMap((feed) =>
+          feed.status === 'ready'
+            ? [{ id: `slope-${feed.data.area.id}`, uri: feed.data.image, bounds: feed.data.area.bounds }]
+            : [],
+        )
+      : [];
+    const fields = hazards.dunes && dunes.status === 'ready' ? dunes.data : [];
+    const areas: MapArea[] = fields.flatMap((field) =>
+      field.outlines.map((outline, index) => ({
+        id: `dune-${field.id}-${index}`,
+        outline,
+        fill: Colors.duneFill,
+        stroke: Colors.duneStroke,
+      })),
+    );
+    const arrows: MapArrow[] = fields.flatMap((field) =>
+      field.downwindDeg === null
+        ? []
+        : [{ id: `wind-${field.id}`, point: field.centre, bearingDeg: field.downwindDeg, color: Colors.wind }],
+    );
+    return { hazardImages: images, hazardAreas: areas, windArrows: arrows };
+  }, [hazards, terrain.near, terrain.around, dunes]);
 
   // The map lays its tiles out again when these change, so they must not change on every frame.
   const { home, limits } = useMemo(() => {
@@ -228,12 +295,14 @@ function SiteMap({ site }: { site: Site }) {
     return {
       walk: evaluateWalk(landing, route, SURFACE_RADIATION.msvPerDay, WALK_ASSUMPTIONS, {
         cmeAtMars,
+        maxSlopeDeg: groundSlope?.maxDeg ?? null,
+        crossesDunes,
       }),
       markers: pins,
       paths: lines,
       rings: circles,
     };
-  }, [site, route, rover, track, astronaut, cmeAtMars]);
+  }, [site, route, rover, track, astronaut, cmeAtMars, groundSlope, crossesDunes]);
 
   const open = sideBySide || expanded;
   const panel = (
@@ -280,6 +349,18 @@ function SiteMap({ site }: { site: Site }) {
             </>
           ) : null}
           {tab === 'layers' ? (
+            <HazardPanel
+              slopeOn={hazards.slope}
+              dunesOn={hazards.dunes}
+              onToggleSlope={() => setHazards((value) => ({ ...value, slope: !value.slope }))}
+              onToggleDunes={() => setHazards((value) => ({ ...value, dunes: !value.dunes }))}
+              near={terrain.near}
+              around={terrain.around}
+              dunes={dunes}
+              route={groundSlope}
+            />
+          ) : null}
+          {tab === 'layers' ? (
             <LayerPanel
               base={base}
               overlays={OVERLAYS}
@@ -295,6 +376,14 @@ function SiteMap({ site }: { site: Site }) {
               weather={weather}
               rover={rover ? { name: rover.name, track } : null}
               space={{ arrivals, sep, now: visitStart }}
+            />
+          ) : null}
+          {tab === 'site' ? (
+            <WindPanel
+              siteName={site.name}
+              distanceFromInsightM={distance(site.landing, INSIGHT_SITE)}
+              sols={wind}
+              dunes={dunes}
             />
           ) : null}
           {tab === 'photos' ? (
@@ -330,6 +419,9 @@ function SiteMap({ site }: { site: Site }) {
             markers={markers}
             paths={paths}
             rings={rings}
+            images={hazardImages}
+            areas={hazardAreas}
+            arrows={windArrows}
             onViewChange={setView}
             onPress={(point) => addWaypoint(site.id, point)}
             accessibilityLabel={`Map of ${site.name}. Drag to move, pinch or use the buttons to zoom, tap to add a waypoint.`}

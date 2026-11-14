@@ -23,6 +23,11 @@ export const Colors = {
   go: '#3DD68C',
   caution: '#F5B83D',
   noGo: '#F0513F',
+  /** Dune fields on the map: loose sand. */
+  duneFill: 'rgba(245, 184, 61, 0.18)',
+  duneStroke: '#F5B83D',
+  /** Wind arrows on the map and in the wind panel. */
+  wind: '#8FD6FF',
   /** Marks a NASA source on the docs page. A colour only: never the NASA insignia. */
   nasa: '#FC3D21',
 } as const;

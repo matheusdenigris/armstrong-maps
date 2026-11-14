@@ -50,6 +50,12 @@ function explain(reason: WalkReason, a: WalkAssumptions): string {
       return `A waypoint is past ${formatShare(a.nearLimitFraction)} of the ${a.walkBackLimitKm} km walk-back limit.`;
     case 'cme-at-mars':
       return `NASA's WSA-Enlil model forecasts a coronal mass ejection hitting Mars squarely (not minor, not glancing) within ${CME_WINDOW.aheadHours} h (or one passed in the last ${CME_WINDOW.behindHours} h). Solar particles could raise the dose above the average used here. Source: ${DONKI_CREDIT}; the window is a project assumption.`;
+    case 'too-steep':
+      return `The route crosses ground of ${a.noGoSlopeDeg}° or more, too steep to walk. Slope from the elevation model of the site; the limit is a project assumption.`;
+    case 'steep-ground':
+      return `The route crosses ground of ${a.cautionSlopeDeg}° or more. Slope from the elevation model of the site; the limit is a project assumption, and the model smooths out small steps.`;
+    case 'dune-field':
+      return `The route enters a mapped dune field: loose sand, where Spirit was trapped in 2009. Mars Global Digital Dune Database (USGS).`;
   }
 }
 
@@ -152,7 +158,8 @@ export function WalkDetails({ walk, stops, locked, onUndo, onClear }: WalkDetail
         Project assumptions, not NASA rules: {a.walkingSpeedKmh} km/h on foot, {a.minutesPerStop}{' '}
         min at each stop, {a.lifeSupportHours} h of life support with a{' '}
         {formatShare(a.reserveFraction)} reserve, and a {a.walkBackLimitKm} km walk-back limit (the
-        dashed ring). The return is a straight line to the base. {SURFACE_RADIATION.caveat}
+        dashed ring). Ground of {a.cautionSlopeDeg}° or more earns a caution and {a.noGoSlopeDeg}° or
+        more a no-go. The return is a straight line to the base. {SURFACE_RADIATION.caveat}
       </Text>
     </View>
   );
