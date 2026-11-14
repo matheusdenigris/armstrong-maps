@@ -1,0 +1,373 @@
+import { Image } from 'expo-image';
+import { memo, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import {
+  AccessibilityInfo,
+  PixelRatio,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type GestureResponderEvent,
+  type LayoutChangeEvent,
+  type ViewStyle,
+} from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
+
+import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { tileUrl, type MapLayer } from '@/data/layers';
+import {
+  project,
+  visibleBounds,
+  type MapView,
+  type Pixel,
+  type ScaleLimits,
+  type Size,
+} from '@/mission/camera';
+import type { LatLon } from '@/mission/geo';
+import { tileBounds, tilesFor, type TileAddress } from '@/mission/tiles';
+
+import { MapController, ZOOM_STEP, openingCamera } from './map-controller';
+
+export type MapMarker = {
+  id: string;
+  point: LatLon;
+  label: string;
+  color?: string;
+};
+
+type SurfaceMapProps = {
+  /** Drawn from the bottom up. */
+  layers: readonly MapLayer[];
+  /** Where the map opens, and where the recentre button returns to. */
+  home: MapView;
+  limits: ScaleLimits;
+  markers?: readonly MapMarker[];
+  /** Called with the current view, at most once per frame. */
+  onViewChange?: (view: MapView) => void;
+  /** A single tap on the map (not a drag, not a double tap). */
+  onPress?: (point: LatLon) => void;
+  accessibilityLabel: string;
+  /** Room to leave under the zoom buttons, for whatever the screen puts at the bottom. */
+  controlsBottom?: number;
+  children?: ReactNode;
+};
+
+const webOnly = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle) : null);
+
+/**
+ * A map of Mars that is dragged with one finger and pinched with two. On the web the mouse drags
+ * and the wheel zooms. Tiles are equirectangular, so the map is too.
+ */
+export function SurfaceMap({
+  layers,
+  home,
+  limits,
+  markers = [],
+  onViewChange,
+  onPress,
+  accessibilityLabel,
+  controlsBottom = Spacing.three,
+  children,
+}: SurfaceMapProps) {
+  const [size, setSize] = useState<Size | null>(null);
+  const [camera, setCamera] = useState(() => openingCamera(home, limits));
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  const node = useRef<ComponentRef<typeof View>>(null);
+  const controller = useRef<MapController | null>(null);
+  const origin = useRef<Pixel>({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const options = { home, limits, reduceMotion, onCamera: setCamera, onViewChange, onPress };
+    if (controller.current) controller.current.configure(options);
+    else controller.current = new MapController(options);
+    if (size) controller.current.setSize(size);
+  }, [home, limits, reduceMotion, onViewChange, onPress, size]);
+
+  useEffect(() => () => controller.current?.dispose(), []);
+
+  useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((on) => alive && setReduceMotion(on));
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      alive = false;
+      subscription.remove();
+    };
+  }, []);
+
+  // The wheel zooms on the web, around the pointer.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const element = node.current as unknown as HTMLElement | null;
+    if (!element) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const box = element.getBoundingClientRect();
+      const pixels = event.deltaMode === 1 ? event.deltaY * 32 : event.deltaY;
+      controller.current?.wheel(pixels, {
+        x: event.clientX - box.left,
+        y: event.clientY - box.top,
+      });
+    };
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
+  }, []);
+
+  /** Finds where the map is in the window, to turn touch positions into map positions. */
+  function locate() {
+    const current = node.current;
+    if (!current) return;
+    if (Platform.OS === 'web') {
+      const box = (current as unknown as HTMLElement).getBoundingClientRect();
+      origin.current = { x: box.left, y: box.top };
+    } else {
+      current.measureInWindow((x, y) => {
+        origin.current = { x, y };
+      });
+    }
+  }
+
+  const touchesOf = (event: GestureResponderEvent): Pixel[] =>
+    event.nativeEvent.touches.map((touch) => ({
+      x: touch.pageX - origin.current.x,
+      y: touch.pageY - origin.current.y,
+    }));
+
+  function onLayout(event: LayoutChangeEvent) {
+    const { width, height } = event.nativeEvent.layout;
+    controller.current?.setSize({ width, height });
+    setSize((previous) =>
+      previous && previous.width === width && previous.height === height
+        ? previous
+        : { width, height },
+    );
+    locate();
+  }
+
+  const { view, base } = camera;
+  const zoom = view.pixelsPerDegree / base.pixelsPerDegree;
+  // Maps the tile plane, laid out for `base`, onto the current view.
+  const planeStyle: ViewStyle | null = size && {
+    transformOrigin: 'left top',
+    transform: [
+      { translateX: (size.width / 2) * (1 - zoom) + (base.lon - view.lon) * view.pixelsPerDegree },
+      { translateY: (size.height / 2) * (1 - zoom) - (base.lat - view.lat) * view.pixelsPerDegree },
+      { scale: zoom },
+    ],
+  };
+
+  return (
+    <View
+      ref={node}
+      style={[styles.map, webOnly({ touchAction: 'none', userSelect: 'none', cursor: 'grab' })]}
+      onLayout={onLayout}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={accessibilityLabel}
+      onStartShouldSetResponder={() => true}
+      onMoveShouldSetResponder={() => true}
+      onResponderTerminationRequest={() => false}
+      onResponderGrant={(event) => {
+        locate();
+        controller.current?.begin(touchesOf(event));
+      }}
+      onResponderMove={(event) => controller.current?.move(touchesOf(event))}
+      onResponderRelease={() => controller.current?.end()}
+      onResponderTerminate={() => controller.current?.end()}>
+      {size && planeStyle && (
+        <View style={[StyleSheet.absoluteFill, planeStyle]} pointerEvents="none">
+          <TilePlane layers={layers} base={base} size={size} />
+        </View>
+      )}
+
+      {size &&
+        markers.map((marker) => {
+          const at = project(view, size, marker.point);
+          return (
+            <View
+              key={marker.id}
+              pointerEvents="none"
+              style={[styles.marker, { left: at.x, top: at.y }]}>
+              <View style={[styles.markerDot, { backgroundColor: marker.color ?? Colors.nav }]} />
+              <Text style={styles.markerLabel} numberOfLines={1}>
+                {marker.label}
+              </Text>
+            </View>
+          );
+        })}
+
+      {children}
+
+      <View style={[styles.controls, { bottom: controlsBottom }]}>
+        <MapButton
+          label="Zoom in"
+          glyph="plus"
+          onPress={() => controller.current?.zoomBy(ZOOM_STEP)}
+        />
+        <MapButton
+          label="Zoom out"
+          glyph="minus"
+          onPress={() => controller.current?.zoomBy(1 / ZOOM_STEP)}
+        />
+        <MapButton
+          label="Back to the landing site"
+          glyph="target"
+          onPress={() => controller.current?.recentre()}
+        />
+      </View>
+    </View>
+  );
+}
+
+type TilePlaneProps = {
+  layers: readonly MapLayer[];
+  base: MapView;
+  size: Size;
+};
+
+/**
+ * Every layer in two passes: a coarse one over a wide area, so something is there while panning
+ * and while sharp tiles load, and a sharp one over the screen.
+ */
+const TilePlane = memo(function TilePlane({ layers, base, size }: TilePlaneProps) {
+  // Phones pack two or three device pixels in a point; ask for a deeper level so tiles stay crisp.
+  const density = Math.min(PixelRatio.get(), 2);
+  const sharpArea = visibleBounds(base, size, 0.25);
+  const wideArea = visibleBounds(base, size, 1);
+
+  const place = (tile: TileAddress) => {
+    const bounds = tileBounds(tile);
+    const topLeft = project(base, size, { lat: bounds.north, lon: bounds.west });
+    const bottomRight = project(base, size, { lat: bounds.south, lon: bounds.east });
+    // Whole pixels, so neighbouring tiles share an edge instead of leaving a seam.
+    const left = Math.round(topLeft.x);
+    const top = Math.round(topLeft.y);
+    return {
+      left,
+      top,
+      width: Math.round(bottomRight.x) - left,
+      height: Math.round(bottomRight.y) - top,
+    };
+  };
+
+  return (
+    <>
+      {layers.map((layer) => {
+        const sharp = tilesFor({
+          maxLevel: layer.maxLevel,
+          coverage: layer.coverage,
+          view: sharpArea,
+          pixelsPerDegree: base.pixelsPerDegree * density,
+          limit: 60,
+        });
+        const sharpLevel = sharp[0]?.level ?? 0;
+        const coarse = tilesFor({
+          maxLevel: Math.max(0, sharpLevel - 2),
+          coverage: layer.coverage,
+          view: wideArea,
+          pixelsPerDegree: base.pixelsPerDegree / 4,
+          limit: 24,
+        }).filter((tile) => tile.level < sharpLevel);
+        return [...coarse, ...sharp].map((tile) => (
+          <Image
+            key={`${layer.id}/${tile.level}/${tile.row}/${tile.col}`}
+            source={{ uri: tileUrl(layer, tile) }}
+            style={[styles.tile, place(tile)]}
+            contentFit="fill"
+            cachePolicy="memory-disk"
+            transition={0}
+            accessible={false}
+          />
+        ));
+      })}
+    </>
+  );
+});
+
+type Glyph = 'plus' | 'minus' | 'target';
+type MapButtonProps = { label: string; glyph: Glyph; onPress: () => void };
+
+function MapButton({ label, glyph, onPress }: MapButtonProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
+      <Svg
+        width={20}
+        height={20}
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke={Colors.text}
+        strokeWidth={2}
+        strokeLinecap="round">
+        {glyph !== 'target' && <Path d="M4 10h12" />}
+        {glyph === 'plus' && <Path d="M10 4v12" />}
+        {glyph === 'target' && (
+          <>
+            <Circle cx={10} cy={10} r={5} />
+            <Path d="M10 1v4M10 15v4M1 10h4M15 10h4" />
+          </>
+        )}
+      </Svg>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  map: {
+    flex: 1,
+    overflow: 'hidden',
+    backgroundColor: Colors.background,
+  },
+  tile: {
+    position: 'absolute',
+  },
+  marker: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    // The dot, not the corner of the row, sits on the point.
+    marginLeft: -7,
+    marginTop: -7,
+  },
+  markerDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: Colors.text,
+  },
+  markerLabel: {
+    color: Colors.text,
+    fontFamily: Fonts.mono,
+    fontSize: 12,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half,
+    borderRadius: Radius.small,
+    backgroundColor: 'rgba(7, 9, 13, 0.78)',
+    overflow: 'hidden',
+  },
+  controls: {
+    position: 'absolute',
+    right: Spacing.three,
+    gap: Spacing.two,
+  },
+  button: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.medium,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    backgroundColor: 'rgba(16, 20, 27, 0.92)',
+  },
+  buttonPressed: {
+    backgroundColor: Colors.surfaceRaised,
+  },
+});
