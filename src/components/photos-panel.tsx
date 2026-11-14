@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { Link, type Href } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { PanelHeading, SectionHeading, StatusNote } from '@/components/console-parts';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import type { LibraryImage } from '@/data/image-library';
 import { CAMERA_NAMES, type RoverImage } from '@/data/rover-images';
@@ -18,11 +19,13 @@ type PhotosPanelProps = {
 export function PhotosPanel({ siteName, rover, library }: PhotosPanelProps) {
   return (
     <View style={styles.panel}>
+      <PanelHeading number="04" title="SITE PHOTOS" />
       {rover ? (
         <>
-          <Text style={styles.heading} accessibilityRole="header">
-            NEWEST RAW IMAGES · {rover.name.toUpperCase()}
-          </Text>
+          <SectionHeading
+            title={`NEWEST RAW IMAGES · ${rover.name.toUpperCase()}`}
+            color={Colors.mars}
+          />
           <FeedState
             feed={rover.images}
             waiting="Asking the rover's raw-image feed."
@@ -50,9 +53,10 @@ export function PhotosPanel({ siteName, rover, library }: PhotosPanelProps) {
         </>
       ) : null}
 
-      <Text style={styles.heading} accessibilityRole="header">
-        NASA IMAGE LIBRARY · {siteName.toUpperCase()}
-      </Text>
+      <SectionHeading
+        title={`NASA IMAGE LIBRARY · ${siteName.toUpperCase()}`}
+        color={Colors.nav}
+      />
       <FeedState
         feed={library}
         waiting="Searching the NASA Image and Video Library."
@@ -90,9 +94,11 @@ type FeedStateProps = {
 
 /** The sentence for a feed that has nothing to show yet, or nothing at all. */
 function FeedState({ feed, waiting, failed, empty }: FeedStateProps) {
-  if (feed.status === 'idle' || feed.status === 'loading') return <Text style={styles.note}>{waiting}</Text>;
-  if (feed.status === 'failed') return <Text style={styles.note}>{failed}</Text>;
-  if (feed.data.length === 0) return <Text style={styles.note}>{empty}</Text>;
+  if (feed.status === 'idle' || feed.status === 'loading') {
+    return <StatusNote text={waiting} color={Colors.nav} />;
+  }
+  if (feed.status === 'failed') return <StatusNote text={failed} color={Colors.noGo} />;
+  if (feed.data.length === 0) return <StatusNote text={empty} color={Colors.caution} />;
   return null;
 }
 
@@ -101,16 +107,21 @@ type PhotoProps = { uri: string; url: string; title: string; detail: string; lab
 function Photo({ uri, url, title, detail, label }: PhotoProps) {
   return (
     <Link href={url as Href} target="_blank" rel="noopener noreferrer" asChild>
-      <Pressable style={styles.photo} accessibilityRole="link" accessibilityLabel={label}>
+      <Pressable
+        style={({ pressed }) => [styles.photo, pressed && styles.photoPressed]}
+        accessibilityRole="link"
+        accessibilityLabel={label}>
         <Image source={{ uri }} style={styles.image} contentFit="cover" transition={150} />
-        <Text style={styles.photoTitle} numberOfLines={2}>
-          {title}
-        </Text>
-        {detail ? (
-          <Text style={styles.photoDetail} numberOfLines={1}>
-            {detail}
+        <View style={styles.caption}>
+          <Text style={styles.photoTitle} numberOfLines={2}>
+            {title}
           </Text>
-        ) : null}
+          {detail ? (
+            <Text style={styles.photoDetail} numberOfLines={1}>
+              {detail}
+            </Text>
+          ) : null}
+        </View>
       </Pressable>
     </Link>
   );
@@ -118,32 +129,36 @@ function Photo({ uri, url, title, detail, label }: PhotoProps) {
 
 const styles = StyleSheet.create({
   panel: {
-    gap: Spacing.two,
+    gap: Spacing.three,
     paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.three,
-  },
-  heading: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    letterSpacing: 1.5,
-    paddingTop: Spacing.two,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -Spacing.one,
+    justifyContent: 'space-between',
+    rowGap: Spacing.two,
   },
   photo: {
-    width: '50%',
-    padding: Spacing.one,
-    gap: Spacing.half,
+    width: '48.5%',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    borderRadius: Radius.small,
+    backgroundColor: Colors.surface,
+    overflow: 'hidden',
+  },
+  photoPressed: {
+    borderColor: Colors.borderStrong,
+    backgroundColor: Colors.surfaceRaised,
   },
   image: {
     width: '100%',
     aspectRatio: 4 / 3,
-    borderRadius: Radius.small,
     backgroundColor: Colors.surfaceRaised,
+  },
+  caption: {
+    gap: Spacing.one,
+    padding: Spacing.two,
   },
   photoTitle: {
     color: Colors.text,
@@ -154,18 +169,18 @@ const styles = StyleSheet.create({
   photoDetail: {
     color: Colors.textMuted,
     fontFamily: Fonts.mono,
-    fontSize: 10,
-  },
-  note: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.sans,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 9,
+    fontWeight: '600',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   source: {
     color: Colors.textMuted,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.mono,
     fontSize: 11,
     lineHeight: 15,
+    paddingTop: Spacing.one,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
   },
 });

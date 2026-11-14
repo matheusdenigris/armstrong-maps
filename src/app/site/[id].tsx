@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EnvironmentPanel } from '@/components/environment-panel';
 import { LayerPanel } from '@/components/layer-panel';
+import { PhotosPanel } from '@/components/photos-panel';
 import { Logo } from '@/components/logo';
 import { ScaleBar } from '@/components/scale-bar';
 import {
@@ -17,10 +18,18 @@ import {
 import { WalkControls } from '@/components/walk-controls';
 import { WalkDetails, WalkSummary } from '@/components/walk-panel';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { imageSearchUrl, parseImageSearch } from '@/data/image-library';
 import { GLOBAL_LAYERS, VIKING_GLOBAL } from '@/data/layers';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { ROVERS, parseRoverTrack } from '@/data/rover';
+import { RAW_IMAGE_FEEDS, parseRawImages, rawImagesUrl } from '@/data/rover-images';
 import { SITES, findSite, type Site } from '@/data/sites';
+import {
+  donkiUrls,
+  marsSpaceWeather,
+  parseMarsArrivals,
+  parseSepEvents,
+} from '@/data/space-weather';
 import { REMS_FEED, parseWeather } from '@/data/weather';
 import type { MapView } from '@/mission/camera';
 import { elapsedSeconds } from '@/mission/clock';
@@ -56,7 +65,14 @@ const OVERLAYS = GLOBAL_LAYERS.filter((layer) => layer !== VIKING_GLOBAL);
 /** The weather station is on Curiosity, which landed at Gale crater. */
 const GALE = SITES[0].landing;
 
-type Tab = 'map' | 'layers' | 'walk';
+/**
+ * DONKI allows few requests an hour with the shared demo key, and its model runs change only a
+ * few times a day, so its answers are kept on the device for a while.
+ */
+const ENLIL_CACHE = { key: 'donki-enlil', freshForHours: 3 };
+const SEP_CACHE = { key: 'donki-sep', freshForHours: 3 };
+
+type Tab = 'map' | 'layers' | 'walk' | 'photos';
 
 /** False on the page rendered ahead of time, which does not know the size of the window. */
 function useHydrated() {
@@ -123,6 +139,25 @@ function SiteMap({ site }: { site: Site }) {
   const rover = site.rover ? ROVERS[site.rover] : null;
   const track = useFeed(rover?.feed ?? null, parseRoverTrack);
   const weather = useFeed(desktopConsole || tab === 'walk' ? REMS_FEED : null, parseWeather);
+  // Space weather changes the verdict, so the CME forecast is asked for at once. The addresses
+  // only change once a day, and each is asked for once per visit.
+  const [visitStart] = useState(() => new Date());
+  const donki = useMemo(() => donkiUrls(visitStart), [visitStart]);
+  const arrivals = useFeed(donki.enlil, parseMarsArrivals, ENLIL_CACHE);
+  const sep = useFeed(
+    desktopConsole || tab === 'walk' ? donki.sep : null,
+    parseSepEvents,
+    SEP_CACHE,
+  );
+  const cmeAtMars =
+    arrivals.status === 'ready' && marsSpaceWeather(arrivals.data, visitStart).level !== 'quiet';
+  // Pictures wait until their panel is on screen.
+  const showPhotos = desktopConsole || tab === 'photos';
+  const rawImages = useFeed(
+    showPhotos && site.rover ? rawImagesUrl(site.rover) : null,
+    parseRawImages,
+  );
+  const library = useFeed(showPhotos ? imageSearchUrl(site.photoQuery) : null, parseImageSearch);
 
   // The map lays its tiles out again when these change, so they must not change on every frame.
   const { home, limits } = useMemo(() => {
@@ -203,12 +238,14 @@ function SiteMap({ site }: { site: Site }) {
       },
     ];
     return {
-      walk: evaluateWalk(landing, route, SURFACE_RADIATION.msvPerDay),
+      walk: evaluateWalk(landing, route, SURFACE_RADIATION.msvPerDay, WALK_ASSUMPTIONS, {
+        cmeAtMars,
+      }),
       markers: pins,
       paths: lines,
       rings: circles,
     };
-  }, [site, route, rover, track, astronaut]);
+  }, [site, route, rover, track, astronaut, cmeAtMars]);
 
   const roverSol =
     rover && track.status === 'ready' && track.data.latest
@@ -260,8 +297,21 @@ function SiteMap({ site }: { site: Site }) {
         distanceFromGaleM={distance(site.landing, GALE)}
         weather={weather}
         rover={rover ? { name: rover.name, track } : null}
+        space={{ arrivals, sep, now: visitStart }}
       />
     </>
+  );
+
+  const photosContent = (
+    <PhotosPanel
+      siteName={site.name}
+      rover={
+        rover && site.rover
+          ? { name: rover.name, gallery: RAW_IMAGE_FEEDS[site.rover].gallery, images: rawImages }
+          : null
+      }
+      library={library}
+    />
   );
 
   const map = (
@@ -319,6 +369,8 @@ function SiteMap({ site }: { site: Site }) {
             width={WALK_PANEL_WIDTH}
             onToggle={() => setWalkVisible((visible) => !visible)}>
             {walkContent}
+            <View style={styles.dataDivider} />
+            {photosContent}
           </DesktopPanel>
         </View>
       ) : (
@@ -331,7 +383,11 @@ function SiteMap({ site }: { site: Site }) {
                   style={styles.mobileSheetScroll}
                   contentContainerStyle={styles.mobileSheetContent}
                   showsVerticalScrollIndicator={false}>
-                  {tab === 'layers' ? layersContent : walkContent}
+                  {tab === 'layers'
+                    ? layersContent
+                    : tab === 'photos'
+                      ? photosContent
+                      : walkContent}
                 </ScrollView>
               </View>
             ) : null}
@@ -664,6 +720,11 @@ function MobileTabs({
         onPress={() => onChange('layers')}
       />
       <TabButton label="Walk" selected={selected === 'walk'} onPress={() => onChange('walk')} />
+      <TabButton
+        label="Photos"
+        selected={selected === 'photos'}
+        onPress={() => onChange('photos')}
+      />
     </View>
   );
 }
