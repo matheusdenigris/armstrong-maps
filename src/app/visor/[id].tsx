@@ -1,22 +1,24 @@
-import { Image } from 'expo-image';
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
   type GestureResponderEvent,
   type LayoutChangeEvent,
+  type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HeadingTape, turnTo } from '@/components/heading-tape';
 import { MiniMap } from '@/components/mini-map';
+import { PanoramaView } from '@/components/panorama-view';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { VIKING_GLOBAL } from '@/data/layers';
-import { panoramaFor, type Panorama } from '@/data/panoramas';
+import { panoramaNear } from '@/data/panoramas';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { SITES, findSite, type Site } from '@/data/sites';
 import { elapsedSeconds } from '@/mission/clock';
@@ -31,13 +33,27 @@ export function generateStaticParams() {
   return SITES.map((site) => ({ id: site.id }));
 }
 
-/** Degrees the view turns for each pixel dragged. */
-const LOOK_PER_PIXEL = 0.25;
+/** Degrees the head turns for each pixel dragged, and for each press of an arrow key. */
+const LOOK_PER_PIXEL = 0.22;
+const LOOK_PER_KEY = 6;
+/** The head starts tilted a little down, at the ground ahead. */
+const RESTING_PITCH = -6;
+/** How far up and down the head can tilt, in degrees: the photographs are bands, not spheres. */
+const PITCH_UP = 22;
+const PITCH_DOWN = -32;
+/** Length of a step, in metres, and how far it lifts the view, in pixels. */
+const STEP = 0.75;
+const SWAY = 5;
 /** The minimap shows about 300 m around the astronaut. */
 const MINIMAP_PIXELS_PER_DEGREE = 26_000;
 
+type Look = { yaw: number; pitch: number };
+const AHEAD: Look = { yaw: 0, pitch: RESTING_PITCH };
+
+const clampPitch = (pitch: number) => Math.min(PITCH_UP, Math.max(PITCH_DOWN, pitch));
 const bearingText = (degrees: number) =>
   `${String(Math.round(((degrees % 360) + 360) % 360) % 360).padStart(3, '0')}°`;
+const webOnly = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle) : null);
 
 export default function VisorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -49,20 +65,41 @@ function Visor({ site }: { site: Site }) {
   const insets = useSafeAreaInsets();
   const route = useRoute(site.id);
   const clock = useMission((state) => state.clocks[site.id]) ?? null;
-  const now = useNow(clock?.running ?? false);
+  // Fast enough for the sway of the steps to look like walking.
+  const now = useNow(clock?.running ?? false, 60);
 
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
-  // The astronaut can look around; the walk decides where they are and which way they walk.
-  const [look, setLook] = useState(0);
-  const drag = useRef<{ x: number; look: number } | null>(null);
+  // The walk decides where the astronaut is and which way they walk; the head is theirs to turn.
+  const [look, setLook] = useState<Look>(AHEAD);
+  const drag = useRef<{ x: number; y: number; look: Look } | null>(null);
+
+  // The arrow keys turn the head too, for whoever is not using a pointer.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const turn = (event: KeyboardEvent) => {
+      const step: Partial<Record<string, Look>> = {
+        ArrowLeft: { yaw: -LOOK_PER_KEY, pitch: 0 },
+        ArrowRight: { yaw: LOOK_PER_KEY, pitch: 0 },
+        ArrowUp: { yaw: 0, pitch: LOOK_PER_KEY },
+        ArrowDown: { yaw: 0, pitch: -LOOK_PER_KEY },
+      };
+      const by = step[event.key];
+      if (!by) return;
+      event.preventDefault();
+      setLook((from) => ({ yaw: from.yaw + by.yaw, pitch: clampPitch(from.pitch + by.pitch) }));
+    };
+    window.addEventListener('keydown', turn);
+    return () => window.removeEventListener('keydown', turn);
+  }, []);
 
   const elapsedHours = clock ? elapsedSeconds(clock, now) / 3600 : 0;
   const progress = walkProgress(site.landing, route, elapsedHours, SURFACE_RADIATION.msvPerDay);
-  const heading = (((progress.heading + look) % 360) + 360) % 360;
+  const heading = (((progress.heading + look.yaw) % 360) + 360) % 360;
 
   const over = clock !== null && progress.totalHours > 0 && elapsedHours >= progress.totalHours;
   const moving = clock !== null && !over && progress.phase !== 'at-base';
   const offTarget = moving ? turnTo(heading, progress.bearingToTarget) : 0;
+  const turned = Math.abs(turnTo(0, look.yaw)) > 2 || Math.abs(look.pitch - RESTING_PITCH) > 2;
 
   const a = WALK_ASSUMPTIONS;
   const hoursLeft = Math.max(0, a.lifeSupportHours * (1 - progress.lifeSupportUsed));
@@ -86,7 +123,14 @@ function Visor({ site }: { site: Site }) {
               ? 'RETURNING TO THE BASE'
               : `WALKING TO WAYPOINT ${(progress.stop ?? 0) + 1}`;
 
-  const { panorama, borrowed } = panoramaFor(site.id);
+  // The real photograph taken nearest to where the astronaut is now.
+  const { panorama, awayM, borrowed } = panoramaNear(site.id, progress.position);
+  // Steps lift the view a little, near real time only: played fast it would be a blur.
+  const stepping =
+    clock?.running === true &&
+    clock.rate <= 10 &&
+    (progress.phase === 'walking' || progress.phase === 'returning');
+  const sway = stepping ? Math.abs(Math.sin((progress.walkedM / STEP) * Math.PI)) * SWAY : 0;
   const layers = [VIKING_GLOBAL, ...site.layers];
   const path = [site.landing, ...route, site.landing];
 
@@ -98,20 +142,30 @@ function Visor({ site }: { site: Site }) {
         : { width, height },
     );
   };
-  const pageX = (event: GestureResponderEvent) => event.nativeEvent.pageX;
+  const pointer = (event: GestureResponderEvent) => ({
+    x: event.nativeEvent.pageX,
+    y: event.nativeEvent.pageY,
+  });
 
   return (
     <View
-      style={styles.screen}
+      style={[styles.screen, webOnly({ cursor: 'grab', touchAction: 'none', userSelect: 'none' })]}
       onLayout={onLayout}
       onStartShouldSetResponder={() => true}
       onMoveShouldSetResponder={() => true}
+      onResponderTerminationRequest={() => false}
       onResponderGrant={(event) => {
-        drag.current = { x: pageX(event), look };
+        drag.current = { ...pointer(event), look };
       }}
       onResponderMove={(event) => {
         const start = drag.current;
-        if (start) setLook(start.look - (pageX(event) - start.x) * LOOK_PER_PIXEL);
+        if (!start) return;
+        const at = pointer(event);
+        // Like turning a globe from inside: the scene follows the pointer.
+        setLook({
+          yaw: start.look.yaw - (at.x - start.x) * LOOK_PER_PIXEL,
+          pitch: clampPitch(start.look.pitch + (at.y - start.y) * LOOK_PER_PIXEL),
+        });
       }}
       onResponderRelease={() => {
         drag.current = null;
@@ -121,9 +175,29 @@ function Visor({ site }: { site: Site }) {
         <meta name="description" content={`Astronaut visor for a walk at ${site.name} on Mars.`} />
       </Head>
 
-      {size ? <Backdrop panorama={panorama} size={size} heading={heading} /> : null}
+      {size ? (
+        <PanoramaView
+          panorama={panorama}
+          heading={heading}
+          pitch={look.pitch}
+          size={size}
+          sway={sway}
+        />
+      ) : null}
 
-      {/* Top: where I am facing and where the next point is. */}
+      {/* The glass of the helmet: darker towards the rim. */}
+      <View
+        style={[
+          styles.glass,
+          webOnly({
+            backgroundImage:
+              'radial-gradient(ellipse at 50% 46%, rgba(7,9,13,0) 52%, rgba(7,9,13,0.38) 82%, rgba(7,9,13,0.82) 100%)',
+          }),
+        ]}
+        pointerEvents="none"
+      />
+
+      {/* Top of the display: where I am facing and where the next point is. */}
       <View style={[styles.top, { paddingTop: insets.top }]} pointerEvents="box-none">
         {size ? (
           <HeadingTape
@@ -143,10 +217,11 @@ function Visor({ site }: { site: Site }) {
           <Text style={styles.status} numberOfLines={2} accessibilityLiveRegion="polite">
             {status}
           </Text>
+          <Text style={styles.heading}>HDG {bearingText(heading)}</Text>
         </View>
       </View>
 
-      {/* Middle: the next point to reach. */}
+      {/* Middle: the point I am walking to. */}
       <View style={styles.middle} pointerEvents="none">
         <View style={styles.reticle} />
         {moving ? (
@@ -158,16 +233,18 @@ function Visor({ site }: { site: Site }) {
             <Text style={styles.nextHint}>
               {Math.abs(offTarget) < 8
                 ? `Ahead, bearing ${bearingText(progress.bearingToTarget)}`
-                : `Turn ${offTarget < 0 ? 'left' : 'right'} ${Math.round(Math.abs(offTarget))}°`}
+                : `${offTarget < 0 ? '◀ Look left' : 'Look right ▶'} ${Math.round(Math.abs(offTarget))}°`}
             </Text>
           </View>
         ) : null}
       </View>
 
-      {/* Bottom: what keeps me alive, and the map around me. */}
-      <View style={[styles.bottom, { paddingBottom: insets.bottom + Spacing.two }]} pointerEvents="box-none">
+      {/* Bottom of the display: what keeps me alive, and the map around me. */}
+      <View
+        style={[styles.bottom, { paddingBottom: insets.bottom + Spacing.two }]}
+        pointerEvents="box-none">
         <View style={styles.dash} pointerEvents="box-none">
-          <View style={styles.vitals}>
+          <View style={styles.vitals} pointerEvents="none">
             <Text style={styles.simulated}>SIMULATED WALK · {site.name.toUpperCase()}</Text>
             <View style={styles.vital}>
               <Text style={styles.vitalLabel}>Life support left</Text>
@@ -195,6 +272,10 @@ function Visor({ site }: { site: Site }) {
               <Text style={styles.vitalValue}>{formatDuration(progress.elapsedHours)}</Text>
             </View>
             <View style={styles.vital}>
+              <Text style={styles.vitalLabel}>Walked</Text>
+              <Text style={styles.vitalValue}>{formatDistance(progress.walkedM)}</Text>
+            </View>
+            <View style={styles.vital}>
               <Text style={styles.vitalLabel}>Radiation dose</Text>
               <Text style={styles.vitalValue}>{formatDose(progress.doseMsv)}</Text>
             </View>
@@ -205,74 +286,52 @@ function Visor({ site }: { site: Site }) {
           </View>
 
           <View style={styles.mapColumn} pointerEvents="box-none">
-            {Math.abs(look) > 1 ? (
+            {turned ? (
               <Pressable
-                onPress={() => setLook(0)}
+                onPress={() => setLook(AHEAD)}
                 accessibilityRole="button"
                 accessibilityLabel="Look the way I am walking again"
                 style={styles.recentre}>
                 <Text style={styles.recentreText}>Face ahead</Text>
               </Pressable>
-            ) : null}
-            <MiniMap
-              layers={layers}
-              centre={progress.position}
-              heading={heading}
-              pixelsPerDegree={MINIMAP_PIXELS_PER_DEGREE}
-              diameter={132}
-              route={path}
-              base={site.landing}
-            />
+            ) : (
+              <Text style={styles.tip} pointerEvents="none">
+                DRAG TO LOOK AROUND
+              </Text>
+            )}
+            {/* Drawn in the browser only: how sharp its tiles are depends on the screen. */}
+            {size ? (
+              <MiniMap
+                layers={layers}
+                centre={progress.position}
+                heading={heading}
+                pixelsPerDegree={MINIMAP_PIXELS_PER_DEGREE}
+                diameter={132}
+                route={path}
+                base={site.landing}
+              />
+            ) : (
+              <View style={styles.mapSpace} />
+            )}
           </View>
         </View>
 
         <Text style={styles.credit} pointerEvents="none">
-          Photo: {panorama.caption}. {panorama.credit}.{' '}
-          {borrowed ? `There is no photo from ${site.name}; this one is from Gale Crater. ` : ''}
-          The framing is illustrative: it does not follow the real heading. Dose at{' '}
-          {SURFACE_RADIATION.msvPerDay} mSv a day ({SURFACE_RADIATION.source}).
+          Real photo: {panorama.caption}. {panorama.credit}, images.nasa.gov/details/
+          {panorama.nasaId}.{' '}
+          {borrowed
+            ? `There is no 360-degree photo from ${site.name} in the catalogue; this one is from Gale Crater. `
+            : awayM === null
+              ? 'Where exactly it was taken is not in the data. '
+              : `Taken ${formatDistance(awayM)} from your simulated position. `}
+          {panorama.north === null
+            ? 'It is not lined up with the compass.'
+            : 'It is lined up with the compass.'}{' '}
+          It is a mosaic: black areas are where the camera took no frame, and the sky above the
+          frames is filled in. Dose at {SURFACE_RADIATION.msvPerDay} mSv a day (
+          {SURFACE_RADIATION.source}).
         </Text>
       </View>
-    </View>
-  );
-}
-
-type BackdropProps = {
-  panorama: Panorama;
-  size: { width: number; height: number };
-  heading: number;
-};
-
-/**
- * The clean part of the photograph, scaled to cover the screen, sliding sideways as the astronaut
- * turns. It goes from one edge of the clean part at north to the other at south and back, so the
- * picture never runs into the black gaps of the mosaic.
- */
-function Backdrop({ panorama, size, heading }: BackdropProps) {
-  const { window: clean } = panorama;
-  const cleanWidth = (clean.right - clean.left) * panorama.width;
-  const cleanHeight = (clean.bottom - clean.top) * panorama.height;
-  const scale = Math.max(size.width / cleanWidth, size.height / cleanHeight);
-  const slack = cleanWidth * scale - size.width;
-  const sweep = 1 - Math.abs(heading / 180 - 1);
-  const left = -(clean.left * panorama.width * scale + slack * sweep);
-  const top = -(clean.top * panorama.height * scale + (cleanHeight * scale - size.height) / 2);
-
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <Image
-        source={{ uri: panorama.url }}
-        style={{
-          position: 'absolute',
-          left,
-          top,
-          width: panorama.width * scale,
-          height: panorama.height * scale,
-        }}
-        contentFit="fill"
-        cachePolicy="memory-disk"
-        accessibilityLabel={panorama.caption}
-      />
     </View>
   );
 }
@@ -291,7 +350,11 @@ function UnknownSite() {
   );
 }
 
-const PANEL = 'rgba(7, 9, 13, 0.78)';
+/** Behind every block of text on the display, so it reads over bright ground and sky. */
+const PLATE = 'rgba(7, 9, 13, 0.62)';
+/** The colour of the display: the green of a go, like the numbers it shows when all is well. */
+const DISPLAY = '#B8FFE0';
+const glow = webOnly({ textShadow: '0 0 8px rgba(61, 214, 140, 0.55)' });
 
 const styles = StyleSheet.create({
   screen: {
@@ -303,6 +366,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.three,
+  },
+  glass: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   top: {
     position: 'absolute',
@@ -316,7 +386,7 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.one,
-    backgroundColor: PANEL,
+    backgroundColor: PLATE,
   },
   back: {
     color: Colors.nav,
@@ -328,11 +398,19 @@ const styles = StyleSheet.create({
   },
   status: {
     flex: 1,
-    color: Colors.text,
+    color: DISPLAY,
     fontFamily: Fonts.mono,
     fontSize: 13,
     fontWeight: '700',
     letterSpacing: 1,
+    ...glow,
+  },
+  heading: {
+    color: DISPLAY,
+    fontFamily: Fonts.mono,
+    fontSize: 16,
+    fontWeight: '700',
+    ...glow,
   },
   middle: {
     position: 'absolute',
@@ -342,15 +420,14 @@ const styles = StyleSheet.create({
     left: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.three,
+    gap: Spacing.four,
   },
   reticle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: Colors.text,
-    backgroundColor: 'rgba(7, 9, 13, 0.25)',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: DISPLAY,
   },
   next: {
     alignItems: 'center',
@@ -360,7 +437,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.medium,
     borderWidth: 1,
     borderColor: Colors.nav,
-    backgroundColor: PANEL,
+    backgroundColor: PLATE,
   },
   nextLabel: {
     color: Colors.nav,
@@ -370,10 +447,11 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
   nextValue: {
-    color: Colors.text,
+    color: DISPLAY,
     fontFamily: Fonts.mono,
     fontSize: 28,
     fontWeight: '700',
+    ...glow,
   },
   nextHint: {
     color: Colors.text,
@@ -400,7 +478,9 @@ const styles = StyleSheet.create({
     gap: Spacing.one + Spacing.half,
     padding: Spacing.two + Spacing.one,
     borderRadius: Radius.medium,
-    backgroundColor: PANEL,
+    borderWidth: 1,
+    borderColor: 'rgba(184, 255, 224, 0.35)',
+    backgroundColor: PLATE,
   },
   simulated: {
     color: Colors.textMuted,
@@ -420,10 +500,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   vitalValue: {
-    color: Colors.text,
+    color: DISPLAY,
     fontFamily: Fonts.mono,
     fontSize: 16,
     fontWeight: '700',
+    ...glow,
   },
   meter: {
     height: 8,
@@ -434,9 +515,24 @@ const styles = StyleSheet.create({
   meterFill: {
     height: '100%',
   },
+  mapSpace: {
+    width: 132,
+    height: 132,
+  },
   mapColumn: {
     alignItems: 'flex-end',
     gap: Spacing.two,
+  },
+  tip: {
+    color: DISPLAY,
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    letterSpacing: 1.5,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+    borderRadius: Radius.small,
+    backgroundColor: PLATE,
+    overflow: 'hidden',
   },
   recentre: {
     minHeight: 44,
@@ -444,11 +540,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     borderRadius: Radius.small,
     borderWidth: 1,
-    borderColor: Colors.text,
-    backgroundColor: PANEL,
+    borderColor: DISPLAY,
+    backgroundColor: PLATE,
   },
   recentreText: {
-    color: Colors.text,
+    color: DISPLAY,
     fontFamily: Fonts.sans,
     fontSize: 14,
     fontWeight: '600',
@@ -460,6 +556,6 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     padding: Spacing.two,
     borderRadius: Radius.small,
-    backgroundColor: PANEL,
+    backgroundColor: PLATE,
   },
 });
