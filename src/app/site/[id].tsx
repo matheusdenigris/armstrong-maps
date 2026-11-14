@@ -1,9 +1,10 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { useMemo, useState, useSyncExternalStore } from 'react';
-import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LayerPanel } from '@/components/layer-panel';
 import { ScaleBar } from '@/components/scale-bar';
 import {
   SurfaceMap,
@@ -11,9 +12,9 @@ import {
   type MapPath,
   type MapRing,
 } from '@/components/surface-map';
-import { WalkPanel } from '@/components/walk-panel';
+import { WalkDetails, WalkSummary } from '@/components/walk-panel';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
-import { VIKING_GLOBAL } from '@/data/layers';
+import { GLOBAL_LAYERS, VIKING_GLOBAL } from '@/data/layers';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { SITES, findSite, type Site } from '@/data/sites';
 import type { MapView } from '@/mission/camera';
@@ -31,9 +32,14 @@ export function generateStaticParams() {
 const OPENING_PIXELS_PER_DEGREE = 700;
 /** The whole planet fits on a small screen at this scale. */
 const WIDEST_PIXELS_PER_DEGREE = 2;
-/** From this width the walk panel sits beside the map instead of under it. */
+/** From this width the panel sits beside the map instead of under it. */
 const SIDE_BY_SIDE = 900;
 const PANEL_WIDTH = 380;
+
+/** Layers that go over the optical base: everything planet-wide except the base itself. */
+const OVERLAYS = GLOBAL_LAYERS.filter((layer) => layer !== VIKING_GLOBAL);
+
+type Tab = 'walk' | 'layers';
 
 /** False on the page rendered ahead of time, which does not know the size of the window. */
 function useHydrated() {
@@ -56,17 +62,20 @@ function SiteMap({ site }: { site: Site }) {
   const hydrated = useHydrated();
   const sideBySide = hydrated && width >= SIDE_BY_SIDE;
   // The page rendered ahead of time has no window, so it must not carry a size computed from one.
-  const sheetLimit = hydrated ? Math.round(height * 0.55) : undefined;
+  const sheetLimit = hydrated ? Math.round(height * 0.6) : undefined;
 
   const route = useRoute(site.id);
   const addWaypoint = useMission((state) => state.addWaypoint);
   const removeLastWaypoint = useMission((state) => state.removeLastWaypoint);
   const clearRoute = useMission((state) => state.clearRoute);
+  const overlays = useMission((state) => state.overlays);
+  const toggleOverlay = useMission((state) => state.toggleOverlay);
+  const setOverlayOpacity = useMission((state) => state.setOverlayOpacity);
   const [expanded, setExpanded] = useState(false);
+  const [tab, setTab] = useState<Tab>('walk');
 
   // The map lays its tiles out again when these change, so they must not change on every frame.
-  const { home, layers, limits, sources } = useMemo(() => {
-    const stack = [VIKING_GLOBAL, ...site.layers];
+  const { home, limits } = useMemo(() => {
     const sharpest = site.layers[site.layers.length - 1];
     const opening: MapView = {
       lat: site.landing.lat,
@@ -75,22 +84,31 @@ function SiteMap({ site }: { site: Site }) {
     };
     return {
       home: opening,
-      layers: stack,
       // Past twice the natural size of the sharpest tiles there is nothing more to see.
       limits: {
         min: WIDEST_PIXELS_PER_DEGREE,
         max: (2 * TILE_PIXELS) / tileSpan(sharpest.maxLevel),
       },
-      sources: [...new Set(stack.map((layer) => layer.source))].join(', '),
     };
   }, [site]);
   const [view, setView] = useState(home);
 
+  // The optical base of the site, then the overlays that are on, in catalogue order.
+  const { base, layers, sources } = useMemo(() => {
+    const optical = [VIKING_GLOBAL, ...site.layers];
+    const stack = [...optical, ...OVERLAYS.filter((layer) => overlays[layer.id] !== undefined)];
+    return {
+      base: optical,
+      layers: stack,
+      sources: [...new Set(stack.map((layer) => layer.source))].join(', '),
+    };
+  }, [site, overlays]);
+
   // The walk: out from the base through the waypoints, and straight back.
   const { walk, markers, paths, rings } = useMemo(() => {
-    const base = site.landing;
+    const landing = site.landing;
     const pins: MapMarker[] = [
-      { id: 'base', point: base, label: `Base · ${base.name}`, color: Colors.mars },
+      { id: 'base', point: landing, label: `Base · ${landing.name}`, color: Colors.mars },
       ...route.map((point, index) => ({
         id: `waypoint-${index}`,
         point,
@@ -102,10 +120,10 @@ function SiteMap({ site }: { site: Site }) {
       route.length === 0
         ? []
         : [
-            { id: 'outbound', points: [base, ...route], color: Colors.nav },
+            { id: 'outbound', points: [landing, ...route], color: Colors.nav },
             {
               id: 'return',
-              points: [route[route.length - 1], base],
+              points: [route[route.length - 1], landing],
               color: Colors.nav,
               dashed: true,
               width: 2,
@@ -114,29 +132,58 @@ function SiteMap({ site }: { site: Site }) {
     const circles: MapRing[] = [
       {
         id: 'walk-back-limit',
-        centre: base,
+        centre: landing,
         radiusM: WALK_ASSUMPTIONS.walkBackLimitKm * 1000,
         color: Colors.caution,
       },
     ];
     return {
-      walk: evaluateWalk(base, route, SURFACE_RADIATION.msvPerDay),
+      walk: evaluateWalk(landing, route, SURFACE_RADIATION.msvPerDay),
       markers: pins,
       paths: lines,
       rings: circles,
     };
   }, [site, route]);
 
+  const open = sideBySide || expanded;
   const panel = (
-    <WalkPanel
-      walk={walk}
-      stops={route.length}
-      collapsible={!sideBySide}
-      expanded={expanded}
-      onToggle={() => setExpanded((open) => !open)}
-      onUndo={() => removeLastWaypoint(site.id)}
-      onClear={() => clearRoute(site.id)}
-    />
+    <>
+      <WalkSummary
+        walk={walk}
+        stops={route.length}
+        collapsible={!sideBySide}
+        expanded={expanded}
+        onToggle={() => setExpanded((value) => !value)}
+      />
+      {open ? (
+        <>
+          <View style={styles.tabs} accessibilityRole="tablist">
+            <TabButton label="Walk" selected={tab === 'walk'} onPress={() => setTab('walk')} />
+            <TabButton
+              label={`Layers (${layers.length})`}
+              selected={tab === 'layers'}
+              onPress={() => setTab('layers')}
+            />
+          </View>
+          {tab === 'walk' ? (
+            <WalkDetails
+              walk={walk}
+              stops={route.length}
+              onUndo={() => removeLastWaypoint(site.id)}
+              onClear={() => clearRoute(site.id)}
+            />
+          ) : (
+            <LayerPanel
+              base={base}
+              overlays={OVERLAYS}
+              active={overlays}
+              onToggle={toggleOverlay}
+              onOpacity={setOverlayOpacity}
+            />
+          )}
+        </>
+      ) : null}
+    </>
   );
 
   return (
@@ -150,6 +197,7 @@ function SiteMap({ site }: { site: Site }) {
         <View style={styles.mapArea}>
           <SurfaceMap
             layers={layers}
+            opacity={overlays}
             home={home}
             limits={limits}
             markers={markers}
@@ -205,6 +253,20 @@ function SiteMap({ site }: { site: Site }) {
         </View>
       ) : null}
     </View>
+  );
+}
+
+type TabButtonProps = { label: string; selected: boolean; onPress: () => void };
+
+function TabButton({ label, selected, onPress }: TabButtonProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityState={{ selected }}
+      style={[styles.tab, selected && styles.tabSelected]}>
+      <Text style={[styles.tabText, selected && styles.tabTextSelected]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -300,6 +362,34 @@ const styles = StyleSheet.create({
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderLeftColor: Colors.border,
     backgroundColor: Colors.surface,
+  },
+  tabs: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingBottom: Spacing.three,
+  },
+  tab: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.small,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+  },
+  tabSelected: {
+    borderColor: Colors.nav,
+    backgroundColor: 'rgba(76, 141, 255, 0.18)',
+  },
+  tabText: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  tabTextSelected: {
+    color: Colors.text,
   },
   footer: {
     flexDirection: 'row',

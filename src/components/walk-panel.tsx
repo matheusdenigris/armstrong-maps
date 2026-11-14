@@ -2,12 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { SURFACE_RADIATION } from '@/data/radiation';
-import {
-  formatDistance,
-  formatDose,
-  formatDuration,
-  formatShare,
-} from '@/mission/format';
+import { formatDistance, formatDose, formatDuration, formatShare } from '@/mission/format';
 import {
   WALK_ASSUMPTIONS,
   type Verdict,
@@ -16,7 +11,7 @@ import {
   type WalkReason,
 } from '@/mission/walk';
 
-type WalkPanelProps = {
+type WalkSummaryProps = {
   walk: WalkEvaluation;
   /** How many waypoints the route has. */
   stops: number;
@@ -24,6 +19,11 @@ type WalkPanelProps = {
   collapsible: boolean;
   expanded: boolean;
   onToggle: () => void;
+};
+
+type WalkDetailsProps = {
+  walk: WalkEvaluation;
+  stops: number;
   onUndo: () => void;
   onClear: () => void;
 };
@@ -48,101 +48,107 @@ function explain(reason: WalkReason, a: WalkAssumptions): string {
   }
 }
 
-export function WalkPanel({
-  walk,
-  stops,
-  collapsible,
-  expanded,
-  onToggle,
-  onUndo,
-  onClear,
-}: WalkPanelProps) {
+/** The verdict and the two numbers that matter most, on one line. */
+export function WalkSummary({ walk, stops, collapsible, expanded, onToggle }: WalkSummaryProps) {
+  const verdict = VERDICT[walk.verdict];
+  const empty = stops === 0;
+
+  return (
+    <View style={styles.summary}>
+      <View
+        style={[styles.chip, { borderColor: verdict.color }]}
+        accessible
+        accessibilityLabel={`Verdict: ${verdict.label}. ${verdict.meaning}`}>
+        <View style={[styles.chipDot, { backgroundColor: verdict.color }]} />
+        <Text style={[styles.chipText, { color: verdict.color }]}>{verdict.label}</Text>
+      </View>
+      <Text style={styles.headline} numberOfLines={2}>
+        {empty
+          ? 'Tap the map to add a waypoint.'
+          : `${formatDistance(walk.totalM)}  ·  ${formatDuration(walk.durationHours)}`}
+      </Text>
+      {collapsible ? (
+        <PanelButton
+          label={expanded ? 'Hide the details' : 'Show the walk and the layers'}
+          text={expanded ? 'Less' : 'More'}
+          onPress={onToggle}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+/** Why the verdict is what it is, the numbers behind it, and what was assumed. */
+export function WalkDetails({ walk, stops, onUndo, onClear }: WalkDetailsProps) {
   const verdict = VERDICT[walk.verdict];
   const a = WALK_ASSUMPTIONS;
   const empty = stops === 0;
-  const open = expanded || !collapsible;
   const used = Math.min(1, walk.lifeSupportUsed);
 
   return (
-    <View style={styles.panel}>
-      <View style={styles.summary}>
-        <View
-          style={[styles.chip, { borderColor: verdict.color }]}
-          accessible
-          accessibilityLabel={`Verdict: ${verdict.label}. ${verdict.meaning}`}>
-          <View style={[styles.chipDot, { backgroundColor: verdict.color }]} />
-          <Text style={[styles.chipText, { color: verdict.color }]}>{verdict.label}</Text>
-        </View>
-        <Text style={styles.headline} numberOfLines={2}>
-          {empty
-            ? 'Tap the map to add a waypoint.'
-            : `${formatDistance(walk.totalM)}  ·  ${formatDuration(walk.durationHours)}`}
+    <View style={styles.details}>
+      <Text style={styles.simulated}>WALK PLAN · SIMULATED</Text>
+
+      {walk.reasons.map((reason) => (
+        <Text key={reason} style={[styles.reason, { borderLeftColor: verdict.color }]}>
+          {explain(reason, a)}
         </Text>
-        {collapsible ? (
-          <PanelButton
-            label={open ? 'Hide the walk details' : 'Show the walk details'}
-            text={open ? 'Less' : 'More'}
-            onPress={onToggle}
-          />
-        ) : null}
+      ))}
+
+      <View style={styles.stats}>
+        <Stat label="Out and back" value={formatDistance(walk.totalM)} />
+        <Stat label="Farthest from base" value={formatDistance(walk.farthestM)} />
+        <Stat
+          label="Time outside"
+          value={formatDuration(walk.durationHours)}
+          note={`${formatDuration(walk.walkingHours)} walking, ${formatDuration(walk.stopHours)} at ${stops} ${stops === 1 ? 'stop' : 'stops'}`}
+        />
+        <Stat
+          label="Radiation dose"
+          value={formatDose(walk.doseMsv)}
+          note={`At ${SURFACE_RADIATION.msvPerDay} mSv a day. ${SURFACE_RADIATION.source}`}
+        />
       </View>
 
-      {open ? (
-        <View style={styles.details}>
-          <Text style={styles.simulated}>WALK PLAN · SIMULATED</Text>
-
-          {walk.reasons.map((reason) => (
-            <Text key={reason} style={[styles.reason, { borderLeftColor: verdict.color }]}>
-              {explain(reason, a)}
-            </Text>
-          ))}
-
-          <View style={styles.stats}>
-            <Stat label="Out and back" value={formatDistance(walk.totalM)} />
-            <Stat label="Farthest from base" value={formatDistance(walk.farthestM)} />
-            <Stat
-              label="Time outside"
-              value={formatDuration(walk.durationHours)}
-              note={`${formatDuration(walk.walkingHours)} walking, ${formatDuration(walk.stopHours)} at ${stops} ${stops === 1 ? 'stop' : 'stops'}`}
-            />
-            <Stat
-              label="Radiation dose"
-              value={formatDose(walk.doseMsv)}
-              note={`At ${SURFACE_RADIATION.msvPerDay} mSv a day. ${SURFACE_RADIATION.source}`}
-            />
-          </View>
-
-          <View>
-            <View style={styles.meterRow}>
-              <Text style={styles.statLabel}>Life support used</Text>
-              <Text style={styles.statValue}>{formatShare(walk.lifeSupportUsed)}</Text>
-            </View>
-            <View
-              style={styles.meter}
-              accessible
-              accessibilityRole="progressbar"
-              accessibilityLabel={`Life support used: ${formatShare(walk.lifeSupportUsed)}`}>
-              <View
-                style={[styles.meterFill, { width: `${used * 100}%`, backgroundColor: verdict.color }]}
-              />
-              {/* Where the reserve starts. */}
-              <View style={[styles.meterMark, { left: `${(1 - a.reserveFraction) * 100}%` }]} />
-            </View>
-          </View>
-
-          <View style={styles.actions}>
-            <PanelButton label="Remove the last waypoint" text="Undo" onPress={onUndo} disabled={empty} />
-            <PanelButton label="Remove every waypoint" text="Clear" onPress={onClear} disabled={empty} />
-          </View>
-
-          <Text style={styles.assumptions}>
-            Project assumptions, not NASA rules: {a.walkingSpeedKmh} km/h on foot,{' '}
-            {a.minutesPerStop} min at each stop, {a.lifeSupportHours} h of life support with a{' '}
-            {formatShare(a.reserveFraction)} reserve, and a {a.walkBackLimitKm} km walk-back limit
-            (the dashed ring). The return is a straight line to the base. {SURFACE_RADIATION.caveat}
-          </Text>
+      <View>
+        <View style={styles.meterRow}>
+          <Text style={styles.statLabel}>Life support used</Text>
+          <Text style={styles.statValue}>{formatShare(walk.lifeSupportUsed)}</Text>
         </View>
-      ) : null}
+        <View
+          style={styles.meter}
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel={`Life support used: ${formatShare(walk.lifeSupportUsed)}`}>
+          <View
+            style={[styles.meterFill, { width: `${used * 100}%`, backgroundColor: verdict.color }]}
+          />
+          {/* Where the reserve starts. */}
+          <View style={[styles.meterMark, { left: `${(1 - a.reserveFraction) * 100}%` }]} />
+        </View>
+      </View>
+
+      <View style={styles.actions}>
+        <PanelButton
+          label="Remove the last waypoint"
+          text="Undo"
+          onPress={onUndo}
+          disabled={empty}
+        />
+        <PanelButton
+          label="Remove every waypoint"
+          text="Clear"
+          onPress={onClear}
+          disabled={empty}
+        />
+      </View>
+
+      <Text style={styles.assumptions}>
+        Project assumptions, not NASA rules: {a.walkingSpeedKmh} km/h on foot, {a.minutesPerStop}{' '}
+        min at each stop, {a.lifeSupportHours} h of life support with a{' '}
+        {formatShare(a.reserveFraction)} reserve, and a {a.walkBackLimitKm} km walk-back limit (the
+        dashed ring). The return is a straight line to the base. {SURFACE_RADIATION.caveat}
+      </Text>
     </View>
   );
 }
@@ -178,9 +184,6 @@ function PanelButton({ label, text, onPress, disabled }: PanelButtonProps) {
 }
 
 const styles = StyleSheet.create({
-  panel: {
-    backgroundColor: Colors.surface,
-  },
   summary: {
     flexDirection: 'row',
     alignItems: 'center',
