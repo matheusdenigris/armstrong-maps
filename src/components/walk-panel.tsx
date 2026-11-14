@@ -56,11 +56,14 @@ export function WalkSummary({ walk, stops, collapsible, expanded, onToggle }: Wa
   return (
     <View style={styles.summary}>
       <View
-        style={[styles.chip, { borderColor: verdict.color }]}
+        style={[styles.chip, { borderColor: verdict.color, borderLeftColor: verdict.color }]}
         accessible
         accessibilityLabel={`Verdict: ${verdict.label}. ${verdict.meaning}`}>
         <View style={[styles.chipDot, { backgroundColor: verdict.color }]} />
-        <Text style={[styles.chipText, { color: verdict.color }]}>{verdict.label}</Text>
+        <View>
+          <Text style={styles.chipCaption}>WALK STATUS</Text>
+          <Text style={[styles.chipText, { color: verdict.color }]}>{verdict.label}</Text>
+        </View>
       </View>
       <Text style={styles.headline} numberOfLines={2}>
         {empty
@@ -87,12 +90,24 @@ export function WalkDetails({ walk, stops, onUndo, onClear }: WalkDetailsProps) 
 
   return (
     <View style={styles.details}>
-      <Text style={styles.simulated}>WALK PLAN · SIMULATED</Text>
+      <PanelHeading number="01" title="WALK PLAN" />
+
+      <View
+        style={[styles.verdict, { borderLeftColor: verdict.color }]}
+        accessible
+        accessibilityLabel={`Walk verdict: ${verdict.label}. ${verdict.meaning}`}>
+        <View style={styles.verdictLine}>
+          <View style={[styles.verdictDot, { backgroundColor: verdict.color }]} />
+          <Text style={[styles.verdictLabel, { color: verdict.color }]}>{verdict.label}</Text>
+          <Text style={styles.simulated}>SIMULATED</Text>
+        </View>
+        <Text style={styles.verdictMeaning}>{verdict.meaning}</Text>
+      </View>
 
       {walk.reasons.map((reason) => (
-        <Text key={reason} style={[styles.reason, { borderLeftColor: verdict.color }]}>
-          {explain(reason, a)}
-        </Text>
+        <View key={reason} style={[styles.reasonCard, { borderLeftColor: verdict.color }]}>
+          <Text style={styles.reason}>{explain(reason, a)}</Text>
+        </View>
       ))}
 
       <View style={styles.stats}>
@@ -110,7 +125,7 @@ export function WalkDetails({ walk, stops, onUndo, onClear }: WalkDetailsProps) 
         />
       </View>
 
-      <View>
+      <View style={styles.meterCard}>
         <View style={styles.meterRow}>
           <Text style={styles.statLabel}>Life support used</Text>
           <Text style={styles.statValue}>{formatShare(walk.lifeSupportUsed)}</Text>
@@ -153,6 +168,16 @@ export function WalkDetails({ walk, stops, onUndo, onClear }: WalkDetailsProps) 
   );
 }
 
+function PanelHeading({ number, title }: { number: string; title: string }) {
+  return (
+    <View style={styles.panelHeading} accessible accessibilityRole="header">
+      <Text style={styles.panelNumber}>{number}</Text>
+      <Text style={styles.panelTitle}>{title}</Text>
+      <View style={styles.panelRule} />
+    </View>
+  );
+}
+
 function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <View style={styles.stat}>
@@ -190,78 +215,174 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
-    minHeight: 60,
+    minHeight: 68,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    paddingHorizontal: Spacing.two + Spacing.half,
+    minWidth: 82,
+    paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.one + Spacing.half,
     borderRadius: Radius.small,
     borderWidth: 1,
+    borderLeftWidth: 3,
+    backgroundColor: Colors.surfaceRaised,
   },
   chipDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: Radius.small,
+  },
+  chipCaption: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.mono,
+    fontSize: 8,
+    fontWeight: '600',
+    letterSpacing: 0.9,
   },
   chipText: {
     fontFamily: Fonts.mono,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
   },
   headline: {
     flex: 1,
     color: Colors.text,
     fontFamily: Fonts.mono,
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 19,
   },
   details: {
     gap: Spacing.three,
     paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.three,
   },
+  panelHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingTop: Spacing.one,
+  },
+  panelNumber: {
+    color: Colors.mars,
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  panelTitle: {
+    color: Colors.text,
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  panelRule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.border,
+  },
+  verdict: {
+    gap: Spacing.one,
+    padding: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
+    borderColor: Colors.border,
+    borderRadius: Radius.small,
+    backgroundColor: Colors.surfaceRaised,
+  },
+  verdictLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  verdictDot: {
+    width: 7,
+    height: 7,
+    borderRadius: Radius.small,
+  },
+  verdictLabel: {
+    fontFamily: Fonts.mono,
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
   simulated: {
     color: Colors.textMuted,
     fontFamily: Fonts.mono,
-    fontSize: 10,
-    letterSpacing: 1.5,
+    fontSize: 9,
+    fontWeight: '600',
+    letterSpacing: 1.1,
+  },
+  verdictMeaning: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  reasonCard: {
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
+    borderColor: Colors.border,
+    borderRadius: Radius.small,
+    backgroundColor: Colors.surface,
   },
   reason: {
     color: Colors.text,
     fontFamily: Fonts.sans,
-    fontSize: 14,
-    lineHeight: 20,
-    paddingLeft: Spacing.two + Spacing.one,
-    borderLeftWidth: 3,
+    fontSize: 13,
+    lineHeight: 19,
   },
   stats: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: Spacing.three,
+    gap: StyleSheet.hairlineWidth,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    borderRadius: Radius.small,
+    overflow: 'hidden',
+    backgroundColor: Colors.border,
   },
   stat: {
-    width: '50%',
-    paddingRight: Spacing.two,
-    gap: Spacing.half,
+    width: '49.7%',
+    minHeight: 78,
+    gap: Spacing.one,
+    padding: Spacing.two + Spacing.half,
+    backgroundColor: Colors.surface,
   },
   statLabel: {
     color: Colors.textMuted,
-    fontFamily: Fonts.sans,
-    fontSize: 12,
+    fontFamily: Fonts.mono,
+    fontSize: 9,
+    fontWeight: '600',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
   },
   statValue: {
     color: Colors.text,
     fontFamily: Fonts.mono,
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '500',
   },
   statNote: {
     color: Colors.textMuted,
     fontFamily: Fonts.sans,
     fontSize: 11,
     lineHeight: 15,
+  },
+  meterCard: {
+    padding: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    borderRadius: Radius.small,
+    backgroundColor: Colors.surfaceRaised,
   },
   meterRow: {
     flexDirection: 'row',
@@ -270,8 +391,8 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.one,
   },
   meter: {
-    height: 8,
-    borderRadius: 4,
+    height: 7,
+    borderRadius: Radius.small,
     backgroundColor: Colors.border,
     overflow: 'hidden',
   },
@@ -290,32 +411,37 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   button: {
+    flex: 1,
     minHeight: 44,
-    minWidth: 64,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.two,
     borderRadius: Radius.small,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.surfaceRaised,
+    backgroundColor: Colors.surface,
   },
   buttonPressed: {
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.surfaceRaised,
   },
   buttonDisabled: {
     opacity: 0.45,
   },
   buttonText: {
     color: Colors.text,
-    fontFamily: Fonts.sans,
-    fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.mono,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
   },
   assumptions: {
     color: Colors.textMuted,
     fontFamily: Fonts.sans,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 11,
+    lineHeight: 16,
+    paddingTop: Spacing.one,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
   },
 });

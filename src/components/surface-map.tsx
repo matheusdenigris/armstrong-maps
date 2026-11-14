@@ -206,6 +206,13 @@ export function SurfaceMap({
         </View>
       )}
 
+      <View pointerEvents="none" style={styles.frame}>
+        <View style={[styles.corner, styles.cornerTopLeft]} />
+        <View style={[styles.corner, styles.cornerTopRight]} />
+        <View style={[styles.corner, styles.cornerBottomLeft]} />
+        <View style={[styles.corner, styles.cornerBottomRight]} />
+      </View>
+
       {size && (paths.length > 0 || rings.length > 0) && (
         <Svg width={size.width} height={size.height} style={styles.overlay} pointerEvents="none">
           {rings.map((ring) => {
@@ -282,6 +289,7 @@ export function SurfaceMap({
           label="Back to the landing site"
           glyph="target"
           onPress={() => controller.current?.recentre()}
+          last
         />
       </View>
     </View>
@@ -362,15 +370,15 @@ const TilePlane = memo(function TilePlane({ layers, opacity, base, size }: TileP
 });
 
 type Glyph = 'plus' | 'minus' | 'target';
-type MapButtonProps = { label: string; glyph: Glyph; onPress: () => void };
+type MapButtonProps = { label: string; glyph: Glyph; onPress: () => void; last?: boolean };
 
-function MapButton({ label, glyph, onPress }: MapButtonProps) {
+function MapButton({ label, glyph, onPress, last = false }: MapButtonProps) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
+      style={({ pressed }) => [styles.button, last && styles.buttonLast, pressed && styles.buttonPressed]}>
       <Svg
         width={20}
         height={20}
@@ -396,7 +404,7 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
     overflow: 'hidden',
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.mapBackground,
   },
   tile: {
     position: 'absolute',
@@ -406,6 +414,44 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 0,
+  },
+  frame: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  corner: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderColor: Colors.textMuted,
+    opacity: 0.62,
+  },
+  cornerTopLeft: {
+    top: Spacing.two,
+    left: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+  },
+  cornerTopRight: {
+    top: Spacing.two,
+    right: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: StyleSheet.hairlineWidth,
+  },
+  cornerBottomLeft: {
+    bottom: Spacing.two,
+    left: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+  },
+  cornerBottomRight: {
+    right: Spacing.two,
+    bottom: Spacing.two,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   marker: {
     position: 'absolute',
@@ -421,32 +467,43 @@ const styles = StyleSheet.create({
     height: 14,
     borderRadius: 7,
     borderWidth: 2,
-    borderColor: Colors.text,
+    borderColor: Colors.background,
   },
   markerLabel: {
     color: Colors.text,
     fontFamily: Fonts.mono,
-    fontSize: 12,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.5,
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.half,
     borderRadius: Radius.small,
-    backgroundColor: 'rgba(7, 9, 13, 0.78)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    backgroundColor: Colors.glass,
     overflow: 'hidden',
   },
   controls: {
     position: 'absolute',
     right: Spacing.three,
-    gap: Spacing.two,
+    gap: 0,
+    overflow: 'hidden',
+    borderRadius: Radius.small,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    backgroundColor: Colors.glassStrong,
   },
   button: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: Radius.medium,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    backgroundColor: 'rgba(16, 20, 27, 0.92)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.glassStrong,
+  },
+  buttonLast: {
+    borderBottomWidth: 0,
   },
   buttonPressed: {
     backgroundColor: Colors.surfaceRaised,

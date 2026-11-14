@@ -33,26 +33,25 @@ export function EnvironmentPanel({
 
   return (
     <View style={styles.panel}>
-      <Text style={styles.heading} accessibilityRole="header">
-        WEATHER · MEASURED AT GALE CRATER
-      </Text>
+      <PanelHeading number="03" title="SITE CONDITIONS" />
+      <SectionHeading title="WEATHER · MEASURED AT GALE CRATER" color={Colors.nav} />
       {!local ? (
-        <Text style={styles.warning}>
+        <Text style={[styles.warning, { borderLeftColor: Colors.caution }]}>
           {siteName} is {formatDistance(distanceFromGaleM)} from the weather station. These
           readings are a reference, not the weather here.
         </Text>
       ) : null}
       {weather.status === 'loading' || weather.status === 'idle' ? (
-        <Text style={styles.note}>Asking the station for its latest sol.</Text>
+        <StatusNote text="Asking the station for its latest sol." color={Colors.nav} />
       ) : null}
       {weather.status === 'failed' ? (
-        <Text style={styles.note}>The weather feed did not answer. No reading to show.</Text>
+        <StatusNote text="The weather feed did not answer. No reading to show." color={Colors.noGo} />
       ) : null}
       {weather.status === 'ready' && !latest ? (
-        <Text style={styles.note}>The weather feed answered without any sol.</Text>
+        <StatusNote text="The weather feed answered without any sol." color={Colors.caution} />
       ) : null}
       {latest ? (
-        <View style={styles.card}>
+        <View style={[styles.card, { borderLeftColor: Colors.nav }]}>
           <Text style={styles.cardTitle}>
             Sol {latest.sol} · {latest.earthDate} on Earth
           </Text>
@@ -78,10 +77,8 @@ export function EnvironmentPanel({
         </View>
       ) : null}
 
-      <Text style={styles.heading} accessibilityRole="header">
-        RADIATION · PUBLISHED AVERAGE
-      </Text>
-      <View style={styles.card}>
+      <SectionHeading title="RADIATION · PUBLISHED AVERAGE" color={Colors.caution} />
+      <View style={[styles.card, { borderLeftColor: Colors.caution }]}>
         <Text style={styles.cardTitle}>
           {SURFACE_RADIATION.msvPerDay} ± {SURFACE_RADIATION.uncertaintyMsvPerDay} mSv per Earth day
         </Text>
@@ -91,18 +88,19 @@ export function EnvironmentPanel({
 
       {rover ? (
         <>
-          <Text style={styles.heading} accessibilityRole="header">
-            ROVER · {rover.name.toUpperCase()}
-          </Text>
-          <View style={styles.card}>
+          <SectionHeading title={`ROVER · ${rover.name.toUpperCase()}`} color={Colors.mars} />
+          <View style={[styles.card, { borderLeftColor: Colors.mars }]}>
             {rover.track.status === 'loading' || rover.track.status === 'idle' ? (
-              <Text style={styles.note}>Asking for the traverse.</Text>
+              <StatusNote text="Asking for the traverse." color={Colors.mars} />
             ) : null}
             {rover.track.status === 'failed' ? (
-              <Text style={styles.note}>The traverse feed did not answer. No position to show.</Text>
+              <StatusNote
+                text="The traverse feed did not answer. No position to show."
+                color={Colors.noGo}
+              />
             ) : null}
             {rover.track.status === 'ready' && !rover.track.data.latest ? (
-              <Text style={styles.note}>The traverse feed answered without a position.</Text>
+              <StatusNote text="The traverse feed answered without a position." color={Colors.caution} />
             ) : null}
             {rover.track.status === 'ready' && rover.track.data.latest ? (
               <>
@@ -126,6 +124,34 @@ export function EnvironmentPanel({
   );
 }
 
+function PanelHeading({ number, title }: { number: string; title: string }) {
+  return (
+    <View style={styles.panelHeading} accessible accessibilityRole="header">
+      <Text style={styles.panelNumber}>{number}</Text>
+      <Text style={styles.panelTitle}>{title}</Text>
+      <View style={styles.panelRule} />
+    </View>
+  );
+}
+
+function SectionHeading({ title, color }: { title: string; color: string }) {
+  return (
+    <View style={styles.heading} accessible accessibilityRole="header">
+      <View style={[styles.headingMarker, { backgroundColor: color }]} />
+      <Text style={styles.headingText}>{title}</Text>
+    </View>
+  );
+}
+
+function StatusNote({ text, color }: { text: string; color: string }) {
+  return (
+    <View style={[styles.statusNote, { borderLeftColor: color }]}>
+      <View style={[styles.statusDot, { backgroundColor: color }]} />
+      <Text style={styles.note}>{text}</Text>
+    </View>
+  );
+}
+
 function Reading({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.reading}>
@@ -137,64 +163,132 @@ function Reading({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   panel: {
-    gap: Spacing.two,
+    gap: Spacing.three,
     paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.three,
   },
+  panelHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingTop: Spacing.one,
+  },
+  panelNumber: {
+    color: Colors.mars,
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  panelTitle: {
+    color: Colors.text,
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  panelRule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.border,
+  },
   heading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  headingMarker: {
+    width: 8,
+    height: 8,
+    borderRadius: Radius.small,
+  },
+  headingText: {
     color: Colors.textMuted,
     fontFamily: Fonts.mono,
     fontSize: 10,
-    letterSpacing: 1.5,
-    paddingTop: Spacing.two,
+    fontWeight: '600',
+    letterSpacing: 1.3,
   },
   warning: {
     color: Colors.text,
     fontFamily: Fonts.sans,
     fontSize: 13,
     lineHeight: 18,
-    paddingLeft: Spacing.two + Spacing.one,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
     borderLeftWidth: 3,
-    borderLeftColor: Colors.caution,
+    borderColor: Colors.border,
+    borderRadius: Radius.small,
+    backgroundColor: Colors.surface,
   },
   card: {
     gap: Spacing.two,
     padding: Spacing.two + Spacing.one,
-    borderRadius: Radius.medium,
+    borderRadius: Radius.small,
     borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
     borderColor: Colors.border,
-    backgroundColor: Colors.surfaceRaised,
+    backgroundColor: Colors.surface,
   },
   cardTitle: {
     color: Colors.text,
-    fontFamily: Fonts.sans,
-    fontSize: 15,
+    fontFamily: Fonts.mono,
+    fontSize: 13,
     fontWeight: '600',
+    lineHeight: 18,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: Spacing.two,
+    gap: Spacing.one,
   },
   reading: {
-    width: '50%',
-    paddingRight: Spacing.two,
-    gap: Spacing.half,
+    width: '49%',
+    minHeight: 68,
+    gap: Spacing.one,
+    padding: Spacing.two,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    borderRadius: Radius.small,
+    backgroundColor: Colors.surfaceRaised,
   },
   readingLabel: {
     color: Colors.textMuted,
-    fontFamily: Fonts.sans,
-    fontSize: 12,
+    fontFamily: Fonts.mono,
+    fontSize: 9,
+    fontWeight: '600',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   readingValue: {
     color: Colors.text,
     fontFamily: Fonts.mono,
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 18,
   },
   mono: {
     color: Colors.text,
     fontFamily: Fonts.mono,
     fontSize: 13,
+  },
+  statusNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
+    borderColor: Colors.border,
+    borderRadius: Radius.small,
+    backgroundColor: Colors.surface,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: Radius.small,
+    marginTop: Spacing.one + Spacing.half,
   },
   note: {
     color: Colors.textMuted,
@@ -204,8 +298,11 @@ const styles = StyleSheet.create({
   },
   source: {
     color: Colors.textMuted,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.mono,
     fontSize: 11,
     lineHeight: 15,
+    paddingTop: Spacing.one,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
   },
 });
