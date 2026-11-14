@@ -1,7 +1,15 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import { useMemo, useState, useSyncExternalStore } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EnvironmentPanel } from '@/components/environment-panel';
@@ -52,7 +60,8 @@ import { useFeed } from '@/state/use-feed';
 import { useTerrain } from '@/state/use-terrain';
 import { routeCrosses, routeSlope } from '@/mission/terrain';
 import { useNow } from '@/state/use-now';
-import { nextSunCrossing, walkDaylight } from '@/mission/mars-time';
+import { mars24Sun, nextSunCrossing, tableSun, walkDaylight } from '@/mission/mars-time';
+import { horizonsSunUrl, parseHorizonsSun } from '@/data/horizons';
 
 /** One page per site in the static web export. */
 export function generateStaticParams() {
@@ -180,16 +189,33 @@ function SiteMap({ site }: { site: Site }) {
   // morning, when the Sun is MORNING_SUN_DEG up.
   const minute = useNow(true, 60_000);
   const [startPlan, setStartPlan] = useState<StartPlan>('now');
+  // The Sun of the site from NASA/JPL Horizons: three days from the start of today (UT), asked
+  // once a day. The web goes through its own forwarder, since Horizons sends no CORS header.
+  const today = new Date(minute).toISOString().slice(0, 10);
+  const horizonsCache = useMemo(
+    () => ({ key: `horizons-${site.id}`, freshForHours: 24 }),
+    [site.id],
+  );
+  const horizons = useFeed(
+    horizonsSunUrl(site.landing.lat, site.landing.lon, new Date(`${today}T00:00:00Z`), Platform.OS === 'web'),
+    parseHorizonsSun,
+    horizonsCache,
+  );
+  const sun = useMemo(() => {
+    const own = mars24Sun(site.landing.lat, site.landing.lon);
+    return horizons.status === 'ready' ? tableSun(horizons.data, own) : own;
+  }, [horizons, site]);
+  const sunSource = horizons.status === 'ready' ? 'horizons' : 'mars24';
   const plannedStart = useMemo(() => {
     const from = new Date(minute);
     if (startPlan === 'now') return from;
-    return nextSunCrossing(from, site.landing.lat, site.landing.lon, true, MORNING_SUN_DEG) ?? from;
-  }, [minute, startPlan, site]);
+    return nextSunCrossing(from, sun, true, MORNING_SUN_DEG) ?? from;
+  }, [minute, startPlan, sun]);
   const daylight = useMemo(() => {
     if (route.length === 0) return null;
     const hours = evaluateWalk(site.landing, route, SURFACE_RADIATION.msvPerDay).durationHours;
-    return walkDaylight(plannedStart, hours, site.landing.lat, site.landing.lon);
-  }, [plannedStart, route, site]);
+    return walkDaylight(plannedStart, hours, sun);
+  }, [plannedStart, route, site, sun]);
 
   // The ground under the whole walk, out and back.
   const { groundSlope, crossesDunes } = useMemo(() => {
@@ -374,6 +400,7 @@ function SiteMap({ site }: { site: Site }) {
                 ground={groundSlope}
                 groundKnown={terrain.near.status === 'ready' || terrain.around.status === 'ready'}
                 dunes={dunes.status === 'ready' ? (crossesDunes ? 'crossed' : 'clear') : 'unknown'}
+                sunSource={sunSource}
               />
               <WalkDetails
                 walk={walk}
@@ -411,6 +438,8 @@ function SiteMap({ site }: { site: Site }) {
               lat={site.landing.lat}
               lonEast={site.landing.lon}
               now={new Date(minute)}
+              sun={sun}
+              sunSource={sunSource}
             />
           ) : null}
           {tab === 'site' ? (

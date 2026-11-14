@@ -10,8 +10,11 @@ import {
   marsTime,
   nextSunCrossing,
   season,
-  sunElevation,
+  type SunAt,
 } from '@/mission/mars-time';
+
+/** Where the Sun comes from: NASA/JPL Horizons, or the app's own algorithm when it has not answered. */
+export type SunSource = 'horizons' | 'mars24';
 
 type MarsClockPanelProps = {
   siteName: string;
@@ -19,17 +22,22 @@ type MarsClockPanelProps = {
   lonEast: number;
   /** The moment to show, on Earth's clock. */
   now: Date;
+  /** The Sun's elevation over time at the site, and where it comes from. */
+  sun: SunAt;
+  sunSource: SunSource;
 };
 
 /** The time at the site, where the Sun is, and how long the daylight lasts. */
-export function MarsClockPanel({ siteName, lat, lonEast, now }: MarsClockPanelProps) {
+export function MarsClockPanel({ siteName, lat, lonEast, now, sun, sunSource }: MarsClockPanelProps) {
   const time = marsTime(now);
   const ltst = localTrueSolarTime(time, lonEast);
   const lmst = localMeanSolarTime(time, lonEast);
-  const elevation = sunElevation(time, lat, lonEast);
+  const elevation = sun(now.getTime());
   const up = elevation >= 0;
-  const sunset = up ? nextSunCrossing(now, lat, lonEast, false) : null;
-  const sunrise = nextSunCrossing(up && sunset ? sunset : now, lat, lonEast, true);
+  const sunset = up ? nextSunCrossing(now, sun, false) : null;
+  const sunrise = nextSunCrossing(up && sunset ? sunset : now, sun, true);
+  // At night the second line looks one more step ahead: the sunset of the coming day.
+  const nextSunset = !up && sunrise ? nextSunCrossing(sunrise, sun, false) : null;
   const hoursTo = (date: Date | null) => (date ? (date.getTime() - now.getTime()) / 3_600_000 : null);
   const local = (date: Date | null) => (date ? formatMarsClock(localTrueSolarTime(marsTime(date), lonEast)) : '--:--');
 
@@ -59,12 +67,20 @@ export function MarsClockPanel({ siteName, lat, lonEast, now }: MarsClockPanelPr
           <Item label="Mean solar time" value={formatMarsClock(lmst)} />
           <Item label="Mars Sol Date" value={Math.floor(time.msd).toLocaleString('en-US')} />
           <Item label="Season here" value={`${season(time.ls, lat)}, Ls ${time.ls.toFixed(0)}°`} />
-          <Item label="Next sunrise" value={local(sunrise)} />
+          {up ? (
+            <Item label="Next sunrise" value={local(sunrise)} />
+          ) : (
+            <Item label="Next sunset" value={local(nextSunset)} />
+          )}
         </View>
 
         <Text style={styles.source}>
-          Computed in the app with the Mars24 algorithm of NASA GISS (Allison and McEwen 2000),
-          checked against its published examples. Durations are Earth hours; a sol is 24 h 40 min.
+          {sunSource === 'horizons'
+            ? 'Sun, sunrise and sunset from NASA/JPL Horizons, the ephemeris of JPL. '
+            : 'Sun computed in the app: NASA/JPL Horizons has not answered. '}
+          Clock times with the Mars24 algorithm of NASA GISS (Allison and McEwen 2000), which
+          agrees with Horizons within about a minute. Durations are Earth hours; a sol is 24 h 40
+          min.
         </Text>
       </View>
     </View>

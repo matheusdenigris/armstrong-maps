@@ -91,6 +91,13 @@ sunclock (Allison and McEwen 2000): the Mars Sol Date, local mean and true solar
 against the two worked examples of the Mars24 algorithm page (2000-01-06 and the landing of
 Spirit); every value matches to a few ten-thousandths of a degree.
 
+The Sun itself comes from NASA/JPL Horizons, the ephemeris service of JPL: the app asks for the
+Sun's elevation seen from the landing point every 10 minutes over three days, and reads sunrise,
+sunset and the daylight of a walk from that table. Horizons sends no CORS header, so the web app
+asks through `api/horizons.js`, a Vercel function on the same host that only builds that one
+query; the phone apps ask directly. When Horizons does not answer, the Mars24 algorithm takes
+over and the screen says so. The two agree within about a minute (tested on 2026-11-14 at Gale).
+
 A walk is timed from its planned start (now, or the next morning) for as long as it lasts. Walk
 durations are Earth hours; a sol is 24 h 40 min. Latitudes are used as the app stores them
 (planetocentric); Mars24 uses planetographic ones, under half a degree apart at the landing sites,

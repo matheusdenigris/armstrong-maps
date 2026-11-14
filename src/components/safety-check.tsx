@@ -28,6 +28,8 @@ type SafetyCheckProps = {
   ground: RouteSlope | null;
   groundKnown: boolean;
   dunes: 'clear' | 'crossed' | 'unknown';
+  /** Where the Sun of the daylight check comes from. */
+  sunSource: 'horizons' | 'mars24';
 };
 
 const COLOR: Record<Status, string> = {
@@ -72,6 +74,7 @@ export function SafetyCheck({
   ground,
   groundKnown,
   dunes,
+  sunSource,
 }: SafetyCheckProps) {
   const a = WALK_ASSUMPTIONS;
   const r = walk.reasons;
@@ -106,7 +109,7 @@ export function SafetyCheck({
             : daylight.hoursToSpare >= 0
               ? `${localTime(start, lonEast)} to ${localTime(daylight.endsAt, lonEast)} local time, ${formatDuration(daylight.hoursToSpare)} before sunset.`
               : `Ends ${formatDuration(-daylight.hoursToSpare)} after sunset (${localTime(daylight.endsAt, lonEast)} local time).`,
-      source: 'Mars24 algorithm',
+      source: sunSource === 'horizons' ? 'NASA/JPL Horizons' : 'Mars24 algorithm (Horizons not reached)',
     },
     {
       title: 'Radiation',
