@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { SURFACE_RADIATION } from '@/data/radiation';
+import { CME_WINDOW, DONKI_CREDIT } from '@/data/space-weather';
 import { formatDistance, formatDose, formatDuration, formatShare } from '@/mission/format';
 import {
   WALK_ASSUMPTIONS,
@@ -45,6 +46,8 @@ function explain(reason: WalkReason, a: WalkAssumptions): string {
       return `A waypoint is more than ${a.walkBackLimitKm} km from the base, the walk-back limit.`;
     case 'near-walk-back-limit':
       return `A waypoint is past ${formatShare(a.nearLimitFraction)} of the ${a.walkBackLimitKm} km walk-back limit.`;
+    case 'cme-at-mars':
+      return `NASA's WSA-Enlil model forecasts a coronal mass ejection at Mars within ${CME_WINDOW.aheadHours} h (or one passed in the last ${CME_WINDOW.behindHours} h). Solar particles could raise the dose above the average used here. Source: ${DONKI_CREDIT}; the window is a project assumption.`;
   }
 }
 
