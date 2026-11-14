@@ -7,10 +7,26 @@
  *
  * What is measured: the picture, the sol it was taken on, and (for Gale and Jezero) the place,
  * read from the rover's published traverse for that sol. What was set by eye for this app: the
- * row of the horizon, the band of the picture that is free of the black gaps of the mosaic, and
- * the colour used to continue the sky above that band.
+ * row of the horizon, the band of the picture that is free of the black gaps of the mosaic, the
+ * colour used to continue the sky above that band, and the patches of sky the mosaic has no frame
+ * for inside it.
  */
 import { distance, type LatLon } from '@/mission/geo';
+
+/**
+ * A patch of sky inside the band that the mosaic has no frame for. It starts at the top of the
+ * band and its lower edge is a straight line. The visor draws the sky there, in the colours the
+ * photograph has on either side of it. All four numbers are fractions of the picture.
+ */
+export type SkyGap = {
+  left: number;
+  right: number;
+  /** How far down the gap reaches at its left and right edges. */
+  bottomLeft: number;
+  bottomRight: number;
+  /** The colour of the sky at the left and at the right of the gap. */
+  sky: readonly [string, string];
+};
 
 export type Panorama = {
   nasaId: string;
@@ -23,6 +39,8 @@ export type Panorama = {
   band: { top: number; bottom: number };
   /** Colour of the sky at the top of the band, to continue it upwards. */
   sky: string;
+  /** Patches of sky inside the band with no frame, where the mosaic has any. */
+  skyGaps?: readonly SkyGap[];
   /**
    * Where north is, as a fraction of the width, when the caption of the picture says so. Null
    * when it does not: then the picture is real but is not lined up with the compass.
@@ -63,8 +81,15 @@ export const PANORAMAS: readonly Panorama[] = [
     width: 10000,
     height: 2848,
     horizon: 0.24,
-    band: { top: 0.15, bottom: 0.72 },
+    band: { top: 0.155, bottom: 0.72 },
     sky: '#e3d9cf',
+    // Measured on the picture: a notch left of the first butte, and a sliver along the top edge
+    // of the last quarter.
+    skyGaps: [
+      { left: 0.064, right: 0.163, bottomLeft: 0.241, bottomRight: 0.185, sky: ['#c7bab1', '#b8b0aa'] },
+      { left: 0.765, right: 0.885, bottomLeft: 0.162, bottomRight: 0.18, sky: ['#eff1f2', '#d9d7d6'] },
+      { left: 0.885, right: 1, bottomLeft: 0.18, bottomRight: 0.164, sky: ['#d9d7d6', '#cdc5c0'] },
+    ],
     // "North is at both ends and south is in the center."
     north: 0,
     caption: 'Curiosity Mastcam amid the Murray Buttes, sol 1451 (2016)',

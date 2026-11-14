@@ -99,6 +99,36 @@ const Cylinder = memo(function Cylinder({
         // How many strips away from straight ahead, going the short way round.
         const away = Math.abs(((index - ahead + STRIPS * 1.5) % STRIPS) - STRIPS / 2);
         if (away > STRIPS_EACH_SIDE) return null;
+        // The sky gaps that cross this strip, measured from its left edge and the top of the band.
+        const stripLeft = index * stripWidth;
+        const shown = stripWidth + 1.5;
+        const holes = (panorama.skyGaps ?? [])
+          .map((gap) => {
+            const gapLeft = gap.left * pictureWidth - stripLeft;
+            const gapRight = gap.right * pictureWidth - stripLeft;
+            // The lower edge of a gap is a straight line from one side to the other.
+            const reach = (x: number) =>
+              (gap.bottomLeft +
+                ((gap.bottomRight - gap.bottomLeft) * (x - gapLeft)) / (gapRight - gapLeft) -
+                panorama.band.top) *
+              pictureHeight;
+            const left = Math.max(0, gapLeft);
+            const right = Math.min(shown, gapRight);
+            return { gap, gapLeft, gapRight, left, right, down: [reach(left), reach(right)] };
+          })
+          .filter((hole) => hole.right > hole.left)
+          .sort((one, other) => one.left - other.left);
+        // The photograph with those gaps cut out of its top edge. Painting over them instead
+        // leaves a dark line at every join, where the black of the picture shows at the edge.
+        const outline =
+          holes.length === 0
+            ? undefined
+            : `polygon(0px 0px, ${holes
+                .map(
+                  ({ left, right, down }) =>
+                    `${left}px 0px, ${left}px ${down[0]}px, ${right}px ${down[1]}px, ${right}px 0px`,
+                )
+                .join(', ')}, ${shown}px 0px, ${shown}px ${bandHeight}px, 0px ${bandHeight}px)`;
         return (
           <div
             key={index}
@@ -125,6 +155,24 @@ const Cylinder = memo(function Cylinder({
                 animation: fade,
               }}
             />
+            {/* Sky the mosaic has no frame for, drawn in the colours it has on either side. */}
+            {holes.map((hole) => (
+              <div
+                key={hole.gap.left}
+                style={{
+                  position: 'absolute',
+                  left: hole.left,
+                  width: hole.right - hole.left,
+                  top,
+                  height: Math.max(...hole.down) + 1,
+                  backgroundImage: `linear-gradient(90deg, ${hole.gap.sky[0]}, ${hole.gap.sky[1]})`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: `${hole.gapRight - hole.gapLeft}px 100%`,
+                  backgroundPosition: `${hole.gapLeft - hole.left}px 0px`,
+                  animation: fade,
+                }}
+              />
+            ))}
             <div
               style={{
                 position: 'absolute',
@@ -136,6 +184,7 @@ const Cylinder = memo(function Cylinder({
                 backgroundRepeat: 'no-repeat',
                 backgroundSize: `${pictureWidth}px ${pictureHeight}px`,
                 backgroundPosition: `${-index * stripWidth}px ${-panorama.band.top * pictureHeight}px`,
+                clipPath: outline,
                 animation: fade,
               }}
             />

@@ -28,6 +28,16 @@ describe('the photographs', () => {
       expect(panorama.band.top).toBeGreaterThanOrEqual(0);
       expect(panorama.band.bottom).toBeLessThanOrEqual(1);
       expect(panorama.band.top).toBeLessThan(panorama.band.bottom);
+      // A patch of drawn sky starts at the top of the band and ends about the horizon at most.
+      for (const gap of panorama.skyGaps ?? []) {
+        expect(gap.left).toBeGreaterThanOrEqual(0);
+        expect(gap.right).toBeLessThanOrEqual(1);
+        expect(gap.left).toBeLessThan(gap.right);
+        for (const bottom of [gap.bottomLeft, gap.bottomRight]) {
+          expect(bottom).toBeGreaterThan(panorama.band.top);
+          expect(bottom).toBeLessThanOrEqual(panorama.horizon + 0.01);
+        }
+      }
       // The horizon has to be inside the band that is shown.
       expect(panorama.horizon).toBeGreaterThan(panorama.band.top);
       expect(panorama.horizon).toBeLessThan(panorama.band.bottom);
