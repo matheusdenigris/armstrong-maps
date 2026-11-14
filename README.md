@@ -43,13 +43,15 @@ The app has three views:
   at Jezero, and the latest sol of weather from Curiosity's REMS station, each with its source.
   A feed that does not answer is shown as a gap.
 - **The walk, from two seats**: the ship console starts a simulated walk, and an astronaut
-  follows the route on the map. The astronaut's visor opens in another tab and puts you inside a
-  real 360-degree photograph taken by the rover at that site: drag with the mouse or a finger to
-  look all the way round. Over it, the display of the visor shows the heading, the bearing and
-  distance of the next waypoint, life support, dose, and a round map turned so that ahead is up.
-  As the astronaut moves, the visor switches to the photograph taken nearest to them. Pause the
-  walk in one tab and the other stops. The **Sound** button plays real wind recorded on Mars by
-  the microphone of Perseverance.
+  follows the route on the map. The astronaut's visor opens in another tab: first person, through
+  the glass of the helmet, over a real 360-degree photograph of the site that you turn with the
+  mouse or a finger. The display of the helmet carries what keeps the astronaut alive and the
+  mission on course: life support left, the time the way back takes and the time to spare before
+  turning back, the next waypoint with its bearing and arrival time, waypoints done, the mission
+  clock, the radiation dose, the weather where there is a station, and a round map turned so that
+  ahead is up. It raises an alert when the walk nears a limit, and says to turn back when the way
+  home would eat the reserve. Pause the walk in one tab and the other holds. The **Sound** button
+  plays real wind recorded on Mars by the microphone of Perseverance.
 - **Space weather**: NASA DONKI's WSA-Enlil forecast of coronal mass ejections reaching Mars, and
   the solar particle events of the last 30 days. A CME forecast to hit Mars squarely around the walk adds a caution to
   the verdict.
