@@ -56,6 +56,8 @@ export type MapRing = {
 type SurfaceMapProps = {
   /** Drawn from the bottom up. */
   layers: readonly MapLayer[];
+  /** Opacity of a layer, by id. A layer that is not listed is opaque. */
+  opacity?: Readonly<Record<string, number>>;
   /** Where the map opens, and where the recentre button returns to. */
   home: MapView;
   limits: ScaleLimits;
@@ -80,6 +82,7 @@ const webOnly = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle)
  */
 export function SurfaceMap({
   layers,
+  opacity,
   home,
   limits,
   markers = [],
@@ -199,16 +202,12 @@ export function SurfaceMap({
       onResponderTerminate={() => controller.current?.end()}>
       {size && planeStyle && (
         <View style={[StyleSheet.absoluteFill, planeStyle]} pointerEvents="none">
-          <TilePlane layers={layers} base={base} size={size} />
+          <TilePlane layers={layers} opacity={opacity} base={base} size={size} />
         </View>
       )}
 
       {size && (paths.length > 0 || rings.length > 0) && (
-        <Svg
-          width={size.width}
-          height={size.height}
-          style={styles.overlay}
-          pointerEvents="none">
+        <Svg width={size.width} height={size.height} style={styles.overlay} pointerEvents="none">
           {rings.map((ring) => {
             const at = project(view, size, ring.centre);
             const degrees = ring.radiusM / METRES_PER_DEGREE;
@@ -291,6 +290,7 @@ export function SurfaceMap({
 
 type TilePlaneProps = {
   layers: readonly MapLayer[];
+  opacity?: Readonly<Record<string, number>>;
   base: MapView;
   size: Size;
 };
@@ -299,7 +299,7 @@ type TilePlaneProps = {
  * Every layer in two passes: a coarse one over a wide area, so something is there while panning
  * and while sharp tiles load, and a sharp one over the screen.
  */
-const TilePlane = memo(function TilePlane({ layers, base, size }: TilePlaneProps) {
+const TilePlane = memo(function TilePlane({ layers, opacity, base, size }: TilePlaneProps) {
   // Phones pack two or three device pixels in a point; ask for a deeper level so tiles stay crisp.
   const density = Math.min(PixelRatio.get(), 2);
   const sharpArea = visibleBounds(base, size, 0.25);
@@ -338,17 +338,24 @@ const TilePlane = memo(function TilePlane({ layers, base, size }: TilePlaneProps
           pixelsPerDegree: base.pixelsPerDegree / 4,
           limit: 24,
         }).filter((tile) => tile.level < sharpLevel);
-        return [...coarse, ...sharp].map((tile) => (
-          <Image
-            key={`${layer.id}/${tile.level}/${tile.row}/${tile.col}`}
-            source={{ uri: tileUrl(layer, tile) }}
-            style={[styles.tile, place(tile)]}
-            contentFit="fill"
-            cachePolicy="memory-disk"
-            transition={0}
-            accessible={false}
-          />
-        ));
+        // The layer fades as one sheet, so the coarse pass does not show through the sharp one.
+        return (
+          <View
+            key={layer.id}
+            style={[StyleSheet.absoluteFill, { opacity: opacity?.[layer.id] ?? 1 }]}>
+            {[...coarse, ...sharp].map((tile) => (
+              <Image
+                key={`${tile.level}/${tile.row}/${tile.col}`}
+                source={{ uri: tileUrl(layer, tile) }}
+                style={[styles.tile, place(tile)]}
+                contentFit="fill"
+                cachePolicy="memory-disk"
+                transition={0}
+                accessible={false}
+              />
+            ))}
+          </View>
+        );
       })}
     </>
   );
