@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { PANORAMAS, headingToFraction, panoramaNear, panoramaUrl } from './panoramas';
+import {
+  PANORAMAS,
+  SCENE_EVERY_M,
+  SCENE_MIN_SECONDS,
+  headingToFraction,
+  panoramaNear,
+  panoramaUrl,
+  sceneForWalk,
+  sceneStretch,
+  scenesOf,
+} from './panoramas';
 import { SITES, findSite } from './sites';
 
 describe('the photographs', () => {
@@ -18,6 +28,16 @@ describe('the photographs', () => {
       expect(panorama.band.top).toBeGreaterThanOrEqual(0);
       expect(panorama.band.bottom).toBeLessThanOrEqual(1);
       expect(panorama.band.top).toBeLessThan(panorama.band.bottom);
+      // A patch of drawn sky starts at the top of the band and ends about the horizon at most.
+      for (const gap of panorama.skyGaps ?? []) {
+        expect(gap.left).toBeGreaterThanOrEqual(0);
+        expect(gap.right).toBeLessThanOrEqual(1);
+        expect(gap.left).toBeLessThan(gap.right);
+        for (const bottom of [gap.bottomLeft, gap.bottomRight]) {
+          expect(bottom).toBeGreaterThan(panorama.band.top);
+          expect(bottom).toBeLessThanOrEqual(panorama.horizon + 0.01);
+        }
+      }
       // The horizon has to be inside the band that is shown.
       expect(panorama.horizon).toBeGreaterThan(panorama.band.top);
       expect(panorama.horizon).toBeLessThan(panorama.band.bottom);
@@ -81,6 +101,73 @@ describe('panoramaNear', () => {
       expect(chosen.borrowed).toBe(true);
       expect(chosen.panorama.site).toBe('gale');
     }
+  });
+});
+
+describe('the scenes of a walk', () => {
+  const gale = findSite('gale')!;
+  const scene = (walkedM: number, atBase = false) =>
+    sceneForWalk('gale', gale.landing, gale.landing, walkedM, atBase);
+
+  it('start with the photograph taken at the landing point and go outwards', () => {
+    const { scenes, borrowed } = scenesOf('gale', gale.landing);
+    expect(borrowed).toBe(false);
+    expect(scenes.length).toBeGreaterThanOrEqual(5);
+    expect(scenes[0].nasaId).toBe('PIA16101');
+    // Each one was taken farther from the landing point than the one before.
+    const lat = scenes.map((panorama) => panorama.point!.lat);
+    expect(lat).toEqual([...lat].sort((a, b) => b - a));
+  });
+
+  it('change every stretch of walking', () => {
+    expect(scene(0).index).toBe(0);
+    expect(scene(SCENE_EVERY_M - 1).index).toBe(0);
+    expect(scene(SCENE_EVERY_M).index).toBe(1);
+    expect(scene(SCENE_EVERY_M * 2.5).index).toBe(2);
+    expect(scene(SCENE_EVERY_M).panorama.nasaId).not.toBe(scene(0).panorama.nasaId);
+  });
+
+  it('go round again when the walk is longer than the photographs', () => {
+    const count = scene(0).count;
+    expect(scene(SCENE_EVERY_M * count).index).toBe(0);
+    expect(scene(SCENE_EVERY_M * (count + 1)).index).toBe(1);
+  });
+
+  it('cover a longer stretch each when the walk is played fast', () => {
+    // At 2.5 km/h, real time and ten times it stay on the walking stretch.
+    expect(sceneStretch(2.5, 1)).toBe(SCENE_EVERY_M);
+    expect(sceneStretch(2.5, 10)).toBe(SCENE_EVERY_M);
+    // At 600 times, eight seconds on screen are more than three kilometres of walking.
+    const fast = sceneStretch(2.5, 600);
+    expect(fast).toBeCloseTo((2500 / 3600) * 600 * SCENE_MIN_SECONDS, 6);
+    const paced = sceneForWalk('gale', gale.landing, gale.landing, SCENE_EVERY_M * 4, false, fast);
+    expect(paced.index).toBe(0);
+  });
+
+  it('are the first one at the base, whatever was walked', () => {
+    expect(scene(SCENE_EVERY_M * 3.2, true).index).toBe(0);
+  });
+
+  it('say how far from the astronaut each photograph was taken', () => {
+    expect(scene(0).awayM).toBeCloseTo(0, 3);
+    // The second scene of Gale was taken kilometres up the traverse.
+    expect(scene(SCENE_EVERY_M).awayM).toBeGreaterThan(5000);
+  });
+
+  it('borrow the scenes of Gale where a site has none, and say so', () => {
+    const elysium = findSite('elysium')!;
+    const borrowed = sceneForWalk('elysium', elysium.landing, elysium.landing, SCENE_EVERY_M, false);
+    expect(borrowed.borrowed).toBe(true);
+    expect(borrowed.panorama.site).toBe('gale');
+    expect(borrowed.awayM).toBeNull();
+    expect(borrowed.count).toBe(scenesOf('gale', gale.landing).scenes.length);
+  });
+
+  it('stay on the only photograph of a site that has one', () => {
+    const gusev = findSite('gusev')!;
+    const only = sceneForWalk('gusev', gusev.landing, gusev.landing, SCENE_EVERY_M * 4, false);
+    expect(only.count).toBe(1);
+    expect(only.index).toBe(0);
   });
 });
 

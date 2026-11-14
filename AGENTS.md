@@ -87,6 +87,12 @@ screen needs a source or a "simulated" or "assumption" label.
   library does not let its files be used as WebGL textures. Each picture in
   `src/data/panoramas.ts` has a `band` that keeps the black gaps of the mosaic out of view. The
   visor has to say where the photograph was taken and whether it is lined up with the compass.
+- **The sense of walking comes from depth and from changing scenes.** Within a scene
+  `PanoramaView` moves the view into the photograph by its `advance` (0 to 1 through the
+  stretch). `sceneForWalk` moves through the real photographs of the site as the astronaut covers
+  ground, and `PanoramaView` joins two of them with a short cut (a stride into drawn dust). Add a photograph by adding it to the catalogue,
+  with its sol and the rover's position on that sol; view it first, and pick ones whose sky has
+  no black gaps where the terrain rises.
 - Do not add `src/app/+html.tsx` without checking the export: a custom shell dropped the style
   sheet and the script tags from every page. Set titles with `Head` from `expo-router/head`.
 - **Pages are rendered ahead of time, without a window.** `useWindowDimensions` is 0 there, and a
@@ -112,6 +118,10 @@ screen needs a source or a "simulated" or "assumption" label.
 - **`main` is the live site.** Every push deploys to https://www.armstrongmaps.us. Before pushing a
   change to a screen or to the web shell, run `npm run build:web` and open the export in a browser;
   tests and lint do not see a page that fails to start.
+- **Deployments are rationed.** The Vercel plan allows a fixed number a day, and when it runs out
+  nothing reaches the live site until the next day. Only `main` deploys (`vercel.json`); a branch
+  is checked by CI and by a local export instead. Push finished work in one go, not commit by
+  commit: each push to `main` is one deployment.
 
 ## Expo has changed — do not trust your training data
 

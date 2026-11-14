@@ -12,6 +12,8 @@ export type PanoramaViewProps = {
   size: { width: number; height: number };
   /** Vertical sway of a step, in pixels. Zero when standing still. */
   sway?: number;
+  /** How far through this scene's stretch of walking the astronaut is, 0 to 1. */
+  advance?: number;
 };
 
 /**
@@ -19,9 +21,16 @@ export type PanoramaViewProps = {
  * (`panorama-view.web.tsx`) does not run yet: the picture slides sideways with the heading, shown
  * twice in a row so it can go all the way round.
  */
-export function PanoramaView({ panorama, heading, size, sway = 0 }: PanoramaViewProps) {
+export function PanoramaView({
+  panorama,
+  heading,
+  size,
+  sway = 0,
+  advance = 0,
+}: PanoramaViewProps) {
   const bandHeight = (panorama.band.bottom - panorama.band.top) * panorama.height;
-  const scale = size.height / bandHeight;
+  // The picture grows a little as the astronaut covers the stretch, as on the web.
+  const scale = (size.height / bandHeight) * (1 + Math.min(1, Math.max(0, advance)) * 0.5);
   const width = panorama.width * scale;
   const height = panorama.height * scale;
   const left = size.width / 2 - headingToFraction(panorama, heading) * width;
