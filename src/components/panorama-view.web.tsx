@@ -69,6 +69,8 @@ type CylinderProps = {
   fading: boolean;
   /** The strip straight ahead of the astronaut. */
   ahead: number;
+  /** Whether to draw the sky in the gaps of the mosaic: only once the picture itself is there. */
+  patched: boolean;
 };
 
 /**
@@ -82,6 +84,7 @@ const Cylinder = memo(function Cylinder({
   wideScreen,
   fading,
   ahead,
+  patched,
 }: CylinderProps) {
   const stripWidth = 2 * radius * Math.tan(Math.PI / STRIPS);
   const pictureWidth = stripWidth * STRIPS;
@@ -156,7 +159,7 @@ const Cylinder = memo(function Cylinder({
               }}
             />
             {/* Sky the mosaic has no frame for, drawn in the colours it has on either side. */}
-            {holes.map((hole) => (
+            {(patched ? holes : []).map((hole) => (
               <div
                 key={hole.gap.left}
                 style={{
@@ -285,6 +288,28 @@ export function PanoramaView({
     };
   }, [scene, wideScreen]);
 
+  // The sky drawn in the gaps of a mosaic waits for the light picture, or it would show on its
+  // own, as a patch in an empty view, while the picture loads.
+  const [arrived, setArrived] = useState<string | null>(null);
+  const gapped = (scene.skyGaps ?? []).length > 0;
+  useEffect(() => {
+    if (!gapped) return;
+    let wanted = true;
+    const light = new Image();
+    light.src = panoramaUrl(scene, false);
+    light
+      .decode()
+      .then(() => {
+        if (wanted) setArrived(scene.nasaId);
+      })
+      .catch(() => {
+        // No picture, so nothing to patch.
+      });
+    return () => {
+      wanted = false;
+    };
+  }, [scene, gapped]);
+
   // Leaving: stride into the scene while the dust rises. Arriving: settle as it clears.
   const leaving = cut !== null && cut < 0.5;
   const part = cut === null ? 0 : leaving ? cut / 0.5 : (cut - 0.5) / 0.5;
@@ -327,10 +352,11 @@ export function PanoramaView({
           wideScreen={false}
           fading={false}
           ahead={ahead}
+          patched={arrived === scene.nasaId}
         />
         {/* The full picture fades in over the light one, which stays until it is painted. */}
         {wideScreen && sharp === scene.nasaId ? (
-          <Cylinder panorama={scene} radius={radius} wideScreen fading ahead={ahead} />
+          <Cylinder panorama={scene} radius={radius} wideScreen fading ahead={ahead} patched />
         ) : null}
       </div>
 
