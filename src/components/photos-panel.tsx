@@ -27,9 +27,9 @@ export function PhotosPanel({ siteName, rover, library }: PhotosPanelProps) {
           />
           <FeedState
             feed={rover.images}
-            waiting="Asking the rover's raw-image feed."
-            failed="The raw-image feed did not answer. No pictures to show."
-            empty="The raw-image feed answered without any full frame."
+            waiting="Fetching the rover's raw-image feed."
+            failed="The raw-image feed failed. No pictures to show."
+            empty="The raw-image feed didn't return any full frame."
           />
           {rover.images.status === 'ready' && rover.images.data.length > 0 ? (
             <View style={styles.grid}>

@@ -23,7 +23,7 @@ import { panoramaUrl, sceneForWalk, sceneStretch, scenesOf } from '@/data/panora
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { SITES, findSite, type Site } from '@/data/sites';
 import { MARS_WIND } from '@/data/sounds';
-import { describeAge, readingAgeDays, REMS_CREDIT, REMS_FEED, parseWeather } from '@/data/weather';
+import { REMS_CREDIT, REMS_FEED, describeAge, parseWeather, readingAgeDays } from '@/data/weather';
 import { elapsedSeconds } from '@/mission/clock';
 import {
   formatClock,
@@ -342,7 +342,7 @@ function Visor({ site }: { site: Site }) {
           latest && latest.minAirC !== null && latest.maxAirC !== null
             ? `${latest.minAirC} to ${latest.maxAirC} °C`
             : weather.status === 'loading'
-              ? 'Asking'
+              ? 'Fetching'
               : 'No reading'
         }
       />
