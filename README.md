@@ -62,6 +62,13 @@ The app has three views:
   dune fields of loose sand. Both are shaded on the map and enter the verdict.
 - **Wind**: the last sols measured by InSight, with a wind rose and how hard the gusts push compared
   with the Earth, and the prevailing wind written in the slip faces of the region's dunes.
+- **Mars clock and daylight**: local solar time, sunrise and sunset at each site, computed with
+  the Mars24 algorithm of NASA GISS. A walk that starts in the dark or runs into the night is a
+  no-go; plan it for now or for the next morning.
+- **Safety check**: every factor of the verdict on one card (life support, walk-back limit,
+  daylight, radiation, space weather, steep ground, loose sand), each with its status and source.
+  A factor whose source has not answered says so instead of passing.
+- **Weather chart**: air temperature and pressure over the last sols Curiosity's REMS reported.
 - **Docs** (`/docs`): every NASA API and source the app reads, the address it calls, where it
   shows up, and what is measured, forecast, assumed or simulated. NASA sources come first.
 
