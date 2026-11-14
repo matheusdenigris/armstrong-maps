@@ -15,6 +15,12 @@ export type PanoramaViewProps = {
 
 /** The picture is wrapped round the astronaut in this many flat strips; four degrees each. */
 const STRIPS = 90;
+/**
+ * Only the strips this far to each side of where the astronaut looks are drawn: 64 degrees, more
+ * than any screen shows. A strip seen almost edge-on projects to an enormous rectangle, and
+ * drawing those made the picture slow to appear.
+ */
+const STRIPS_EACH_SIDE = 16;
 /** Below the picture, where the mosaic has no frames: the inside of the helmet, not the ground. */
 const BELOW = '#0d0907';
 const FILL = 3000;
@@ -29,14 +35,27 @@ function eyeDistance(size: { width: number; height: number }): number {
   return size.height / 2 / Math.tan((lens * RAD) / 2);
 }
 
-type CylinderProps = { panorama: Panorama; radius: number; wideScreen: boolean; fading: boolean };
+type CylinderProps = {
+  panorama: Panorama;
+  radius: number;
+  wideScreen: boolean;
+  fading: boolean;
+  /** The strip straight ahead of the astronaut. */
+  ahead: number;
+};
 
 /**
  * The photograph bent into a cylinder with the astronaut on its axis. It is built from plain
  * strips, each showing its slice of the picture, so the picture is an ordinary image: the NASA
  * library does not allow its files to be used as textures on another site.
  */
-const Cylinder = memo(function Cylinder({ panorama, radius, wideScreen, fading }: CylinderProps) {
+const Cylinder = memo(function Cylinder({
+  panorama,
+  radius,
+  wideScreen,
+  fading,
+  ahead,
+}: CylinderProps) {
   const stripWidth = 2 * radius * Math.tan(Math.PI / STRIPS);
   const pictureWidth = stripWidth * STRIPS;
   const pictureHeight = (panorama.height / panorama.width) * pictureWidth;
@@ -53,59 +72,64 @@ const Cylinder = memo(function Cylinder({ panorama, radius, wideScreen, fading }
         position: 'absolute',
         transformStyle: 'preserve-3d',
       }}>
-      {Array.from({ length: STRIPS }, (_, index) => (
-        <div
-          key={index}
-          style={{
-            position: 'absolute',
-            left: -stripWidth / 2,
-            top: 0,
-            // A little wider than its share, so no hairline shows where two strips meet.
-            width: stripWidth + 1.5,
-            transformStyle: 'preserve-3d',
-            // Strip 0 starts at the left edge of the picture; they go round clockwise.
-            transform: `rotateY(${-((index + 0.5) * 360) / STRIPS}deg) translateZ(${-radius}px)`,
-            backfaceVisibility: 'hidden',
-          }}>
-          {/* The sky carries on above the frames, in the colour it has at their top edge. */}
+      {Array.from({ length: STRIPS }, (_, index) => {
+        // How many strips away from straight ahead, going the short way round.
+        const away = Math.abs(((index - ahead + STRIPS * 1.5) % STRIPS) - STRIPS / 2);
+        if (away > STRIPS_EACH_SIDE) return null;
+        return (
           <div
+            key={index}
             style={{
               position: 'absolute',
-              left: -1,
-              right: -1,
-              top: top - FILL,
-              height: FILL + 1,
-              background: panorama.sky,
-              animation: fade,
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top,
-              height: bandHeight,
-              backgroundImage: `url(${url})`,
-              backgroundRepeat: 'no-repeat',
-              backgroundSize: `${pictureWidth}px ${pictureHeight}px`,
-              backgroundPosition: `${-index * stripWidth}px ${-panorama.band.top * pictureHeight}px`,
-              animation: fade,
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              left: -1,
-              right: -1,
-              top: top + bandHeight - 1,
-              height: FILL,
-              background: BELOW,
-              animation: fade,
-            }}
-          />
-        </div>
-      ))}
+              left: -stripWidth / 2,
+              top: 0,
+              // A little wider than its share, so no hairline shows where two strips meet.
+              width: stripWidth + 1.5,
+              transformStyle: 'preserve-3d',
+              // Strip 0 starts at the left edge of the picture; they go round clockwise.
+              transform: `rotateY(${-((index + 0.5) * 360) / STRIPS}deg) translateZ(${-radius}px)`,
+              backfaceVisibility: 'hidden',
+            }}>
+            {/* The sky carries on above the frames, in the colour it has at their top edge. */}
+            <div
+              style={{
+                position: 'absolute',
+                left: -1,
+                right: -1,
+                top: top - FILL,
+                height: FILL + 1,
+                background: panorama.sky,
+                animation: fade,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top,
+                height: bandHeight,
+                backgroundImage: `url(${url})`,
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: `${pictureWidth}px ${pictureHeight}px`,
+                backgroundPosition: `${-index * stripWidth}px ${-panorama.band.top * pictureHeight}px`,
+                animation: fade,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                left: -1,
+                right: -1,
+                top: top + bandHeight - 1,
+                height: FILL,
+                background: BELOW,
+                animation: fade,
+              }}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 });
@@ -158,6 +182,8 @@ export function PanoramaView({ panorama, heading, pitch, size, sway = 0 }: Panor
   }, [panorama, wideScreen]);
   const world = (picture: Panorama) =>
     `translateZ(${radius}px) rotateX(${pitch}deg) rotateY(${headingToFraction(picture, heading) * 360}deg)`;
+  const aheadOf = (picture: Panorama) =>
+    Math.floor(headingToFraction(picture, heading) * STRIPS) % STRIPS;
 
   return (
     <div
@@ -189,10 +215,17 @@ export function PanoramaView({ panorama, heading, pitch, size, sway = 0 }: Panor
               radius={radius}
               wideScreen={false}
               fading={layer === 1 && shown.previous !== null}
+              ahead={aheadOf(picture)}
             />
             {/* The full picture fades in over the light one, which stays until it is painted. */}
             {wideScreen && sharp === picture.nasaId ? (
-              <Cylinder panorama={picture} radius={radius} wideScreen fading />
+              <Cylinder
+                panorama={picture}
+                radius={radius}
+                wideScreen
+                fading
+                ahead={aheadOf(picture)}
+              />
             ) : null}
           </div>
         ) : null,
