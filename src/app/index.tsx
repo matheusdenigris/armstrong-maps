@@ -1,74 +1,143 @@
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
+import { useRef, useSyncExternalStore } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Logo } from '@/components/logo';
+import { GLOBE_AVAILABLE, MarsGlobe, type GlobeHandle } from '@/components/mars-globe';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { SITES, type Site } from '@/data/sites';
 import { formatLatLon } from '@/mission/format';
 
-/** The list is one column on a phone and widens to two and three on larger screens. */
-const columnsFor = (width: number) => (width >= 1080 ? 3 : width >= 700 ? 2 : 1);
-const MAX_WIDTH = 1120;
+/** From this width the globe and the list sit side by side. */
+const SIDE_BY_SIDE = 900;
+const PANEL_WIDTH = 420;
+
+/** A press on the web is a mouse event and on a phone a touch; both can be cancelled. */
+type Cancellable = { preventDefault: () => void };
+
+const TAGLINE = 'A layered map of Mars for planning and following walks on the surface.';
+
+/**
+ * False while the page is still the HTML that was rendered ahead of time, which knows nothing
+ * about the size of the window. The first render in the browser has to match that HTML.
+ */
+function useHydrated() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+}
 
 export default function HomeScreen() {
-  const { width } = useWindowDimensions();
-  const columns = columnsFor(width);
-  const wide = columns > 1;
+  const router = useRouter();
+  const { width, height } = useWindowDimensions();
+  const hydrated = useHydrated();
+  const globe = useRef<GlobeHandle>(null);
+
+  const sideBySide = GLOBE_AVAILABLE && hydrated && width >= SIDE_BY_SIDE;
+  const stacked = GLOBE_AVAILABLE && hydrated && !sideBySide;
+
+  const open = (site: Site) => router.push({ pathname: '/site/[id]', params: { id: site.id } });
+
+  /** With a globe on screen, a card first flies there and the map opens on arrival. */
+  const choose = (site: Site, event: Cancellable) => {
+    if (!globe.current) return;
+    event.preventDefault();
+    globe.current.flyTo(site);
+  };
+
+  const list = (
+    <ScrollView contentContainerStyle={styles.list}>
+      {!GLOBE_AVAILABLE || !hydrated ? <Hero /> : null}
+      <Text style={styles.section} accessibilityRole="header">
+        LANDING SITES
+      </Text>
+      {sideBySide ? <Text style={styles.intro}>{TAGLINE}</Text> : null}
+      {SITES.map((site) => (
+        <SiteCard key={site.id} site={site} onPress={(event) => choose(site, event)} />
+      ))}
+      <Text style={styles.footer}>
+        Imagery from NASA/JPL Mars Trek. A NASA Space Apps Challenge 2026 project, with no official
+        link to NASA.
+      </Text>
+    </ScrollView>
+  );
 
   return (
     <SafeAreaView style={styles.screen}>
       <Head>
         <title>Armstrong Maps</title>
-        <meta
-          name="description"
-          content="A layered map of Mars for planning and following walks on the surface."
-        />
+        <meta name="description" content={TAGLINE} />
       </Head>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={[styles.content, wide && styles.contentWide]}>
-          <View style={[styles.hero, wide && styles.heroWide]}>
-            <Logo size={wide ? 96 : 72} />
-            <View style={[styles.heroText, wide && styles.heroTextWide]}>
-              <View style={[styles.wordmark, wide && styles.wordmarkWide]}>
-                <Text style={styles.name}>ARMSTRONG</Text>
-                <Text style={styles.sub}>MAPS</Text>
-              </View>
-              <Text style={[styles.tagline, wide && styles.taglineWide]}>
-                A layered map of Mars for planning and following walks on the surface.
-              </Text>
+
+      {sideBySide ? (
+        <View style={styles.row}>
+          <View style={styles.stage}>
+            <MarsGlobe ref={globe} sites={SITES} onOpen={open} />
+            <View style={styles.brandOverlay} pointerEvents="none">
+              <Brand />
             </View>
+            <Text style={styles.hint} pointerEvents="none">
+              Drag to turn, scroll to move in. Blue outlines: high-resolution coverage.
+            </Text>
           </View>
-
-          <Text style={styles.section} accessibilityRole="header">
-            LANDING SITES
-          </Text>
-          <View style={styles.grid}>
-            {SITES.map((site) => (
-              <View key={site.id} style={{ width: `${100 / columns}%` }}>
-                <SiteCard site={site} />
-              </View>
-            ))}
-          </View>
-
-          <Text style={styles.footer}>
-            Imagery from NASA/JPL Mars Trek. A NASA Space Apps Challenge 2026 project, with no
-            official link to NASA.
-          </Text>
+          <View style={styles.panel}>{list}</View>
         </View>
-      </ScrollView>
+      ) : (
+        <>
+          {stacked ? (
+            <>
+              <View style={styles.brandBar}>
+                <Brand />
+              </View>
+              <View style={{ height: Math.max(260, Math.round(height * 0.44)) }}>
+                <MarsGlobe ref={globe} sites={SITES} onOpen={open} />
+              </View>
+            </>
+          ) : null}
+          <View style={styles.fill}>{list}</View>
+        </>
+      )}
     </SafeAreaView>
   );
 }
 
-function SiteCard({ site }: { site: Site }) {
+/** The symbol and the name on one line. */
+function Brand() {
   return (
-    <Link href={{ pathname: '/site/[id]', params: { id: site.id } }} asChild>
-      <Pressable
-        accessibilityRole="link"
-        accessibilityLabel={`Open the map of ${site.name}`}
-        style={styles.cardHit}>
+    <View style={styles.brand}>
+      <Logo size={40} />
+      <View>
+        <Text style={styles.brandName}>ARMSTRONG</Text>
+        <Text style={styles.brandSub}>MAPS</Text>
+      </View>
+    </View>
+  );
+}
+
+/** The opening block when there is no globe to carry the screen. */
+function Hero() {
+  return (
+    <View style={styles.hero}>
+      <Logo size={72} />
+      <View style={styles.wordmark}>
+        <Text style={styles.name}>ARMSTRONG</Text>
+        <Text style={styles.sub}>MAPS</Text>
+      </View>
+      <Text style={styles.tagline}>{TAGLINE}</Text>
+    </View>
+  );
+}
+
+type SiteCardProps = { site: Site; onPress: (event: Cancellable) => void };
+
+function SiteCard({ site, onPress }: SiteCardProps) {
+  return (
+    <Link href={{ pathname: '/site/[id]', params: { id: site.id } }} onPress={onPress} asChild>
+      <Pressable accessibilityRole="link" accessibilityLabel={`Open the map of ${site.name}`}>
         {(state) => (
           <View
             style={[
@@ -93,45 +162,72 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  scroll: {
-    alignItems: 'center',
+  fill: {
+    flex: 1,
   },
-  content: {
-    width: '100%',
-    maxWidth: MAX_WIDTH,
+  row: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  stage: {
+    flex: 1,
+  },
+  panel: {
+    width: PANEL_WIDTH,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  brandOverlay: {
+    position: 'absolute',
+    top: Spacing.four,
+    left: Spacing.four,
+  },
+  brandBar: {
     paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.five,
-    paddingBottom: Spacing.four,
+    paddingVertical: Spacing.two,
   },
-  contentWide: {
-    paddingHorizontal: Spacing.five,
-    paddingTop: Spacing.six,
+  brand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  brandName: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 3,
+  },
+  brandSub: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    letterSpacing: 7,
+  },
+  hint: {
+    position: 'absolute',
+    left: Spacing.four,
+    bottom: Spacing.four,
+    color: Colors.textMuted,
+    fontFamily: Fonts.mono,
+    fontSize: 11,
+  },
+  list: {
+    width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center',
+    padding: Spacing.three,
+    gap: Spacing.three,
   },
   hero: {
     alignItems: 'center',
     gap: Spacing.three,
-    paddingBottom: Spacing.five,
-  },
-  heroWide: {
-    flexDirection: 'row',
-    gap: Spacing.four,
-  },
-  heroText: {
-    alignItems: 'center',
-    gap: Spacing.three,
-  },
-  heroTextWide: {
-    alignItems: 'flex-start',
-    gap: Spacing.two,
+    paddingVertical: Spacing.four,
   },
   wordmark: {
     alignItems: 'center',
     gap: Spacing.one,
-  },
-  wordmarkWide: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: Spacing.three,
   },
   name: {
     color: Colors.text,
@@ -154,40 +250,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 320,
   },
-  taglineWide: {
-    textAlign: 'left',
-    maxWidth: 520,
-  },
   section: {
     color: Colors.textMuted,
     fontFamily: Fonts.mono,
     fontSize: 12,
     letterSpacing: 2,
-    paddingHorizontal: Spacing.two,
-    paddingBottom: Spacing.two,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  cardHit: {
-    flex: 1,
-    padding: Spacing.two,
+  intro: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 15,
+    lineHeight: 22,
   },
   card: {
-    flex: 1,
     padding: Spacing.three,
     gap: Spacing.two,
     borderRadius: Radius.medium,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.surfaceRaised,
   },
   cardHovered: {
     borderColor: Colors.nav,
   },
   cardPressed: {
-    backgroundColor: Colors.surfaceRaised,
+    backgroundColor: Colors.border,
   },
   cardName: {
     color: Colors.text,
@@ -218,7 +305,5 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 12,
     lineHeight: 18,
-    paddingHorizontal: Spacing.two,
-    paddingTop: Spacing.four,
   },
 });
