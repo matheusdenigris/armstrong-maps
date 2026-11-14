@@ -1,6 +1,6 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Platform,
   Pressable,
@@ -12,6 +12,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
 import { HeadingTape, turnTo } from '@/components/heading-tape';
 import { MiniMap } from '@/components/mini-map';
@@ -22,12 +23,22 @@ import { panoramaNear } from '@/data/panoramas';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { SITES, findSite, type Site } from '@/data/sites';
 import { MARS_WIND } from '@/data/sounds';
+import { REMS_CREDIT, REMS_FEED, parseWeather } from '@/data/weather';
 import { elapsedSeconds } from '@/mission/clock';
-import { formatDistance, formatDose, formatDuration, formatShare } from '@/mission/format';
-import { walkProgress } from '@/mission/progress';
+import {
+  formatClock,
+  formatDistance,
+  formatDose,
+  formatDuration,
+  formatShare,
+} from '@/mission/format';
+import { bearing } from '@/mission/geo';
+import { walkProgress, type WalkProgress } from '@/mission/progress';
+import { walkSafety, type SafetyAlert, type SafetyLevel, type WalkSafety } from '@/mission/safety';
 import { WALK_ASSUMPTIONS } from '@/mission/walk';
 import { useMission, useRoute } from '@/state/mission';
 import { AMBIENT_SOUND_AVAILABLE, useAmbientSound } from '@/state/use-ambient-sound';
+import { useFeed } from '@/state/use-feed';
 import { useNow } from '@/state/use-now';
 
 /** One page per site in the static web export. */
@@ -39,15 +50,17 @@ export function generateStaticParams() {
 const LOOK_PER_PIXEL = 0.22;
 const LOOK_PER_KEY = 6;
 /** The head starts tilted a little down, at the ground ahead. */
-const RESTING_PITCH = -6;
+const RESTING_PITCH = -4;
 /** How far up and down the head can tilt, in degrees: the photographs are bands, not spheres. */
 const PITCH_UP = 22;
-const PITCH_DOWN = -32;
+const PITCH_DOWN = -14;
 /** Length of a step, in metres, and how far it lifts the view, in pixels. */
 const STEP = 0.75;
 const SWAY = 5;
 /** The minimap shows about 300 m around the astronaut. */
 const MINIMAP_PIXELS_PER_DEGREE = 26_000;
+/** From this width the instruments sit in one row along the rim of the helmet. */
+const WIDE = 760;
 
 type Look = { yaw: number; pitch: number };
 const AHEAD: Look = { yaw: 0, pitch: RESTING_PITCH };
@@ -56,6 +69,31 @@ const clampPitch = (pitch: number) => Math.min(PITCH_UP, Math.max(PITCH_DOWN, pi
 const bearingText = (degrees: number) =>
   `${String(Math.round(((degrees % 360) + 360) % 360) % 360).padStart(3, '0')}°`;
 const webOnly = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle) : null);
+
+const LEVEL_COLOR: Record<SafetyLevel, string> = {
+  nominal: Colors.go,
+  caution: Colors.caution,
+  warning: Colors.noGo,
+};
+
+/** The sentence for each alert code. The numbers come from the walk assumptions. */
+function alertText(alert: SafetyAlert, safety: WalkSafety): string {
+  const a = WALK_ASSUMPTIONS;
+  switch (alert) {
+    case 'life-support-exhausted':
+      return 'LIFE SUPPORT EXHAUSTED';
+    case 'turn-back-now':
+      return 'TURN BACK NOW · the way home will use the reserve';
+    case 'beyond-walk-back-limit':
+      return `BEYOND THE ${a.walkBackLimitKm} km WALK-BACK LIMIT`;
+    case 'return-margin-low':
+      return `TURN BACK WITHIN ${formatDuration(safety.marginHours).toUpperCase()}`;
+    case 'life-support-reserve':
+      return `INTO THE ${formatShare(a.reserveFraction)} LIFE-SUPPORT RESERVE`;
+    case 'near-walk-back-limit':
+      return `NEAR THE ${a.walkBackLimitKm} km WALK-BACK LIMIT`;
+  }
+}
 
 export default function VisorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -71,11 +109,14 @@ function Visor({ site }: { site: Site }) {
   const now = useNow(clock?.running ?? false, 60);
 
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
-  // The walk decides where the astronaut is and which way they walk; the head is theirs to turn.
+  // The mission decides where the astronaut is and which way they walk; the head is theirs.
   const [look, setLook] = useState<Look>(AHEAD);
+  const [sources, setSources] = useState(false);
   const drag = useRef<{ x: number; y: number; look: Look } | null>(null);
   // Real wind, recorded on Mars. It starts only when the astronaut asks for it.
   const sound = useAmbientSound(MARS_WIND.url);
+  // The only weather station is at Gale; elsewhere there is no reading to put on the display.
+  const weather = useFeed(site.id === 'gale' ? REMS_FEED : null, parseWeather);
 
   // The arrow keys turn the head too, for whoever is not using a pointer.
   useEffect(() => {
@@ -98,34 +139,32 @@ function Visor({ site }: { site: Site }) {
 
   const elapsedHours = clock ? elapsedSeconds(clock, now) / 3600 : 0;
   const progress = walkProgress(site.landing, route, elapsedHours, SURFACE_RADIATION.msvPerDay);
+  const safety = walkSafety(progress);
   const heading = (((progress.heading + look.yaw) % 360) + 360) % 360;
 
   const over = clock !== null && progress.totalHours > 0 && elapsedHours >= progress.totalHours;
   const moving = clock !== null && !over && progress.phase !== 'at-base';
   const offTarget = moving ? turnTo(heading, progress.bearingToTarget) : 0;
   const turned = Math.abs(turnTo(0, look.yaw)) > 2 || Math.abs(look.pitch - RESTING_PITCH) > 2;
-
-  const a = WALK_ASSUMPTIONS;
-  const hoursLeft = Math.max(0, a.lifeSupportHours * (1 - progress.lifeSupportUsed));
-  const supply =
-    progress.lifeSupportUsed > 1
-      ? Colors.noGo
-      : progress.lifeSupportUsed > 1 - a.reserveFraction
-        ? Colors.caution
-        : Colors.go;
+  const homeBearing = bearing(progress.position, site.landing);
+  const etaHours = progress.distanceToTargetM / 1000 / WALK_ASSUMPTIONS.walkingSpeedKmh;
 
   const status =
     clock === null
-      ? 'STANDBY · Waiting for the ship to start the walk'
+      ? 'STANDBY'
       : over
-        ? 'WALK OVER · Back at the base'
+        ? 'MISSION COMPLETE'
         : !clock.running
-          ? 'PAUSED BY THE SHIP'
+          ? 'HOLD · PAUSED BY THE SHIP'
           : progress.phase === 'working'
             ? `WORKING AT WAYPOINT ${(progress.stop ?? 0) + 1}`
             : progress.phase === 'returning'
               ? 'RETURNING TO THE BASE'
               : `WALKING TO WAYPOINT ${(progress.stop ?? 0) + 1}`;
+  const link =
+    clock === null
+      ? 'SHIP LINK · waiting for the ship to start the walk'
+      : `SHIP LINK · ${clock.running ? 'live' : 'on hold'} · ${clock.rate === 1 ? 'real time' : `${clock.rate}x`}`;
 
   // The real photograph taken nearest to where the astronaut is now.
   const { panorama, awayM, borrowed } = panoramaNear(site.id, progress.position);
@@ -137,6 +176,12 @@ function Visor({ site }: { site: Site }) {
   const sway = stepping ? Math.abs(Math.sin((progress.walkedM / STEP) * Math.PI)) * SWAY : 0;
   const layers = [VIKING_GLOBAL, ...site.layers];
   const path = [site.landing, ...route, site.landing];
+  const latest = weather.status === 'ready' ? weather.data[0] : undefined;
+
+  const wide = (size?.width ?? 0) >= WIDE;
+  // The lower rim of the helmet carries the instruments, and keeps the bottom of the photograph,
+  // where the rover that took it shows, out of the astronaut's view.
+  const rim = (wide ? 214 : 318) + insets.bottom;
 
   const onLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -150,6 +195,103 @@ function Visor({ site }: { site: Site }) {
     x: event.nativeEvent.pageX,
     y: event.nativeEvent.pageY,
   });
+
+  const lifeSupport = (
+    <Instrument title="LIFE SUPPORT">
+      <Text style={[styles.big, { color: LEVEL_COLOR[safety.level] }]}>
+        {formatDuration(safety.hoursLeft)}
+      </Text>
+      <View
+        style={styles.meter}
+        accessible
+        accessibilityRole="progressbar"
+        accessibilityLabel={`Life support used: ${formatShare(progress.lifeSupportUsed)}`}>
+        <View
+          style={[
+            styles.meterFill,
+            {
+              width: `${Math.max(0, 1 - Math.min(1, progress.lifeSupportUsed)) * 100}%`,
+              backgroundColor: LEVEL_COLOR[safety.level],
+            },
+          ]}
+        />
+        {/* Below this mark is the reserve. */}
+        <View
+          style={[styles.meterMark, { left: `${WALK_ASSUMPTIONS.reserveFraction * 100}%` }]}
+        />
+      </View>
+      <Reading label="Way back to base" value={formatDuration(safety.returnHours)} />
+      <Reading
+        label="Time to spare"
+        value={safety.marginHours > 0 ? formatDuration(safety.marginHours) : 'None'}
+        color={
+          safety.marginHours <= 0
+            ? Colors.noGo
+            : safety.alerts.includes('return-margin-low')
+              ? Colors.caution
+              : undefined
+        }
+      />
+    </Instrument>
+  );
+
+  const navigation = (
+    <View style={styles.navigation}>
+      {/* Drawn in the browser only: how sharp its tiles are depends on the screen. */}
+      {size ? (
+        <MiniMap
+          layers={layers}
+          centre={progress.position}
+          heading={heading}
+          pixelsPerDegree={MINIMAP_PIXELS_PER_DEGREE}
+          diameter={wide ? 132 : 116}
+          route={path}
+          base={site.landing}
+        />
+      ) : (
+        <View style={styles.mapSpace} />
+      )}
+      <Text style={styles.home}>
+        BASE {formatDistance(progress.distanceToBaseM)} · {bearingText(homeBearing)}
+      </Text>
+    </View>
+  );
+
+  const mission = (
+    <Instrument title="MISSION">
+      <Reading
+        label="Waypoints done"
+        value={route.length === 0 ? 'No route' : `${progress.stopsDone} of ${route.length}`}
+      />
+      <Reading
+        label={progress.phase === 'working' ? 'Work left here' : 'This leg'}
+        value={moving ? formatDuration(progress.phaseHoursLeft) : 'None'}
+      />
+      <Reading label="Mission clock" value={formatClock(progress.elapsedHours)} />
+      <Reading label="Planned" value={formatClock(progress.totalHours)} />
+    </Instrument>
+  );
+
+  const environment = (
+    <Instrument title="ENVIRONMENT">
+      <Reading label="Radiation dose" value={formatDose(progress.doseMsv)} />
+      <Reading label="Dose rate" value={`${SURFACE_RADIATION.msvPerDay} mSv/day`} />
+      <Reading
+        label="Air"
+        value={
+          latest && latest.minAirC !== null && latest.maxAirC !== null
+            ? `${latest.minAirC} to ${latest.maxAirC} °C`
+            : weather.status === 'loading'
+              ? 'Asking'
+              : 'No reading'
+        }
+      />
+      <Reading
+        label="Pressure"
+        value={latest && latest.pressurePa !== null ? `${latest.pressurePa} Pa` : 'No reading'}
+      />
+    </Instrument>
+  );
 
   return (
     <View
@@ -192,16 +334,17 @@ function Visor({ site }: { site: Site }) {
       {/* The glass of the helmet: darker towards the rim. */}
       <View
         style={[
-          styles.glass,
+          styles.fill,
           webOnly({
             backgroundImage:
-              'radial-gradient(ellipse at 50% 46%, rgba(7,9,13,0) 52%, rgba(7,9,13,0.38) 82%, rgba(7,9,13,0.82) 100%)',
+              'radial-gradient(ellipse at 50% 40%, rgba(7,9,13,0) 50%, rgba(7,9,13,0.4) 80%, rgba(7,9,13,0.85) 100%)',
           }),
         ]}
         pointerEvents="none"
       />
+      {size ? <Rim width={size.width} height={size.height} rim={rim} /> : null}
 
-      {/* Top of the display: where I am facing and where the next point is. */}
+      {/* Top of the display: heading, state of the mission, link with the ship. */}
       <View style={[styles.top, { paddingTop: insets.top }]} pointerEvents="box-none">
         {size ? (
           <HeadingTape
@@ -218,143 +361,224 @@ function Visor({ site }: { site: Site }) {
             accessibilityLabel="Go to the ship console of this site">
             {'‹'} Console
           </Link>
-          <Text style={styles.status} numberOfLines={2} accessibilityLiveRegion="polite">
-            {status}
-          </Text>
-          <Text style={styles.heading}>HDG {bearingText(heading)}</Text>
-          {AMBIENT_SOUND_AVAILABLE ? (
-            <Pressable
-              onPress={() => void sound.toggle()}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: sound.playing }}
-              accessibilityLabel="Sound of the wind on Mars, recorded by Perseverance"
-              style={[styles.sound, sound.playing && styles.soundOn]}>
-              <Text style={styles.soundText}>
-                {sound.failed ? 'No sound' : sound.playing ? 'Sound on' : 'Sound off'}
+          {wide ? (
+            <View style={styles.state} pointerEvents="none">
+              <Text style={styles.status} numberOfLines={1} accessibilityLiveRegion="polite">
+                {status}
               </Text>
-            </Pressable>
+              <Text style={styles.link} numberOfLines={1}>
+                {link}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.state} />
+          )}
+          <Text style={styles.heading} pointerEvents="none">
+            HDG {bearingText(heading)}
+          </Text>
+          {AMBIENT_SOUND_AVAILABLE ? (
+            <Toggle
+              label="Sound of the wind on Mars, recorded by Perseverance"
+              text={sound.failed ? 'No sound' : sound.playing ? 'Sound on' : 'Sound off'}
+              on={sound.playing}
+              onPress={() => void sound.toggle()}
+            />
           ) : null}
         </View>
-      </View>
-
-      {/* Middle: the point I am walking to. */}
-      <View style={styles.middle} pointerEvents="none">
-        <View style={styles.reticle} />
-        {moving ? (
-          <View style={styles.next}>
-            <Text style={styles.nextLabel}>
-              {progress.stop === null ? 'BASE' : `WAYPOINT ${progress.stop + 1}`}
+        {/* On a phone the bar has no room for it, so the state of the mission has its own line. */}
+        {wide ? null : (
+          <View style={styles.stateLine} pointerEvents="none">
+            <Text style={styles.status} numberOfLines={1} accessibilityLiveRegion="polite">
+              {status}
             </Text>
-            <Text style={styles.nextValue}>{formatDistance(progress.distanceToTargetM)}</Text>
-            <Text style={styles.nextHint}>
-              {Math.abs(offTarget) < 8
-                ? `Ahead, bearing ${bearingText(progress.bearingToTarget)}`
-                : `${offTarget < 0 ? '◀ Look left' : 'Look right ▶'} ${Math.round(Math.abs(offTarget))}°`}
+            <Text style={styles.link} numberOfLines={1}>
+              {link}
             </Text>
           </View>
+        )}
+
+        {safety.alerts.slice(0, 2).map((alert) => (
+          <View
+            key={alert}
+            style={[styles.alert, { borderColor: LEVEL_COLOR[safety.level] }]}
+            pointerEvents="none"
+            accessibilityRole="alert">
+            <Text style={[styles.alertText, { color: LEVEL_COLOR[safety.level] }]}>
+              {alertText(alert, safety)}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Through the glass: the point to walk to. */}
+      <View style={[styles.through, { bottom: rim }]} pointerEvents="none">
+        <View style={styles.reticle} />
+        {moving ? <Target progress={progress} offTarget={offTarget} etaHours={etaHours} /> : null}
+        {clock === null ? (
+          <Text style={styles.waiting}>
+            {route.length === 0
+              ? 'No walk planned. Draw a route in the ship console.'
+              : 'Route loaded. The ship starts the walk.'}
+          </Text>
         ) : null}
       </View>
 
-      {/* Bottom of the display: what keeps me alive, and the map around me. */}
+      {/* On the rim of the helmet: what keeps the astronaut alive and the mission on course. */}
       <View
-        style={[styles.bottom, { paddingBottom: insets.bottom + Spacing.two }]}
+        style={[styles.cluster, { height: rim - 30, paddingBottom: insets.bottom + Spacing.two }]}
         pointerEvents="box-none">
-        <View style={styles.dash} pointerEvents="box-none">
-          <View style={styles.vitals} pointerEvents="none">
-            <Text style={styles.simulated}>SIMULATED WALK · {site.name.toUpperCase()}</Text>
-            <View style={styles.vital}>
-              <Text style={styles.vitalLabel}>Life support left</Text>
-              <Text style={[styles.vitalValue, { color: supply }]}>
-                {formatDuration(hoursLeft)}
-              </Text>
-            </View>
-            <View
-              style={styles.meter}
-              accessible
-              accessibilityRole="progressbar"
-              accessibilityLabel={`Life support used: ${formatShare(progress.lifeSupportUsed)}`}>
-              <View
-                style={[
-                  styles.meterFill,
-                  {
-                    width: `${Math.max(0, 1 - Math.min(1, progress.lifeSupportUsed)) * 100}%`,
-                    backgroundColor: supply,
-                  },
-                ]}
-              />
-            </View>
-            <View style={styles.vital}>
-              <Text style={styles.vitalLabel}>Time outside</Text>
-              <Text style={styles.vitalValue}>{formatDuration(progress.elapsedHours)}</Text>
-            </View>
-            <View style={styles.vital}>
-              <Text style={styles.vitalLabel}>Walked</Text>
-              <Text style={styles.vitalValue}>{formatDistance(progress.walkedM)}</Text>
-            </View>
-            <View style={styles.vital}>
-              <Text style={styles.vitalLabel}>Radiation dose</Text>
-              <Text style={styles.vitalValue}>{formatDose(progress.doseMsv)}</Text>
-            </View>
-            <View style={styles.vital}>
-              <Text style={styles.vitalLabel}>Base</Text>
-              <Text style={styles.vitalValue}>{formatDistance(progress.distanceToBaseM)}</Text>
-            </View>
+        {wide ? (
+          <View style={styles.row} pointerEvents="none">
+            {lifeSupport}
+            {mission}
+            {navigation}
+            {environment}
           </View>
-
-          <View style={styles.mapColumn} pointerEvents="box-none">
-            {turned ? (
-              <Pressable
-                onPress={() => setLook(AHEAD)}
-                accessibilityRole="button"
-                accessibilityLabel="Look the way I am walking again"
-                style={styles.recentre}>
-                <Text style={styles.recentreText}>Face ahead</Text>
-              </Pressable>
-            ) : (
-              <Text style={styles.tip} pointerEvents="none">
-                DRAG TO LOOK AROUND
-              </Text>
-            )}
-            {/* Drawn in the browser only: how sharp its tiles are depends on the screen. */}
-            {size ? (
-              <MiniMap
-                layers={layers}
-                centre={progress.position}
-                heading={heading}
-                pixelsPerDegree={MINIMAP_PIXELS_PER_DEGREE}
-                diameter={132}
-                route={path}
-                base={site.landing}
-              />
-            ) : (
-              <View style={styles.mapSpace} />
-            )}
-          </View>
+        ) : (
+          <>
+            <View style={styles.row} pointerEvents="none">
+              {lifeSupport}
+              {navigation}
+            </View>
+            <View style={styles.row} pointerEvents="none">
+              {mission}
+              {environment}
+            </View>
+          </>
+        )}
+        <View style={styles.foot} pointerEvents="box-none">
+          <Text style={styles.tag} numberOfLines={1} pointerEvents="none">
+            SIMULATED MISSION · REAL PHOTO AND SOUND OF MARS
+          </Text>
+          {turned ? (
+            <Toggle
+              label="Look the way I am walking again"
+              text="Face ahead"
+              on={false}
+              onPress={() => setLook(AHEAD)}
+            />
+          ) : null}
+          <Toggle
+            label="What on this display is measured, simulated or assumed"
+            text="Sources"
+            on={sources}
+            onPress={() => setSources((open) => !open)}
+          />
         </View>
-
-        <Text style={styles.credit} pointerEvents="none">
-          Real photo: {panorama.caption}. {panorama.credit}, images.nasa.gov/details/
-          {panorama.nasaId}.{' '}
-          {borrowed
-            ? `There is no 360-degree photo from ${site.name} in the catalogue; this one is from Gale Crater. `
-            : awayM === null
-              ? 'Where exactly it was taken is not in the data. '
-              : `Taken ${formatDistance(awayM)} from your simulated position. `}
-          {panorama.north === null
-            ? 'It is not lined up with the compass.'
-            : 'It is lined up with the compass.'}{' '}
-          It is a mosaic: black areas are where the camera took no frame, and the sky above the
-          frames is filled in.{' '}
-          {sound.playing
-            ? `Sound: real wind recorded by the SuperCam microphone of Perseverance at Jezero Crater on ${MARS_WIND.when}, on a loop${
-                site.id === MARS_WIND.site ? '' : '; it was not recorded at this site'
-              }. ${MARS_WIND.credit}. `
-            : ''}
-          Dose at {SURFACE_RADIATION.msvPerDay} mSv a day (
-          {SURFACE_RADIATION.source}).
-        </Text>
       </View>
+
+      {sources ? (
+        <View style={[styles.sources, { bottom: rim + Spacing.two }]} pointerEvents="none">
+          <Text style={styles.sourcesText}>
+            The position, the clock, life support and the dose are simulated from the plan. The
+            limits are project assumptions, not NASA rules: {WALK_ASSUMPTIONS.lifeSupportHours} h of
+            life support with a {formatShare(WALK_ASSUMPTIONS.reserveFraction)} reserve,{' '}
+            {WALK_ASSUMPTIONS.walkingSpeedKmh} km/h on foot, a {WALK_ASSUMPTIONS.walkBackLimitKm} km
+            walk-back limit.
+          </Text>
+          <Text style={styles.sourcesText}>
+            Photo: {panorama.caption}. {panorama.credit}, images.nasa.gov/details/
+            {panorama.nasaId}. A real 360-degree mosaic taken by the rover;{' '}
+            {borrowed
+              ? `there is none from ${site.name}, so this one is from Gale Crater. `
+              : awayM === null
+                ? 'where exactly is not in the data. '
+                : `taken ${formatDistance(awayM)} from the simulated position. `}
+            {panorama.north === null
+              ? 'It is not lined up with the compass.'
+              : 'It is lined up with the compass.'}{' '}
+            Black areas are where the camera took no frame; the sky above the frames is filled in.
+          </Text>
+          <Text style={styles.sourcesText}>
+            Sound: real wind recorded by the SuperCam microphone of Perseverance at Jezero Crater on{' '}
+            {MARS_WIND.when}, on a loop and played louder than published
+            {site.id === MARS_WIND.site ? '' : '; it was not recorded at this site'}.{' '}
+            {MARS_WIND.credit}.
+          </Text>
+          <Text style={styles.sourcesText}>
+            Dose rate: {SURFACE_RADIATION.source}, a published average.{' '}
+            {site.id === 'gale'
+              ? latest
+                ? `Weather: ${REMS_CREDIT}, sol ${latest.sol} (${latest.earthDate}).`
+                : 'Weather: the station feed has not answered.'
+              : 'Weather: the only station is at Gale Crater, so none is shown here.'}
+          </Text>
+        </View>
+      ) : null}
     </View>
+  );
+}
+
+/** The lower rim of the helmet, with an edge that catches the light. */
+function Rim({ width, height, rim }: { width: number; height: number; rim: number }) {
+  const top = height - rim;
+  const rise = 30;
+  const edge = `M0 ${top + rise}Q${width / 2} ${top - rise} ${width} ${top + rise}`;
+  return (
+    <Svg width={width} height={height} style={styles.overlay} pointerEvents="none">
+      <Path d={`${edge}L${width} ${height}L0 ${height}Z`} fill={Colors.background} opacity={0.96} />
+      <Path d={edge} fill="none" stroke={DISPLAY} strokeWidth={1.5} opacity={0.5} />
+    </Svg>
+  );
+}
+
+function Instrument({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={styles.instrument}>
+      <Text style={styles.instrumentTitle} accessibilityRole="header">
+        {title}
+      </Text>
+      {children}
+    </View>
+  );
+}
+
+function Reading({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <View style={styles.reading}>
+      <Text style={styles.readingLabel} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text style={[styles.readingValue, color ? { color } : null]} numberOfLines={1}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+type TargetProps = { progress: WalkProgress; offTarget: number; etaHours: number };
+
+/** The next point to reach: how far, which way, and when. */
+function Target({ progress, offTarget, etaHours }: TargetProps) {
+  return (
+    <View style={styles.target}>
+      <Text style={styles.targetLabel}>
+        {progress.stop === null ? 'BASE' : `WAYPOINT ${progress.stop + 1}`}
+      </Text>
+      <Text style={styles.targetValue}>{formatDistance(progress.distanceToTargetM)}</Text>
+      <Text style={styles.targetHint}>
+        {progress.phase === 'working'
+          ? `Next after the work here · ${bearingText(progress.bearingToTarget)}`
+          : Math.abs(offTarget) < 8
+            ? `Ahead · ${bearingText(progress.bearingToTarget)} · ${formatDuration(etaHours)}`
+            : `${offTarget < 0 ? '◀ Look left' : 'Look right ▶'} ${Math.round(Math.abs(offTarget))}°`}
+      </Text>
+    </View>
+  );
+}
+
+type ToggleProps = { label: string; text: string; on: boolean; onPress: () => void };
+
+function Toggle({ label, text, on, onPress }: ToggleProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      accessibilityLabel={label}
+      style={[styles.toggle, on && styles.toggleOn]}>
+      <Text style={styles.toggleText}>{text}</Text>
+    </Pressable>
   );
 }
 
@@ -372,9 +596,9 @@ function UnknownSite() {
   );
 }
 
-/** Behind every block of text on the display, so it reads over bright ground and sky. */
-const PLATE = 'rgba(7, 9, 13, 0.62)';
-/** The colour of the display: the green of a go, like the numbers it shows when all is well. */
+/** Behind text that sits on the photograph, so it reads over bright ground and sky. */
+const PLATE = 'rgba(7, 9, 13, 0.66)';
+/** The colour of the display. */
 const DISPLAY = '#B8FFE0';
 const glow = webOnly({ textShadow: '0 0 8px rgba(61, 214, 140, 0.55)' });
 
@@ -389,20 +613,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.three,
   },
-  glass: {
+  fill: {
     position: 'absolute',
     top: 0,
     right: 0,
     bottom: 0,
     left: 0,
   },
+  overlay: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+  },
   top: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   bar: {
+    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.three,
@@ -418,32 +650,30 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two + Spacing.one,
     minHeight: 44,
   },
-  status: {
+  state: {
     flex: 1,
+    gap: Spacing.half,
+  },
+  stateLine: {
+    alignSelf: 'stretch',
+    gap: Spacing.half,
+    marginTop: -Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingBottom: Spacing.two,
+    backgroundColor: PLATE,
+  },
+  status: {
     color: DISPLAY,
     fontFamily: Fonts.mono,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     letterSpacing: 1,
     ...glow,
   },
-  sound: {
-    minHeight: 44,
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.three,
-    borderRadius: Radius.small,
-    borderWidth: 1,
-    borderColor: 'rgba(184, 255, 224, 0.45)',
-  },
-  soundOn: {
-    borderColor: DISPLAY,
-    backgroundColor: 'rgba(61, 214, 140, 0.18)',
-  },
-  soundText: {
-    color: DISPLAY,
+  link: {
+    color: Colors.textMuted,
     fontFamily: Fonts.mono,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 10,
     letterSpacing: 1,
   },
   heading: {
@@ -453,15 +683,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     ...glow,
   },
-  middle: {
+  alert: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.small,
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(7, 9, 13, 0.85)',
+    maxWidth: '92%',
+  },
+  alertText: {
+    fontFamily: Fonts.mono,
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  through: {
     position: 'absolute',
     top: 0,
-    right: 0,
-    bottom: 0,
     left: 0,
+    right: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.four,
+    gap: Spacing.three,
   },
   reticle: {
     width: 22,
@@ -470,7 +714,18 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: DISPLAY,
   },
-  next: {
+  waiting: {
+    color: DISPLAY,
+    fontFamily: Fonts.mono,
+    fontSize: 13,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.small,
+    backgroundColor: PLATE,
+    textAlign: 'center',
+    overflow: 'hidden',
+  },
+  target: {
     alignItems: 'center',
     gap: Spacing.half,
     paddingHorizontal: Spacing.three,
@@ -480,70 +735,54 @@ const styles = StyleSheet.create({
     borderColor: Colors.nav,
     backgroundColor: PLATE,
   },
-  nextLabel: {
+  targetLabel: {
     color: Colors.nav,
     fontFamily: Fonts.mono,
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1.5,
   },
-  nextValue: {
+  targetValue: {
     color: DISPLAY,
     fontFamily: Fonts.mono,
     fontSize: 28,
     fontWeight: '700',
     ...glow,
   },
-  nextHint: {
+  targetHint: {
     color: Colors.text,
     fontFamily: Fonts.sans,
     fontSize: 14,
   },
-  bottom: {
+  cluster: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
+    justifyContent: 'flex-end',
     gap: Spacing.two,
     paddingHorizontal: Spacing.three,
   },
-  dash: {
+  row: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     gap: Spacing.three,
   },
-  vitals: {
+  instrument: {
     flex: 1,
-    maxWidth: 300,
-    gap: Spacing.one + Spacing.half,
-    padding: Spacing.two + Spacing.one,
-    borderRadius: Radius.medium,
-    borderWidth: 1,
-    borderColor: 'rgba(184, 255, 224, 0.35)',
-    backgroundColor: PLATE,
+    maxWidth: 280,
+    gap: Spacing.one,
   },
-  simulated: {
+  instrumentTitle: {
     color: Colors.textMuted,
     fontFamily: Fonts.mono,
     fontSize: 10,
     letterSpacing: 1.5,
   },
-  vital: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: Spacing.two,
-  },
-  vitalLabel: {
-    color: Colors.text,
-    fontFamily: Fonts.sans,
-    fontSize: 13,
-  },
-  vitalValue: {
-    color: DISPLAY,
+  big: {
     fontFamily: Fonts.mono,
-    fontSize: 16,
+    fontSize: 24,
     fontWeight: '700',
     ...glow,
   },
@@ -556,47 +795,93 @@ const styles = StyleSheet.create({
   meterFill: {
     height: '100%',
   },
-  mapSpace: {
-    width: 132,
-    height: 132,
+  meterMark: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 2,
+    backgroundColor: Colors.text,
   },
-  mapColumn: {
-    alignItems: 'flex-end',
+  reading: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
     gap: Spacing.two,
   },
-  tip: {
+  readingLabel: {
+    flexShrink: 1,
+    color: Colors.textMuted,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+  },
+  readingValue: {
     color: DISPLAY,
     fontFamily: Fonts.mono,
-    fontSize: 10,
-    letterSpacing: 1.5,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderRadius: Radius.small,
-    backgroundColor: PLATE,
-    overflow: 'hidden',
+    fontSize: 13,
+    fontWeight: '700',
   },
-  recentre: {
-    minHeight: 44,
+  navigation: {
+    alignItems: 'center',
+    gap: Spacing.one,
+  },
+  mapSpace: {
+    width: 116,
+    height: 116,
+  },
+  home: {
+    color: DISPLAY,
+    fontFamily: Fonts.mono,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  foot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: Spacing.two,
+  },
+  tag: {
+    flex: 1,
+    color: Colors.textMuted,
+    fontFamily: Fonts.mono,
+    fontSize: 9,
+    letterSpacing: 1,
+  },
+  toggle: {
+    minHeight: 36,
     justifyContent: 'center',
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.two + Spacing.one,
     borderRadius: Radius.small,
     borderWidth: 1,
+    borderColor: 'rgba(184, 255, 224, 0.45)',
+    backgroundColor: 'rgba(7, 9, 13, 0.5)',
+  },
+  toggleOn: {
     borderColor: DISPLAY,
-    backgroundColor: PLATE,
+    backgroundColor: 'rgba(61, 214, 140, 0.2)',
   },
-  recentreText: {
+  toggleText: {
     color: DISPLAY,
-    fontFamily: Fonts.sans,
-    fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.mono,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
-  credit: {
+  sources: {
+    position: 'absolute',
+    left: Spacing.three,
+    right: Spacing.three,
+    gap: Spacing.two,
+    padding: Spacing.three,
+    borderRadius: Radius.medium,
+    borderWidth: 1,
+    borderColor: 'rgba(184, 255, 224, 0.35)',
+    backgroundColor: 'rgba(7, 9, 13, 0.92)',
+  },
+  sourcesText: {
     color: Colors.text,
     fontFamily: Fonts.sans,
-    fontSize: 10,
-    lineHeight: 14,
-    padding: Spacing.two,
-    borderRadius: Radius.small,
-    backgroundColor: PLATE,
+    fontSize: 12,
+    lineHeight: 17,
   },
 });
