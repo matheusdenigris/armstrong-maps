@@ -43,13 +43,15 @@ const Cylinder = memo(function Cylinder({ panorama, radius, wideScreen, fading }
   const top = (panorama.band.top - panorama.horizon) * pictureHeight;
   const bandHeight = (panorama.band.bottom - panorama.band.top) * pictureHeight;
   const url = panoramaUrl(panorama, wideScreen);
+  // The fade is on each flat piece. On the element that holds the 3D strips it would flatten
+  // them, and strips behind the viewer would smear across the view.
+  const fade = fading ? `armstrong-fade ${FADE_MS}ms ease-out both` : undefined;
 
   return (
     <div
       style={{
         position: 'absolute',
         transformStyle: 'preserve-3d',
-        animation: fading ? `armstrong-fade ${FADE_MS}ms ease-out both` : undefined,
       }}>
       {Array.from({ length: STRIPS }, (_, index) => (
         <div
@@ -74,6 +76,7 @@ const Cylinder = memo(function Cylinder({ panorama, radius, wideScreen, fading }
               top: top - FILL,
               height: FILL + 1,
               background: panorama.sky,
+              animation: fade,
             }}
           />
           <div
@@ -87,6 +90,7 @@ const Cylinder = memo(function Cylinder({ panorama, radius, wideScreen, fading }
               backgroundRepeat: 'no-repeat',
               backgroundSize: `${pictureWidth}px ${pictureHeight}px`,
               backgroundPosition: `${-index * stripWidth}px ${-panorama.band.top * pictureHeight}px`,
+              animation: fade,
             }}
           />
           <div
@@ -97,6 +101,7 @@ const Cylinder = memo(function Cylinder({ panorama, radius, wideScreen, fading }
               top: top + bandHeight - 1,
               height: FILL,
               background: BELOW,
+              animation: fade,
             }}
           />
         </div>

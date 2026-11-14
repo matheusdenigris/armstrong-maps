@@ -48,7 +48,8 @@ The app has three views:
   look all the way round. Over it, the display of the visor shows the heading, the bearing and
   distance of the next waypoint, life support, dose, and a round map turned so that ahead is up.
   As the astronaut moves, the visor switches to the photograph taken nearest to them. Pause the
-  walk in one tab and the other stops.
+  walk in one tab and the other stops. The **Sound** button plays real wind recorded on Mars by
+  the microphone of Perseverance.
 - **Space weather**: NASA DONKI's WSA-Enlil forecast of coronal mass ejections reaching Mars, and
   the solar particle events of the last 30 days. A CME forecast to hit Mars squarely around the walk adds a caution to
   the verdict.
@@ -108,6 +109,7 @@ label.
 | Space weather | [DONKI](https://ccmc.gsfc.nasa.gov/tools/DONKI/) (NASA CCMC, Goddard) through api.nasa.gov: WSA-Enlil CME arrivals at Mars (a model forecast) and SEP events (seen near the Earth) | Yes |
 | Rover pictures | Raw-image feed of Curiosity and Perseverance (NASA/JPL-Caltech, mars.nasa.gov) | Yes |
 | Archive pictures | [NASA Image and Video Library](https://images.nasa.gov) (images-api.nasa.gov) | Yes |
+| Sound | [Wind recorded by the SuperCam microphone of Perseverance](https://science.nasa.gov/resource/perseverance-rovers-supercam-records-wind-on-mars/), Jezero, sol 4 (22 February 2021). NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero | Yes |
 | Visor photographs | Seven 360-degree panoramas from the NASA Image and Video Library: Curiosity (PIA16101, PIA20840, PIA22545, PIA26019), Perseverance (PIA24264, PIA26369) and Spirit (PIA16440). Listed in `src/data/panoramas.ts` | Yes |
 
 The full list, with each endpoint, is in the app at `/docs` and in `src/data/sources.ts`.

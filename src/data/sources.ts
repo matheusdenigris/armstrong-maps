@@ -10,6 +10,7 @@ import { IMAGE_LIBRARY_API } from './image-library';
 import { SURFACE_RADIATION } from './radiation';
 import { PANORAMAS } from './panoramas';
 import { RAW_IMAGE_FEEDS } from './rover-images';
+import { MARS_WIND } from './sounds';
 import { ROVERS } from './rover';
 import { DONKI_BASE } from './space-weather';
 import { REMS_FEED } from './weather';
@@ -156,6 +157,19 @@ export const SOURCES: readonly DataSource[] = [
     key: 'None',
     notes: 'Each was taken from one fixed spot, so the view does not move forward between two photographs. Listed in src/data/panoramas.ts.',
     reference: 'https://images.nasa.gov',
+  },
+  {
+    id: 'mars-wind-sound',
+    name: 'Wind recorded on Mars',
+    publisher: MARS_WIND.credit,
+    nasa: true,
+    kind: 'catalogue',
+    gives: `${MARS_WIND.title}, ${MARS_WIND.when}, ${MARS_WIND.seconds} s.`,
+    usedIn: 'The Sound button of the astronaut visor, at every site.',
+    endpoint: MARS_WIND.url,
+    key: 'None',
+    notes: 'The NASA file, unchanged, served from the app itself. Recorded at Jezero; played everywhere.',
+    reference: MARS_WIND.source,
   },
   {
     id: 'rems-weather',

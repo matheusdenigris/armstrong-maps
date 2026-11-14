@@ -62,6 +62,16 @@ The radiation figure is a published average over about 300 sols at Gale crater, 
 reading: RAD has no public feed. The app uses it at every site, and a solar particle event would
 raise it for hours or days.
 
+## Sound
+
+The visor can play wind recorded on Mars: the SuperCam microphone of Perseverance, at Jezero
+crater, on sol 4 (22 February 2021). The file in `public/audio` is the MP3 that NASA publishes,
+unchanged, played on a loop at the volume it was published with. It was recorded at Jezero; at
+the other sites the visor plays the same recording and says it was not recorded there.
+
+Source: [Perseverance Rover's SuperCam Records Wind on Mars](https://science.nasa.gov/resource/perseverance-rovers-supercam-records-wind-on-mars/),
+NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero.
+
 ## Simulated
 
 - The walk: the astronaut's position, heading, time outside, life support and dose all follow the
