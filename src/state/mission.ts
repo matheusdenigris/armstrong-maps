@@ -110,7 +110,7 @@ export const useMission = create<MissionState>()(
         }),
       setOverlayOpacity: (layerId, opacity) =>
         set((state) => ({
-          overlays: { ...state.overlays, [layerId]: Math.min(1, Math.max(0.05, opacity)) },
+          overlays: { ...state.overlays, [layerId]: Math.min(1, Math.max(0, opacity)) },
         })),
     }),
     {

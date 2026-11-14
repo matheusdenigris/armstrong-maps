@@ -1,3 +1,4 @@
+import Slider from '@react-native-community/slider';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
@@ -21,9 +22,7 @@ const KINDS: { kind: LayerKind; title: string; color: string }[] = [
   { kind: 'spectral', title: 'SPECTRAL', color: Colors.spectral },
 ];
 
-const OPACITIES = [0.25, 0.5, 0.75, 1];
-
-/** The layers of the map by kind of data, with a switch and an opacity for each overlay. */
+/** The layers of the map by kind of data, with a switch and adjustable opacity for each overlay. */
 export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: LayerPanelProps) {
   return (
     <View style={styles.panel}>
@@ -71,24 +70,29 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
                   </Pressable>
                   <Text style={styles.reads}>{layer.reads}</Text>
                   {on ? (
-                    <View style={styles.opacity} accessibilityRole="radiogroup">
-                      <Text style={styles.opacityLabel}>Opacity</Text>
-                      {OPACITIES.map((value) => {
-                        const chosen = Math.abs(opacity - value) < 0.01;
-                        return (
-                          <Pressable
-                            key={value}
-                            onPress={() => onOpacity(layer.id, value)}
-                            accessibilityRole="radio"
-                            accessibilityState={{ checked: chosen }}
-                            accessibilityLabel={`${layer.name} opacity ${formatShare(value)}`}
-                            style={[styles.step, chosen && styles.stepChosen]}>
-                            <Text style={[styles.stepText, chosen && styles.stepTextChosen]}>
-                              {formatShare(value)}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
+                    <View style={styles.opacity}>
+                      <View style={styles.opacityHeading}>
+                        <Text style={styles.opacityLabel}>Opacity</Text>
+                        <Text style={styles.opacityValue}>{formatShare(opacity)}</Text>
+                      </View>
+                      <Slider
+                        accessibilityLabel={`${layer.name} opacity`}
+                        accessibilityValue={{
+                          min: 0,
+                          max: 100,
+                          now: Math.round(opacity * 100),
+                          text: formatShare(opacity),
+                        }}
+                        minimumValue={0}
+                        maximumValue={1}
+                        step={0.01}
+                        value={opacity}
+                        onValueChange={(value) => onOpacity(layer.id, value)}
+                        minimumTrackTintColor={color}
+                        maximumTrackTintColor={Colors.glassBorder}
+                        thumbTintColor={Colors.text}
+                        style={styles.slider}
+                      />
                     </View>
                   ) : null}
                 </View>
@@ -227,36 +231,27 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   opacity: {
+    gap: Spacing.half,
+    paddingTop: Spacing.one,
+  },
+  opacityHeading: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: Spacing.one,
-    paddingTop: Spacing.one,
+    justifyContent: 'space-between',
   },
   opacityLabel: {
     color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 12,
-    paddingRight: Spacing.two,
   },
-  step: {
-    minWidth: 52,
-    minHeight: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Radius.pill,
-    backgroundColor: Colors.glassLight,
-  },
-  stepChosen: {
-    backgroundColor: Colors.text,
-  },
-  stepText: {
-    color: Colors.textSoft,
+  opacityValue: {
+    color: Colors.text,
     fontFamily: Fonts.mono,
     fontSize: 12,
   },
-  stepTextChosen: {
-    color: Colors.background,
+  slider: {
+    height: 36,
+    marginHorizontal: -Spacing.one,
   },
   credit: {
     color: Colors.textFaint,
