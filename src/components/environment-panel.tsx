@@ -152,10 +152,10 @@ const hours = (value: number) =>
 function SpaceWeatherCard({ arrivals, sep, now }: EnvironmentPanelProps['space']) {
   const forecast = arrivals.status === 'ready' ? marsSpaceWeather(arrivals.data, now) : null;
   const alert = forecast !== null && forecast.level !== 'quiet';
-  const kind = forecast?.arrival
-    ? [forecast.arrival.glancing ? 'glancing blow' : null, forecast.arrival.minor ? 'minor impact' : null]
-        .filter(Boolean)
-        .join(', ')
+  const weakKind = forecast?.weak
+    ? forecast.weak.arrival.glancing
+      ? 'glancing blow'
+      : 'minor impact'
     : '';
 
   return (
@@ -172,23 +172,29 @@ function SpaceWeatherCard({ arrivals, sep, now }: EnvironmentPanelProps['space']
       {forecast ? (
         <>
           <Text style={[styles.cardTitle, alert && styles.alertText]}>
-            {forecast.level === 'arriving' && forecast.hours !== null
-              ? `CME forecast at Mars in ${hours(forecast.hours)}`
-              : forecast.level === 'passing' && forecast.hours !== null
-                ? `A CME reached Mars ${hours(forecast.hours)} ago`
-                : `No CME forecast at Mars in the next ${CME_WINDOW.aheadHours} h`}
+            {forecast.level === 'arriving' && forecast.next
+              ? `CME forecast to hit Mars in ${hours(forecast.next.hours)}`
+              : forecast.level === 'passing' && forecast.next
+                ? `A CME hit Mars ${hours(forecast.next.hours)} ago`
+                : `No CME forecast to hit Mars in the next ${CME_WINDOW.aheadHours} h`}
           </Text>
-          {forecast.arrival ? (
+          {forecast.next ? (
             <Text style={styles.mono}>
               {forecast.level === 'quiet' ? 'Next forecast: ' : ''}
-              {utc(forecast.arrival.arrivalTime)}
-              {kind ? ` · ${kind}` : ''}
+              {utc(forecast.next.arrival.arrivalTime)}
+            </Text>
+          ) : null}
+          {forecast.weak ? (
+            <Text style={styles.note}>
+              Also forecast: a {weakKind} at Mars,{' '}
+              {forecast.weak.hours >= 0 ? `in ${hours(forecast.weak.hours)}` : `${hours(forecast.weak.hours)} ago`}{' '}
+              ({utc(forecast.weak.arrival.arrivalTime)}). The model rates it too weak to change the verdict.
             </Text>
           ) : null}
           <Text style={styles.note}>
             {alert
               ? 'The walk verdict adds a caution: solar particles could raise the dose above the average.'
-              : `${arrivals.status === 'ready' ? arrivals.data.length : 0} forecast arrivals at Mars in the model runs of the last ${DONKI_WINDOW_DAYS} days.`}
+              : `Only a CME the model expects to hit Mars squarely changes the verdict. ${arrivals.status === 'ready' ? arrivals.data.length : 0} arrivals at Mars in the model runs of the last ${DONKI_WINDOW_DAYS} days.`}
           </Text>
         </>
       ) : null}

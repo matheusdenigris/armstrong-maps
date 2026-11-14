@@ -47,7 +47,7 @@ The app has three views:
   photograph of the site, a heading tape with the bearing of the next waypoint, life support,
   dose, and a round map turned so that ahead is up. Pause the walk in one tab and the other stops.
 - **Space weather**: NASA DONKI's WSA-Enlil forecast of coronal mass ejections reaching Mars, and
-  the solar particle events of the last 30 days. A CME at Mars around the walk adds a caution to
+  the solar particle events of the last 30 days. A CME forecast to hit Mars squarely around the walk adds a caution to
   the verdict.
 - **Photos**: the newest raw frames from Curiosity and Perseverance, and archive pictures of every
   site from the NASA Image and Video Library, each linked to its NASA page.

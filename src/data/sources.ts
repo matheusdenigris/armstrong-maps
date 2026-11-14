@@ -94,11 +94,11 @@ export const SOURCES: readonly DataSource[] = [
     kind: 'live',
     gives:
       'When a coronal mass ejection is forecast to reach Mars. This is a model forecast, not a measurement on Mars.',
-    usedIn: 'The space weather card in the Site tab, and a caution in the walk verdict.',
+    usedIn: 'The space weather card in the Site tab, and a caution in the walk verdict when the model expects a direct hit.',
     endpoint: `${DONKI_BASE}/WSAEnlilSimulations?startDate={YYYY-MM-DD}&endDate={YYYY-MM-DD}&api_key={key}`,
     key: 'api.nasa.gov key, or the shared DEMO_KEY',
     notes:
-      'The app asks for the last 30 days. Only impacts with location "Mars" are read, and only the latest model run for each CME.',
+      'The app asks for the last 30 days and keeps the answer on the device for 3 hours. Only impacts with location "Mars" are read, and only the latest model run for each CME.',
     reference: 'https://ccmc.gsfc.nasa.gov/tools/DONKI/',
   },
   {
@@ -123,7 +123,7 @@ export const SOURCES: readonly DataSource[] = [
     gives: 'The newest pictures from the navigation, mast and hazard cameras of Curiosity and Perseverance.',
     usedIn: 'The Photos tab at Gale and Jezero.',
     endpoint:
-      'https://mars.nasa.gov/rss/api/?feed=raw_images&category={msl|mars2020}&feedtype=json&num=40&page=0&order=sol+desc&search={|CAMERA|CAMERA}',
+      'https://mars.nasa.gov/rss/api/?feed=raw_images&category={msl|mars2020}&feedtype=json&num=24&page=0&order=sol+desc&search={|CAMERA|CAMERA}',
     key: 'None',
     notes: `Raw, unprocessed frames, often within a day of the downlink. Galleries: ${RAW_IMAGE_FEEDS.curiosity.gallery} and ${RAW_IMAGE_FEEDS.perseverance.gallery}. The old api.nasa.gov Mars Rover Photos service no longer answers.`,
     reference: RAW_IMAGE_FEEDS.perseverance.gallery,

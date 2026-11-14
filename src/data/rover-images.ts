@@ -32,7 +32,7 @@ export const CAMERA_NAMES: Record<string, string> = {
 };
 
 /** The newest `count` images from the chosen cameras of a rover. */
-export function rawImagesUrl(rover: Rover, count = 40): string {
+export function rawImagesUrl(rover: Rover, count = 24): string {
   const feed = RAW_IMAGE_FEEDS[rover];
   const search = encodeURIComponent(`|${feed.cameras.join('|')}`);
   return (
@@ -49,7 +49,10 @@ export type RoverImage = {
   takenUtc: string;
   /** Camera code, see CAMERA_NAMES. */
   camera: string;
-  /** About 800 pixels wide. */
+  /**
+   * About 320 pixels wide: enough for the photo grid on a phone at 2x, and about a sixth of the
+   * weight of the 800-pixel version. The full frame is on the linked page.
+   */
   image: string;
   /** The image's page in NASA's raw-image gallery, when the feed gives one. */
   link: string | null;
@@ -76,7 +79,7 @@ export function parseRawImages(raw: unknown, limit = 6, perCamera = 2): RoverIma
   for (const item of images as Entry[]) {
     if (!item || String(item.sample_type ?? '').toLowerCase() !== 'full') continue;
     const files = (item.image_files ?? {}) as Entry;
-    const image = https(text(files.medium) ?? text(files.large) ?? text(files.small));
+    const image = https(text(files.small) ?? text(files.medium) ?? text(files.large));
     const sol = Number(item.sol);
     if (!image || !Number.isFinite(sol)) continue;
     frames.push({

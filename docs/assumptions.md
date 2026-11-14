@@ -32,7 +32,9 @@ every number follows.
 | The walk uses part of the reserve | Caution |
 | A waypoint is beyond the walk-back limit | No-go |
 | A waypoint is past the warning threshold of the walk-back limit | Caution |
-| NASA DONKI's WSA-Enlil model forecasts a CME at Mars inside the window above | Caution |
+| NASA DONKI's WSA-Enlil model forecasts a CME hitting Mars inside the window above, not rated minor or glancing | Caution |
+
+Most forecast arrivals at Mars are rated minor or a glancing blow (all ten in the 30 days to 2026-11-14). Counting them would have kept walks on caution 61% of the time, so they are shown in the Site tab but do not change the verdict.
 
 Daylight and weather do not change the verdict yet. The dose stays the published average; a CME
 only adds a caution, because DONKI forecasts its arrival, not the dose it brings. When DONKI does

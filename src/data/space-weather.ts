@@ -134,33 +134,50 @@ export function parseSepEvents(raw: unknown): SepEvent[] {
 }
 
 /**
+ * True when the model expects the CME itself to hit Mars. Most forecast arrivals are rated minor
+ * or only a glancing blow by the flank: in the 30 days to 2026-11-14 all ten were, and counting
+ * them would have kept walks on caution 61% of the time. Those are shown, but they do not change
+ * the verdict.
+ */
+export const isSignificant = (arrival: MarsArrival) => !arrival.minor && !arrival.glancing;
+
+/** An arrival and how far it is from now, in hours (negative once it has passed). */
+export type ArrivalAt = { arrival: MarsArrival; hours: number };
+
+/**
  * What the forecast means for a walk now.
  *
- * - `arriving`: a CME is forecast to reach Mars within `CME_WINDOW.aheadHours`.
+ * - `arriving`: a significant CME is forecast to reach Mars within `CME_WINDOW.aheadHours`.
  * - `passing`: one reached Mars less than `CME_WINDOW.behindHours` ago.
- * - `quiet`: no arrival in that window. `arrival` is the next one after it, if any.
+ * - `quiet`: no significant arrival in that window.
+ *
+ * `next` is the significant arrival the level is about (or the next one after the window), and
+ * `weak` the nearest minor or glancing arrival inside the window, shown for information only.
  */
 export type MarsSpaceWeather = {
   level: 'arriving' | 'passing' | 'quiet';
-  arrival: MarsArrival | null;
-  /** Hours from now to `arrival`: negative once it has passed. */
-  hours: number | null;
+  next: ArrivalAt | null;
+  weak: ArrivalAt | null;
 };
 
 export function marsSpaceWeather(arrivals: readonly MarsArrival[], now: Date): MarsSpaceWeather {
   const t = now.getTime();
-  const hoursTo = (arrival: MarsArrival) => (Date.parse(arrival.arrivalTime) - t) / 3_600_000;
+  const timed = arrivals.map((arrival) => ({
+    arrival,
+    hours: (Date.parse(arrival.arrivalTime) - t) / 3_600_000,
+  }));
+  const ahead = (item: ArrivalAt) => item.hours >= 0 && item.hours <= CME_WINDOW.aheadHours;
+  const behind = (item: ArrivalAt) => item.hours < 0 && item.hours >= -CME_WINDOW.behindHours;
+  const nearest = (items: ArrivalAt[]) =>
+    items.sort((a, b) => Math.abs(a.hours) - Math.abs(b.hours))[0] ?? null;
 
-  const arriving = arrivals
-    .filter((arrival) => hoursTo(arrival) >= 0 && hoursTo(arrival) <= CME_WINDOW.aheadHours)
-    .sort((a, b) => hoursTo(a) - hoursTo(b))[0];
-  if (arriving) return { level: 'arriving', arrival: arriving, hours: hoursTo(arriving) };
+  const strong = timed.filter((item) => isSignificant(item.arrival));
+  const weak = nearest(timed.filter((item) => !isSignificant(item.arrival) && (ahead(item) || behind(item))));
 
-  const passing = arrivals
-    .filter((arrival) => hoursTo(arrival) < 0 && hoursTo(arrival) >= -CME_WINDOW.behindHours)
-    .sort((a, b) => hoursTo(b) - hoursTo(a))[0];
-  if (passing) return { level: 'passing', arrival: passing, hours: hoursTo(passing) };
-
-  const next = arrivals.find((arrival) => hoursTo(arrival) > CME_WINDOW.aheadHours) ?? null;
-  return { level: 'quiet', arrival: next, hours: next ? hoursTo(next) : null };
+  const arriving = nearest(strong.filter(ahead));
+  if (arriving) return { level: 'arriving', next: arriving, weak };
+  const passing = nearest(strong.filter(behind));
+  if (passing) return { level: 'passing', next: passing, weak };
+  const later = strong.filter((item) => item.hours > CME_WINDOW.aheadHours).sort((a, b) => a.hours - b.hours)[0] ?? null;
+  return { level: 'quiet', next: later, weak };
 }

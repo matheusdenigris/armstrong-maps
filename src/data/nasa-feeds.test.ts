@@ -13,11 +13,16 @@ import {
 } from './space-weather';
 
 /** A WSA-Enlil run shaped like the ones DONKI returns. */
-const run = (modelTime: string, cmeId: string, impacts: { location: string; arrivalTime: string }[]) => ({
+type Impact = { location: string; arrivalTime: string; minor?: boolean; glancing?: boolean };
+const run = (modelTime: string, cmeId: string, impacts: Impact[]) => ({
   simulationID: `WSA-ENLIL/${modelTime}`,
   modelCompletionTime: modelTime,
   cmeInputs: [{ CMEID: cmeId, speed: 600 }],
-  impactList: impacts.map((impact) => ({ ...impact, isGlancingBlow: false, isMinorImpact: true })),
+  impactList: impacts.map(({ minor = true, glancing = false, ...impact }) => ({
+    ...impact,
+    isGlancingBlow: glancing,
+    isMinorImpact: minor,
+  })),
   link: 'https://ccmc.gsfc.nasa.gov/DONKI/view/WSA-ENLIL/1/-1',
 });
 
@@ -73,29 +78,45 @@ describe('parseMarsArrivals', () => {
 });
 
 describe('marsSpaceWeather', () => {
-  const arrivals = parseMarsArrivals([
-    run('2026-11-10T00:00Z', 'CME-2', [{ location: 'Mars', arrivalTime: '2026-11-14T12:00Z' }]),
+  const strong = parseMarsArrivals([
+    run('2026-11-10T00:00Z', 'CME-2', [{ location: 'Mars', arrivalTime: '2026-11-14T12:00Z', minor: false }]),
+  ]);
+  const weak = parseMarsArrivals([
+    run('2026-11-10T00:00Z', 'CME-3', [{ location: 'Mars', arrivalTime: '2026-11-14T12:00Z' }]),
+    run('2026-11-10T00:00Z', 'CME-4', [
+      { location: 'Mars', arrivalTime: '2026-11-14T20:00Z', minor: false, glancing: true },
+    ]),
   ]);
 
-  it('is arriving inside the window ahead', () => {
+  it('is arriving when a significant CME is inside the window ahead', () => {
     const now = new Date('2026-11-13T12:00:00Z');
-    expect(marsSpaceWeather(arrivals, now)).toMatchObject({ level: 'arriving', hours: 24 });
+    const weather = marsSpaceWeather(strong, now);
+    expect(weather.level).toBe('arriving');
+    expect(weather.next?.hours).toBe(24);
   });
 
-  it('is passing just after the arrival', () => {
-    const now = new Date('2026-11-14T18:00:00Z');
-    expect(marsSpaceWeather(arrivals, now)).toMatchObject({ level: 'passing', hours: -6 });
+  it('is passing just after a significant arrival', () => {
+    const weather = marsSpaceWeather(strong, new Date('2026-11-14T18:00:00Z'));
+    expect(weather.level).toBe('passing');
+    expect(weather.next?.hours).toBe(-6);
   });
 
-  it('is quiet outside the window, and names the next arrival', () => {
+  it('stays quiet for minor and glancing arrivals, but reports the nearest', () => {
+    const weather = marsSpaceWeather(weak, new Date('2026-11-13T12:00:00Z'));
+    expect(weather.level).toBe('quiet');
+    expect(weather.next).toBeNull();
+    expect(weather.weak?.arrival.cmeIds).toEqual(['CME-3']);
+  });
+
+  it('is quiet outside the window, and names the next significant arrival', () => {
     const early = new Date(Date.parse('2026-11-14T12:00:00Z') - (CME_WINDOW.aheadHours + 1) * 3_600_000);
-    const quiet = marsSpaceWeather(arrivals, early);
+    const quiet = marsSpaceWeather(strong, early);
     expect(quiet.level).toBe('quiet');
-    expect(quiet.arrival?.arrivalTime).toBe('2026-11-14T12:00Z');
-    expect(marsSpaceWeather(arrivals, new Date('2026-11-20T00:00:00Z'))).toEqual({
+    expect(quiet.next?.arrival.arrivalTime).toBe('2026-11-14T12:00Z');
+    expect(marsSpaceWeather(strong, new Date('2026-11-20T00:00:00Z'))).toEqual({
       level: 'quiet',
-      arrival: null,
-      hours: null,
+      next: null,
+      weak: null,
     });
   });
 });
@@ -156,7 +177,7 @@ describe('rover raw images', () => {
       2,
     );
     expect(images.map((image) => image.id)).toEqual(['a', 'b', 'd']);
-    expect(images[0].image).toBe('https://mars.nasa.gov/raw/a_800.jpg');
+    expect(images[0].image).toBe('https://mars.nasa.gov/raw/a_320.jpg');
   });
 
   it('fills the free places with the newest frames when one camera is all there is', () => {

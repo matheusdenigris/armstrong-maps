@@ -60,6 +60,13 @@ const OVERLAYS = GLOBAL_LAYERS.filter((layer) => layer !== VIKING_GLOBAL);
 /** The weather station is on Curiosity, which landed at Gale crater. */
 const GALE = SITES[0].landing;
 
+/**
+ * DONKI on the shared DEMO_KEY allows a few calls an hour per visitor, and its model runs change a
+ * few times a day, so its answers are kept on the device for a while.
+ */
+const ENLIL_CACHE = { key: 'donki-enlil', freshForHours: 3 };
+const SEP_CACHE = { key: 'donki-sep', freshForHours: 3 };
+
 type Tab = 'walk' | 'layers' | 'site' | 'photos';
 
 /** False on the page rendered ahead of time, which does not know the size of the window. */
@@ -128,13 +135,14 @@ function SiteMap({ site }: { site: Site }) {
   // only change once a day, and each is asked for once per visit.
   const [visitStart] = useState(() => new Date());
   const donki = useMemo(() => donkiUrls(visitStart), [visitStart]);
-  const arrivals = useFeed(donki.enlil, parseMarsArrivals);
-  const sep = useFeed(tab === 'site' ? donki.sep : null, parseSepEvents);
+  const arrivals = useFeed(donki.enlil, parseMarsArrivals, ENLIL_CACHE);
+  const sep = useFeed(tab === 'site' ? donki.sep : null, parseSepEvents, SEP_CACHE);
   const cmeAtMars =
     arrivals.status === 'ready' && marsSpaceWeather(arrivals.data, visitStart).level !== 'quiet';
-  // Pictures wait for their tab.
+  // Pictures wait for the panel. The raw-image feed takes seconds to answer, so it is asked for as
+  // soon as the panel opens; the library answers fast and waits for its tab.
   const rawImages = useFeed(
-    tab === 'photos' && site.rover ? rawImagesUrl(site.rover) : null,
+    (sideBySide || expanded) && site.rover ? rawImagesUrl(site.rover) : null,
     parseRawImages,
   );
   const library = useFeed(tab === 'photos' ? imageSearchUrl(site.photoQuery) : null, parseImageSearch);

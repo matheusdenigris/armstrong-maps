@@ -49,7 +49,7 @@ function explain(reason: WalkReason, a: WalkAssumptions): string {
     case 'near-walk-back-limit':
       return `A waypoint is past ${formatShare(a.nearLimitFraction)} of the ${a.walkBackLimitKm} km walk-back limit.`;
     case 'cme-at-mars':
-      return `NASA's WSA-Enlil model forecasts a coronal mass ejection at Mars within ${CME_WINDOW.aheadHours} h (or one passed in the last ${CME_WINDOW.behindHours} h). Solar particles could raise the dose above the average used here. Source: ${DONKI_CREDIT}; the window is a project assumption.`;
+      return `NASA's WSA-Enlil model forecasts a coronal mass ejection hitting Mars squarely (not minor, not glancing) within ${CME_WINDOW.aheadHours} h (or one passed in the last ${CME_WINDOW.behindHours} h). Solar particles could raise the dose above the average used here. Source: ${DONKI_CREDIT}; the window is a project assumption.`;
   }
 }
 
