@@ -62,13 +62,13 @@ export function EnvironmentPanel({
         </Text>
       ) : null}
       {weather.status === 'loading' || weather.status === 'idle' ? (
-        <StatusNote text="Asking the station for its latest sol." color={Colors.nav} />
+        <StatusNote text="Fetching the latest sol." color={Colors.nav} />
       ) : null}
       {weather.status === 'failed' ? (
-        <StatusNote text="The weather feed did not answer. No reading to show." color={Colors.noGo} />
+        <StatusNote text="The weather feed failed. No reading to show." color={Colors.noGo} />
       ) : null}
       {weather.status === 'ready' && !latest ? (
-        <StatusNote text="The weather feed answered without any sol." color={Colors.caution} />
+        <StatusNote text="The weather feed didn't return any sol." color={Colors.caution} />
       ) : null}
       {latest ? (
         <View style={styles.card}>
@@ -127,7 +127,7 @@ export function EnvironmentPanel({
           <SectionHeading title={`ROVER · ${rover.name.toUpperCase()}`} color={Colors.mars} />
           <View style={styles.card}>
             {rover.track.status === 'loading' || rover.track.status === 'idle' ? (
-              <StatusNote text="Asking for the traverse." color={Colors.mars} />
+              <StatusNote text="Fetching the traverse." color={Colors.mars} />
             ) : null}
             {rover.track.status === 'failed' ? (
               <StatusNote
@@ -181,7 +181,7 @@ function SpaceWeatherCard({ arrivals, sep, now }: EnvironmentPanelProps['space']
   return (
     <>
       {arrivals.status === 'idle' || arrivals.status === 'loading' ? (
-        <StatusNote text="Asking DONKI for CME forecasts at Mars." color={Colors.cyan} />
+        <StatusNote text="Fetching DONKI for CME forecasts at Mars." color={Colors.cyan} />
       ) : null}
       {arrivals.status === 'failed' ? (
         <StatusNote
@@ -234,7 +234,7 @@ function SpaceWeatherCard({ arrivals, sep, now }: EnvironmentPanelProps['space']
                   : `${sep.data.length} · latest ${utc(sep.data[0].time)}`
                 : sep.status === 'failed'
                   ? 'No answer from DONKI'
-                  : 'Asking'}
+                  : 'Fetching'}
             </Text>
           </View>
         </View>
