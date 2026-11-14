@@ -92,6 +92,9 @@ screen needs a source or a "simulated" or "assumption" label.
 - The globe is web only for now (`mars-globe.web.tsx`); `mars-globe.tsx` is what the phone apps
   get. Screens check `GLOBE_AVAILABLE` before giving it room.
 - The mission state is `src/state/mission.ts`. It is read from the device after the first render.
+- Static files for the web go in `public/` and are served from the root: the recording of wind in
+  `public/audio` is NASA's file, unchanged. Do not edit or re-encode it without saying so in
+  `docs/assumptions.md`. Sound starts only from a press, never on its own.
 
 ## Workflow
 

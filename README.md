@@ -48,7 +48,8 @@ The app has three views:
   look all the way round. Over it, the display of the visor shows the heading, the bearing and
   distance of the next waypoint, life support, dose, and a round map turned so that ahead is up.
   As the astronaut moves, the visor switches to the photograph taken nearest to them. Pause the
-  walk in one tab and the other stops.
+  walk in one tab and the other stops. The **Sound** button plays real wind recorded on Mars by
+  the microphone of Perseverance.
 
 To see both seats: open a site, tap the map to add waypoints, press **Start the walk**, then
 **Open the astronaut visor**.
@@ -93,6 +94,7 @@ label.
 | Radiation | MSL RAD, Hassler et al. 2014 (a published average, not a live reading) | Yes |
 | Weather | Curiosity REMS, an outreach feed of the Centro de Astrobiologia (CSIC-INTA). Measured at Gale only | Yes |
 | Rover traverses | Curiosity and Perseverance waypoints (mars.nasa.gov) | Yes |
+| Sound | [Wind recorded by the SuperCam microphone of Perseverance](https://science.nasa.gov/resource/perseverance-rovers-supercam-records-wind-on-mars/), Jezero, sol 4 (22 February 2021). NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero | Yes |
 | Visor photographs | Seven 360-degree panoramas from the NASA Image and Video Library: Curiosity (PIA16101, PIA20840, PIA22545, PIA26019), Perseverance (PIA24264, PIA26369) and Spirit (PIA16440). Listed in `src/data/panoramas.ts` | Yes |
 
 The walk is simulated: the astronaut's position follows the plan at an assumed speed. Walking
