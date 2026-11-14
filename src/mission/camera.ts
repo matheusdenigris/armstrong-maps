@@ -54,6 +54,30 @@ export function unproject(view: MapView, size: Size, pixel: Pixel): LatLon {
 }
 
 /**
+ * The place nearest to a point of the screen, if one is within `reach` pixels of it. A press on
+ * the map uses it to tell a press on a mark from a press on the ground.
+ */
+export function nearestInReach<Place extends { point: LatLon }>(
+  view: MapView,
+  size: Size,
+  places: readonly Place[],
+  pixel: Pixel,
+  reach: number,
+): Place | null {
+  let nearest: Place | null = null;
+  let best = reach;
+  for (const place of places) {
+    const at = project(view, size, place.point);
+    const away = Math.hypot(at.x - pixel.x, at.y - pixel.y);
+    if (away <= best) {
+      best = away;
+      nearest = place;
+    }
+  }
+  return nearest;
+}
+
+/**
  * The view that puts `anchor` under `pixel` at the given scale. Dragging and pinching are both
  * this: keep the place under the fingers where the fingers are.
  */

@@ -5,6 +5,7 @@ import {
   clampView,
   hasDrifted,
   limitsForSurfaceFrame,
+  nearestInReach,
   project,
   unproject,
   viewAround,
@@ -152,5 +153,26 @@ describe('hasDrifted', () => {
     expect(hasDrifted(view, { ...view, lat: view.lat - 0.3 }, size)).toBe(true);
     expect(hasDrifted(view, { ...view, pixelsPerDegree: 1500 }, size)).toBe(true);
     expect(hasDrifted(view, { ...view, pixelsPerDegree: 600 }, size)).toBe(true);
+  });
+});
+
+describe('nearestInReach', () => {
+  const near = { id: 'near', point: { lat: view.lat, lon: view.lon + 0.01 } };
+  const far = { id: 'far', point: { lat: view.lat + 0.1, lon: view.lon } };
+
+  it('finds the mark under the pointer', () => {
+    // A hundredth of a degree is 10 pixels at this scale.
+    expect(nearestInReach(view, size, [far, near], { x: 212, y: 402 }, 16)?.id).toBe('near');
+    expect(nearestInReach(view, size, [far, near], { x: 200, y: 305 }, 16)?.id).toBe('far');
+  });
+
+  it('finds nothing when no mark is within reach', () => {
+    expect(nearestInReach(view, size, [far, near], { x: 100, y: 700 }, 16)).toBeNull();
+    expect(nearestInReach(view, size, [], { x: 200, y: 400 }, 16)).toBeNull();
+  });
+
+  it('prefers the nearer of two marks within reach', () => {
+    const beside = { id: 'beside', point: { lat: view.lat, lon: view.lon + 0.014 } };
+    expect(nearestInReach(view, size, [near, beside], { x: 213, y: 400 }, 16)?.id).toBe('beside');
   });
 });

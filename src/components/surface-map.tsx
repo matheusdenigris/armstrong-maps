@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import {
   memo,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -28,6 +29,7 @@ import Svg, { Circle, Ellipse, Line, Path, Polyline } from 'react-native-svg';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { tileUrl, type MapLayer } from '@/data/layers';
 import {
+  nearestInReach,
   project,
   unproject,
   limitsForSurfaceFrame,
@@ -67,6 +69,30 @@ export type MapRing = {
 };
 
 /**
+ * A small mark at a published place, such as a sample site. A press on it reports its id
+ * instead of a press on the ground.
+ */
+export type MapPoint = {
+  id: string;
+  point: LatLon;
+  color: string;
+  /** Its name, shown under a mouse pointer. */
+  label: string;
+};
+
+/** A card held beside a place on the map, which follows it as the map moves. */
+export type MapCard = {
+  point: LatLon;
+  content: ReactNode;
+};
+
+/** How close to a mark, in pixels, a press or a pointer counts as on it. */
+const POINT_REACH = 18;
+const CARD_WIDTH = 264;
+const CARD_GAP = 14;
+const CARD_MARGIN = 8;
+
+/**
  * What a press on the map would add, shown under the pointer before the press: a line from
  * `from` to the pointer, and two lines of text about the place under it.
  */
@@ -87,6 +113,14 @@ type SurfaceMapProps = {
   markers?: readonly MapMarker[];
   paths?: readonly MapPath[];
   rings?: readonly MapRing[];
+  /** Published places, drawn as small marks under the markers. */
+  points?: readonly MapPoint[];
+  /** The mark that is chosen, ringed on the map. */
+  chosenPoint?: string | null;
+  /** A press on a mark. Without it, a press on a mark is a press on the ground. */
+  onPointPress?: (id: string) => void;
+  /** What is shown beside the chosen mark. */
+  card?: MapCard | null;
   /** Called with the current view, at most once per frame. */
   onViewChange?: (view: MapView) => void;
   /** A single tap on the map (not a drag, not a double tap). */
@@ -99,6 +133,7 @@ type SurfaceMapProps = {
   children?: ReactNode;
 };
 
+const NO_POINTS: readonly MapPoint[] = [];
 const webOnly = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle) : null);
 const LAYER_REVEAL_MS = 160;
 
@@ -124,6 +159,10 @@ export function SurfaceMap({
   markers = [],
   paths = [],
   rings = [],
+  points = NO_POINTS,
+  chosenPoint = null,
+  onPointPress,
+  card = null,
   onViewChange,
   onPress,
   preview = null,
@@ -143,6 +182,22 @@ export function SurfaceMap({
     [limits, size],
   );
 
+  // A press on a mark goes to the mark; any other press is a press on the ground.
+  const press = useCallback(
+    (place: LatLon) => {
+      const view = controller.current?.currentCamera().view;
+      if (onPointPress && view && size && points.length > 0) {
+        const hit = nearestInReach(view, size, points, project(view, size, place), POINT_REACH);
+        if (hit) {
+          onPointPress(hit.id);
+          return;
+        }
+      }
+      onPress?.(place);
+    },
+    [onPointPress, onPress, points, size],
+  );
+
   useEffect(() => {
     const options = {
       home,
@@ -150,12 +205,12 @@ export function SurfaceMap({
       reduceMotion,
       onCamera: setCamera,
       onViewChange,
-      onPress,
+      onPress: press,
     };
     if (controller.current) controller.current.configure(options);
     else controller.current = new MapController(options);
     if (size) controller.current.setSize(size);
-  }, [frameLimits, home, reduceMotion, onViewChange, onPress, size]);
+  }, [frameLimits, home, reduceMotion, onViewChange, press, size]);
 
   // Keep the React copy of the camera in step when a resize raises the zoom-out floor.
   useEffect(() => {
@@ -280,7 +335,7 @@ export function SurfaceMap({
       )}
 
 
-      {size && (paths.length > 0 || rings.length > 0) && (
+      {size && (paths.length > 0 || rings.length > 0 || points.length > 0) && (
         <Svg width={size.width} height={size.height} style={styles.overlay} pointerEvents="none">
           {rings.map((ring) => {
             const at = project(view, size, ring.centre);
@@ -320,6 +375,25 @@ export function SurfaceMap({
               strokeDasharray={path.dashed ? '8 8' : undefined}
             />
           ))}
+          {points.map((point) => {
+            const at = project(view, size, point.point);
+            // Marks off the screen are not drawn.
+            if (at.x < -12 || at.y < -12 || at.x > size.width + 12 || at.y > size.height + 12) {
+              return null;
+            }
+            const chosen = point.id === chosenPoint;
+            return (
+              <Circle
+                key={point.id}
+                cx={at.x}
+                cy={at.y}
+                r={chosen ? 7 : 5}
+                fill={point.color}
+                stroke={chosen ? Colors.white : Colors.background}
+                strokeWidth={chosen ? 2.5 : 1.5}
+              />
+            );
+          })}
         </Svg>
       )}
 
@@ -340,7 +414,13 @@ export function SurfaceMap({
         })}
 
       {size && preview && Platform.OS === 'web' ? (
-        <PointerPreview host={node} view={view} size={size} preview={preview} />
+        <PointerPreview
+          host={node}
+          view={view}
+          size={size}
+          preview={preview}
+          points={onPointPress ? points : NO_POINTS}
+        />
       ) : null}
 
       {children}
@@ -365,6 +445,9 @@ export function SurfaceMap({
           last
         />
       </View>
+
+      {/* Last, so it lies over the readouts and the buttons that sit on the map. */}
+      {size && card ? <CardAt view={view} size={size} card={card} /> : null}
     </View>
   );
 }
@@ -572,13 +655,53 @@ type PointerPreviewProps = {
   view: MapView;
   size: Size;
   preview: MapPreview;
+  /** Marks that answer a press: over one of them the preview names it instead. */
+  points: readonly MapPoint[];
 };
+
+type CardAtProps = { view: MapView; size: Size; card: MapCard };
+
+/**
+ * A card beside its place: to the right of it and below where there is room, otherwise to the
+ * left and above, and never past the edge of the map. It takes its own presses, so that a press
+ * on the card is not a press on the ground under it.
+ */
+function CardAt({ view, size, card }: CardAtProps) {
+  const at = project(view, size, card.point);
+  // The card leaves with its place.
+  if (at.x < 0 || at.y < 0 || at.x > size.width || at.y > size.height) return null;
+  const width = Math.min(CARD_WIDTH, size.width - 2 * CARD_MARGIN);
+  const furthestLeft = size.width - width - CARD_MARGIN;
+  const right = at.x + CARD_GAP;
+  const left = at.x - CARD_GAP - width;
+  const x =
+    right <= furthestLeft
+      ? right
+      : left >= CARD_MARGIN
+        ? left
+        : Math.min(furthestLeft, Math.max(CARD_MARGIN, at.x - width / 2));
+  // The foot of the map is the busier end, so the card goes up from a little above the middle.
+  const above = at.y > size.height * 0.4;
+  return (
+    <View
+      role="dialog"
+      onStartShouldSetResponder={() => true}
+      style={[
+        styles.card,
+        { left: x, width },
+        above ? { bottom: size.height - at.y + CARD_GAP } : { top: at.y + CARD_GAP },
+        webOnly({ cursor: 'default' }),
+      ]}>
+      {card.content}
+    </View>
+  );
+}
 
 /**
  * The leg a press would add, drawn under the mouse pointer. It keeps the pointer's position to
  * itself, so that moving the mouse does not draw the whole map again.
  */
-function PointerPreview({ host, view, size, preview }: PointerPreviewProps) {
+function PointerPreview({ host, view, size, preview, points }: PointerPreviewProps) {
   const [at, setAt] = useState<Pixel | null>(null);
 
   useEffect(() => {
@@ -587,7 +710,10 @@ function PointerPreview({ host, view, size, preview }: PointerPreviewProps) {
     const onMove = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
       // Not while the map is being dragged, and not over a button that sits on the map.
-      if (event.buttons !== 0 || target?.closest('button, a, [role="button"]')) {
+      if (
+        event.buttons !== 0 ||
+        target?.closest('button, a, [role="button"], [role="dialog"]')
+      ) {
         setAt(null);
         return;
       }
@@ -605,29 +731,35 @@ function PointerPreview({ host, view, size, preview }: PointerPreviewProps) {
 
   if (!at) return null;
   const from = project(view, size, preview.from);
-  const { title, detail } = preview.describe(unproject(view, size, at));
+  // Over a mark, a press opens it: no leg is drawn, and the note names the mark.
+  const mark = nearestInReach(view, size, points, at, POINT_REACH);
+  const { title, detail } = mark
+    ? { title: mark.label, detail: 'Click to see what NASA published here' }
+    : preview.describe(unproject(view, size, at));
   // The text stays inside the map: left of the pointer near the right edge, above it near the foot.
   const left = at.x > size.width - 240;
   const above = at.y > size.height - 90;
   return (
     <>
       <Svg width={size.width} height={size.height} style={styles.overlay} pointerEvents="none">
-        <Line
-          x1={from.x}
-          y1={from.y}
-          x2={at.x}
-          y2={at.y}
-          stroke={preview.color}
-          strokeWidth={2}
-          strokeDasharray="6 6"
-          strokeLinecap="round"
-          opacity={0.9}
-        />
+        {mark ? null : (
+          <Line
+            x1={from.x}
+            y1={from.y}
+            x2={at.x}
+            y2={at.y}
+            stroke={preview.color}
+            strokeWidth={2}
+            strokeDasharray="6 6"
+            strokeLinecap="round"
+            opacity={0.9}
+          />
+        )}
         <Circle
           cx={at.x}
           cy={at.y}
           r={7}
-          fill={preview.color}
+          fill={mark ? mark.color : preview.color}
           fillOpacity={0.35}
           stroke={Colors.white}
           strokeWidth={1.5}
@@ -759,6 +891,9 @@ const styles = StyleSheet.create({
   },
   previewNoteAbove: {
     justifyContent: 'flex-end',
+  },
+  card: {
+    position: 'absolute',
   },
   previewCard: {
     gap: Spacing.half,
