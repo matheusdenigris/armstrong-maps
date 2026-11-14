@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
-import type { LayerKind, MapLayer } from '@/data/layers';
+import type { LayerKind, LayerLegend, MapLayer } from '@/data/layers';
 import { formatShare } from '@/mission/format';
 
 type LayerPanelProps = {
@@ -66,6 +66,7 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
                     </View>
                   </Pressable>
                   <Text style={styles.reads}>{layer.reads}</Text>
+                  {on && layer.legend ? <LayerKey legend={layer.legend} /> : null}
                   {on ? (
                     <View style={styles.opacity} accessibilityRole="radiogroup">
                       <Text style={styles.opacityLabel}>Opacity</Text>
@@ -102,7 +103,82 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
   );
 }
 
+/** The key to a layer's colours: the ramp, what each end means, the unit, the range and the source. */
+function LayerKey({ legend }: { legend: LayerLegend }) {
+  return (
+    <View
+      style={styles.key}
+      accessible
+      accessibilityLabel={`Colour key: ${legend.quantity}. ${legend.low}. ${legend.high}.`}>
+      <View style={styles.ramp}>
+        {legend.colors.map((color, index) => (
+          <View key={index} style={[styles.rampStep, { backgroundColor: color }]} />
+        ))}
+      </View>
+      <View style={styles.ends}>
+        <Text style={styles.end}>{legend.low}</Text>
+        <Text style={[styles.end, styles.endHigh]}>{legend.high}</Text>
+      </View>
+      <Text style={styles.keyText}>
+        <Text style={styles.keyQuantity}>{legend.quantity}</Text>
+        {' · '}
+        {legend.unit ?? 'relative scale, no unit'}
+      </Text>
+      {legend.range ? <Text style={styles.keyText}>{legend.range}</Text> : null}
+      <Text style={styles.keySource}>
+        Source: {legend.source}.{' '}
+        {legend.range
+          ? 'The range is the published one; a colour on the map is an approximate value.'
+          : 'Mars Trek does not publish the numeric scale of these colours.'}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  key: {
+    gap: Spacing.one,
+    paddingTop: Spacing.one,
+  },
+  ramp: {
+    flexDirection: 'row',
+    height: 10,
+    borderRadius: Radius.small,
+    overflow: 'hidden',
+  },
+  rampStep: {
+    flex: 1,
+  },
+  ends: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+  },
+  end: {
+    flex: 1,
+    color: Colors.textMuted,
+    fontFamily: Fonts.sans,
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  endHigh: {
+    textAlign: 'right',
+  },
+  keyText: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  keyQuantity: {
+    fontWeight: '600',
+  },
+  keySource: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.sans,
+    fontSize: 11,
+    lineHeight: 15,
+  },
   panel: {
     gap: Spacing.two,
     paddingHorizontal: Spacing.three,
