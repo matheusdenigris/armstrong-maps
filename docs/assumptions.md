@@ -102,7 +102,7 @@ NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero.
 - The photographs in the visor are real 360-degree mosaics (see the table below), each taken
   from one fixed spot. Nobody has walked on Mars, so there is no film of a walk. To give the sense
   of ground being covered, the visor goes through the photographs of the site in order, from the
-  one taken nearest to the landing point outwards, and changes scene every 300 m walked (more when
+  one taken nearest to the landing point outwards, and changes scene every 120 m walked (more when
   the walk is played fast, so that a scene stays at least eight seconds). The photographs are real
   and from that site, but they were not taken on the planned route: the Sources panel says how far
   from the simulated position each one was taken.

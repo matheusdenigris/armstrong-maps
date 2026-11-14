@@ -120,7 +120,7 @@ The walk is simulated: the astronaut's position follows the plan at an assumed s
 speed, life-support duration and the walk-back limit are assumptions of this project, not NASA
 rules. The photographs in the visor are real, and each was taken from one fixed spot: there is no
 video of anyone walking on Mars. To give the sense of a walk, the view moves slowly into the
-photograph as the astronaut covers ground, and every 300 m it changes to another real photograph
+photograph as the astronaut covers ground, and every 120 m it changes to another real photograph
 of the same site, through a short cut with drawn dust; those photographs were not taken on the
 planned route. The stars behind the globe and the light on it are
 decoration.

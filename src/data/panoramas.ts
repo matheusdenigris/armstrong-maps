@@ -232,7 +232,7 @@ export function panoramaNear(siteId: string, position: LatLon): Chosen {
 }
 
 /** How far the astronaut walks, in metres, before the scenery changes. */
-export const SCENE_EVERY_M = 300;
+export const SCENE_EVERY_M = 120;
 /** A scene stays on screen at least this long, in seconds, however fast the walk is played. */
 export const SCENE_MIN_SECONDS = 8;
 
