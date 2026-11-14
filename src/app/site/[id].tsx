@@ -197,7 +197,6 @@ function SiteMap({ site }: { site: Site }) {
 
   const walkContent = (
     <>
-      <PanelTitle number="02" title="Walk plan" />
       <WalkSummary
         walk={walk}
         stops={route.length}
@@ -345,10 +344,12 @@ function ConsoleHeader({
             accessibilityRole="link"
             accessibilityLabel="Back to the landing sites"
             style={({ pressed }) => [styles.brand, pressed && styles.brandPressed]}>
-            <Logo size={26} />
-            <Text numberOfLines={1} style={styles.brandName}>
-              ARMSTRONG MAPS
-            </Text>
+            <View style={styles.brandIdentity}>
+              <Logo size={26} />
+              <Text numberOfLines={1} style={styles.brandName}>
+                ARMSTRONG MAPS
+              </Text>
+            </View>
           </Pressable>
         </Link>
         <View style={[styles.siteIdentity, desktop && styles.siteIdentityDesktop]}>
@@ -601,18 +602,6 @@ function DesktopPanel({ side, visible, width, onToggle, children }: DesktopPanel
   );
 }
 
-function PanelTitle({ number, title }: { number: string; title: string }) {
-  return (
-    <View style={styles.panelTitle}>
-      <Text style={styles.panelNumber}>{number}</Text>
-      <Text style={styles.panelHeading} accessibilityRole="header">
-        {title.toUpperCase()}
-      </Text>
-      <View style={styles.panelRule} />
-    </View>
-  );
-}
-
 function MobileTabs({
   selected,
   onChange,
@@ -705,7 +694,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
-    minWidth: 44,
+    width: 156,
+    flexShrink: 0,
     minHeight: 44,
     paddingHorizontal: Spacing.one,
     justifyContent: 'center',
@@ -714,7 +704,13 @@ const styles = StyleSheet.create({
   brandPressed: {
     backgroundColor: Colors.surfaceRaised,
   },
+  brandIdentity: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
   brandName: {
+    flexShrink: 0,
     color: Colors.text,
     fontFamily: Fonts.sans,
     fontSize: 11,
@@ -1006,33 +1002,6 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.mono,
     fontSize: 24,
     lineHeight: 26,
-  },
-  panelTitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    minHeight: 44,
-    paddingHorizontal: Spacing.three,
-    paddingRight: 60,
-  },
-  panelNumber: {
-    color: Colors.mars,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  panelHeading: {
-    color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-  },
-  panelRule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Colors.border,
   },
   dataDivider: {
     height: StyleSheet.hairlineWidth,
