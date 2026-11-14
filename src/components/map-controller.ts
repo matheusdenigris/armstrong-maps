@@ -87,6 +87,15 @@ export class MapController {
 
   configure(options: MapOptions) {
     this.options = options;
+    // A resized map can raise its minimum scale. Keep the rendered camera within those new bounds.
+    this.camera = {
+      view: clampView(this.camera.view, options.limits),
+      base: clampView(this.camera.base, options.limits),
+    };
+  }
+
+  currentCamera() {
+    return this.camera;
   }
 
   setSize(size: Size) {

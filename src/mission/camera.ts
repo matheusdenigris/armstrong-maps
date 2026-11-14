@@ -17,6 +17,26 @@ export type Pixel = { x: number; y: number };
 
 export type ScaleLimits = { min: number; max: number };
 
+/**
+ * A surface map remains useful while it shows a regional frame. Beyond this it becomes a flat
+ * equirectangular overview; the landing screen's globe is the appropriate whole-planet view.
+ */
+export const MAX_SURFACE_FRAME_HEIGHT_DEGREES = 90;
+
+/**
+ * Raises a map's minimum scale when necessary to keep a whole-planet rectangle out of its frame.
+ * The caller's limits still win when they are more restrictive.
+ */
+export function limitsForSurfaceFrame(limits: ScaleLimits, size: Size): ScaleLimits {
+  return {
+    ...limits,
+    min: Math.min(
+      limits.max,
+      Math.max(limits.min, size.height / MAX_SURFACE_FRAME_HEIGHT_DEGREES),
+    ),
+  };
+}
+
 /** Where a place on Mars falls on screen. */
 export function project(view: MapView, size: Size, point: LatLon): Pixel {
   return {

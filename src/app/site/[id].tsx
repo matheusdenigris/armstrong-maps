@@ -105,10 +105,10 @@ function SiteMap({ site }: { site: Site }) {
     };
     return {
       home: opening,
-      // Past twice the natural size of the sharpest tiles there is nothing more to see.
+      // Past the native size of the sharpest tiles there is no further image detail to reveal.
       limits: {
         min: WIDEST_PIXELS_PER_DEGREE,
-        max: (2 * TILE_PIXELS) / tileSpan(sharpest.maxLevel),
+        max: TILE_PIXELS / tileSpan(sharpest.maxLevel),
       },
     };
   }, [site]);

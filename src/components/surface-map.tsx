@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { memo, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
   PixelRatio,
@@ -18,6 +18,7 @@ import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { tileUrl, type MapLayer } from '@/data/layers';
 import {
   project,
+  limitsForSurfaceFrame,
   visibleBounds,
   type MapView,
   type Pixel,
@@ -76,6 +77,16 @@ type SurfaceMapProps = {
 
 const webOnly = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle) : null);
 
+const sameView = (left: MapView, right: MapView) =>
+  left.lat === right.lat &&
+  left.lon === right.lon &&
+  left.pixelsPerDegree === right.pixelsPerDegree;
+
+const sameCamera = (
+  left: { view: MapView; base: MapView },
+  right: { view: MapView; base: MapView },
+) => sameView(left.view, right.view) && sameView(left.base, right.base);
+
 /**
  * A map of Mars that is dragged with one finger and pinched with two. On the web the mouse drags
  * and the wheel zooms. Tiles are equirectangular, so the map is too.
@@ -101,13 +112,33 @@ export function SurfaceMap({
   const node = useRef<ComponentRef<typeof View>>(null);
   const controller = useRef<MapController | null>(null);
   const origin = useRef<Pixel>({ x: 0, y: 0 });
+  const frameLimits = useMemo(
+    () => (size ? limitsForSurfaceFrame(limits, size) : limits),
+    [limits, size],
+  );
 
   useEffect(() => {
-    const options = { home, limits, reduceMotion, onCamera: setCamera, onViewChange, onPress };
+    const options = {
+      home,
+      limits: frameLimits,
+      reduceMotion,
+      onCamera: setCamera,
+      onViewChange,
+      onPress,
+    };
     if (controller.current) controller.current.configure(options);
     else controller.current = new MapController(options);
     if (size) controller.current.setSize(size);
-  }, [home, limits, reduceMotion, onViewChange, onPress, size]);
+  }, [frameLimits, home, reduceMotion, onViewChange, onPress, size]);
+
+  // Keep the React copy of the camera in step when a resize raises the zoom-out floor.
+  useEffect(() => {
+    const next = controller.current?.currentCamera();
+    if (!next) return;
+    setCamera((previous) =>
+      sameCamera(previous, next) ? previous : { view: next.view, base: next.base },
+    );
+  }, [frameLimits]);
 
   useEffect(() => () => controller.current?.dispose(), []);
 
@@ -171,6 +202,8 @@ export function SurfaceMap({
   }
 
   const { view, base } = camera;
+  const atClosestZoom = view.pixelsPerDegree >= frameLimits.max;
+  const atWidestZoom = view.pixelsPerDegree <= frameLimits.min;
   const zoom = view.pixelsPerDegree / base.pixelsPerDegree;
   // Maps the tile plane, laid out for `base`, onto the current view.
   const planeStyle: ViewStyle | null = size && {
@@ -279,11 +312,13 @@ export function SurfaceMap({
           label="Zoom in"
           glyph="plus"
           onPress={() => controller.current?.zoomBy(ZOOM_STEP)}
+          disabled={atClosestZoom}
         />
         <MapButton
           label="Zoom out"
           glyph="minus"
           onPress={() => controller.current?.zoomBy(1 / ZOOM_STEP)}
+          disabled={atWidestZoom}
         />
         <MapButton
           label="Back to the landing site"
@@ -370,15 +405,28 @@ const TilePlane = memo(function TilePlane({ layers, opacity, base, size }: TileP
 });
 
 type Glyph = 'plus' | 'minus' | 'target';
-type MapButtonProps = { label: string; glyph: Glyph; onPress: () => void; last?: boolean };
+type MapButtonProps = {
+  label: string;
+  glyph: Glyph;
+  onPress: () => void;
+  last?: boolean;
+  disabled?: boolean;
+};
 
-function MapButton({ label, glyph, onPress, last = false }: MapButtonProps) {
+function MapButton({ label, glyph, onPress, last = false, disabled = false }: MapButtonProps) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [styles.button, last && styles.buttonLast, pressed && styles.buttonPressed]}>
+      accessibilityState={{ disabled }}
+      style={({ pressed }) => [
+        styles.button,
+        last && styles.buttonLast,
+        disabled && styles.buttonDisabled,
+        pressed && !disabled && styles.buttonPressed,
+      ]}>
       <Svg
         width={20}
         height={20}
@@ -507,5 +555,8 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     backgroundColor: Colors.surfaceRaised,
+  },
+  buttonDisabled: {
+    opacity: 0.42,
   },
 });
