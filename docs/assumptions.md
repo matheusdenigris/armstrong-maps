@@ -53,8 +53,22 @@ raise it for hours or days.
 
 ## Simulated
 
-- The walk itself: the route is a plan drawn on the map, and nobody is walking it.
+- The walk: the astronaut's position, heading, time outside, life support and dose all follow the
+  plan at the assumed speed. Nobody is walking it. The console can play it faster than real time.
 - The base stands on the landing point of the mission at each site.
+
+## Illustrative
+
+- The photograph in the visor is real (see the sources below), but it was taken from one fixed
+  spot. It slides sideways as the astronaut turns; it does not show what is really in that
+  direction. Only its clean part is shown: the mosaics have black gaps and the rover's deck.
+- Gale and Jezero have their own photograph. At the other sites the visor borrows the one from
+  Gale and says so.
+
+| Photograph | Source |
+|---|---|
+| Curiosity Mastcam 360-degree panorama on Greenheugh, sol 3423 (2022) | [PIA25176](https://images.nasa.gov/details/PIA25176), NASA/JPL-Caltech/MSSS |
+| Perseverance Mastcam-Z first 360-degree panorama, sol 3 (2021) | [PIA24264](https://images.nasa.gov/details/PIA24264), NASA/JPL-Caltech/MSSS/ASU |
 
 ## Decoration
 

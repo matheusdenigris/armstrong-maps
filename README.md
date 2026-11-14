@@ -42,9 +42,16 @@ The app has three views:
 - **Live data**: the real traverse and latest position of Curiosity at Gale and of Perseverance
   at Jezero, and the latest sol of weather from Curiosity's REMS station, each with its source.
   A feed that does not answer is shown as a gap.
+- **The walk, from two seats**: the ship console starts a simulated walk, and an astronaut
+  follows the route on the map. The astronaut's visor opens in another tab: a real rover
+  photograph of the site, a heading tape with the bearing of the next waypoint, life support,
+  dose, and a round map turned so that ahead is up. Pause the walk in one tab and the other stops.
 
-Not built yet: the astronaut visor, and the globe inside the Android and iOS apps (they open on
-the list of sites). The rest of the plan is in the
+To see both seats: open a site, tap the map to add waypoints, press **Start the walk**, then
+**Open the astronaut visor**.
+
+Not built yet: the globe inside the Android and iOS apps (they open on the list of sites), and
+the link between two different devices (the two tabs have to be in the same browser). The rest of the plan is in the
 [issues](../../issues) and [milestones](../../milestones); see [docs/roadmap.md](docs/roadmap.md).
 What is measured and what is assumed is in [docs/assumptions.md](docs/assumptions.md).
 
@@ -83,10 +90,12 @@ label.
 | Radiation | MSL RAD, Hassler et al. 2014 (a published average, not a live reading) | Yes |
 | Weather | Curiosity REMS, an outreach feed of the Centro de Astrobiologia (CSIC-INTA). Measured at Gale only | Yes |
 | Rover traverses | Curiosity and Perseverance waypoints (mars.nasa.gov) | Yes |
+| Visor photographs | [PIA25176](https://images.nasa.gov/details/PIA25176) (Curiosity, NASA/JPL-Caltech/MSSS) and [PIA24264](https://images.nasa.gov/details/PIA24264) (Perseverance, NASA/JPL-Caltech/MSSS/ASU), NASA Image and Video Library | Yes |
 
-The walk is a plan drawn on the map: nobody is walking it. Walking speed, life-support duration
-and the walk-back limit are assumptions of this project, not NASA rules. The stars behind the globe
-and the light on it are decoration.
+The walk is simulated: the astronaut's position follows the plan at an assumed speed. Walking
+speed, life-support duration and the walk-back limit are assumptions of this project, not NASA
+rules. The photograph in the visor is real, but it was taken from one fixed spot and does not turn
+with the real heading. The stars behind the globe and the light on it are decoration.
 
 ## English only
 
