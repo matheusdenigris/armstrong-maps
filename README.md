@@ -42,6 +42,13 @@ The app has three views:
 - **Live data**: the real traverse and latest position of Curiosity at Gale and of Perseverance
   at Jezero, and the latest sol of weather from Curiosity's REMS station, each with its source.
   A feed that does not answer is shown as a gap.
+- **Space weather**: NASA DONKI's WSA-Enlil forecast of coronal mass ejections reaching Mars, and
+  the solar particle events of the last 30 days. A CME at Mars around the walk adds a caution to
+  the verdict.
+- **Photos**: the newest raw frames from Curiosity and Perseverance, and archive pictures of every
+  site from the NASA Image and Video Library, each linked to its NASA page.
+- **Docs** (`/docs`): every NASA API and source the app reads, the address it calls, where it
+  shows up, and what is measured, forecast, assumed or simulated. NASA sources come first.
 
 Not built yet: the astronaut visor, and the globe inside the Android and iOS apps (they open on
 the list of sites). The rest of the plan is in the
@@ -60,6 +67,11 @@ npm run build:web  # static web export to dist/
 ```
 
 To run on a phone, install Expo Go and scan the QR code that `npm start` prints.
+
+DONKI, on api.nasa.gov, is the only source that takes a key. Without one the app uses the shared
+`DEMO_KEY`, which allows only a few calls an hour per address. Set your own key (free at
+https://api.nasa.gov) in `EXPO_PUBLIC_NASA_API_KEY`, in `.env.local` or in the Vercel project.
+The web app is a static export, so the key is visible in the page: use one made for this app only.
 
 ## Stack
 
@@ -83,6 +95,11 @@ label.
 | Radiation | MSL RAD, Hassler et al. 2014 (a published average, not a live reading) | Yes |
 | Weather | Curiosity REMS, an outreach feed of the Centro de Astrobiologia (CSIC-INTA). Measured at Gale only | Yes |
 | Rover traverses | Curiosity and Perseverance waypoints (mars.nasa.gov) | Yes |
+| Space weather | [DONKI](https://ccmc.gsfc.nasa.gov/tools/DONKI/) (NASA CCMC, Goddard) through api.nasa.gov: WSA-Enlil CME arrivals at Mars (a model forecast) and SEP events (seen near the Earth) | Yes |
+| Rover pictures | Raw-image feed of Curiosity and Perseverance (NASA/JPL-Caltech, mars.nasa.gov) | Yes |
+| Archive pictures | [NASA Image and Video Library](https://images.nasa.gov) (images-api.nasa.gov) | Yes |
+
+The full list, with each endpoint, is in the app at `/docs` and in `src/data/sources.ts`.
 
 The walk is a plan drawn on the map: nobody is walking it. Walking speed, life-support duration
 and the walk-back limit are assumptions of this project, not NASA rules. The stars behind the globe
