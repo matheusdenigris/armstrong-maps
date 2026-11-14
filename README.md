@@ -62,6 +62,13 @@ The app has three views:
   dune fields of loose sand. Both are shaded on the map and enter the verdict.
 - **Wind**: the last sols measured by InSight, with a wind rose and how hard the gusts push compared
   with the Earth, and the prevailing wind written in the slip faces of the region's dunes.
+- **Mars clock and daylight**: the Sun over each site from NASA/JPL Horizons, and local solar time
+  with the Mars24 algorithm of NASA GISS, which also takes over when Horizons does not answer. A walk that starts in the dark or runs into the night is a
+  no-go; plan it for now or for the next morning.
+- **Safety check**: every factor of the verdict on one card (life support, walk-back limit,
+  daylight, radiation, space weather, steep ground, loose sand), each with its status and source.
+  A factor whose source has not answered says so instead of passing.
+- **Weather chart**: air temperature and pressure over the last sols Curiosity's REMS reported.
 - **Docs** (`/docs`): every NASA API and source the app reads, the address it calls, where it
   shows up, and what is measured, forecast, assumed or simulated. NASA sources come first.
 
@@ -118,6 +125,7 @@ label.
 | Archive pictures | [NASA Image and Video Library](https://images.nasa.gov) (images-api.nasa.gov) | Yes |
 | Slope | Elevation models served by NASA/JPL Mars Trek: HiRISE (1 m), the InSight mosaic, and the MOLA and HRSC blend (200 m) | Yes |
 | Dune fields | [Mars Global Digital Dune Database](https://pubs.usgs.gov/of/2007/1158/) (Hayward et al. 2007, USGS), via Mars Trek | Yes |
+| Sun over each site | [NASA/JPL Horizons](https://ssd-api.jpl.nasa.gov/doc/horizons.html) (through `api/horizons.js` on the web) | Yes |
 | Wind | InSight TWINS through [api.nasa.gov](https://api.nasa.gov) (October 2020, Elysium Planitia) | Yes |
 | Sound | [Wind recorded by the SuperCam microphone of Perseverance](https://science.nasa.gov/resource/perseverance-rovers-supercam-records-wind-on-mars/), Jezero, sol 4 (22 February 2021). NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero | Yes |
 | Visor photographs | Ten 360-degree panoramas from the NASA Image and Video Library: Curiosity (PIA16101, PIA20840, PIA22545, PIA26554, PIA26019), Perseverance (PIA24264, PIA26474, PIA26369, PIA26644) and Spirit (PIA16440). Listed in `src/data/panoramas.ts` | Yes |

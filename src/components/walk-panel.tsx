@@ -56,6 +56,12 @@ function explain(reason: WalkReason, a: WalkAssumptions): string {
       return `The route crosses ground of ${a.cautionSlopeDeg}° or more. Slope from the elevation model of the site; the limit is a project assumption, and the model smooths out small steps.`;
     case 'dune-field':
       return `The route enters a mapped dune field: loose sand, where Spirit was trapped in 2009. Mars Global Digital Dune Database (USGS).`;
+    case 'starts-in-dark':
+      return 'The Sun is below the horizon at the planned start. Plan the walk for the morning.';
+    case 'into-night':
+      return 'The walk would still be out when the Sun sets. Start earlier or shorten the route.';
+    case 'low-sun':
+      return `The Sun gets lower than ${a.lowSunDeg}° during the walk: long shadows hide holes and rocks. The limit is a project assumption.`;
   }
 }
 

@@ -21,6 +21,8 @@ every number follows.
 | ... and until this long after it | 24 h | Assumption |
 | Ground too steep for a caution | 15° or more under the route | Assumption |
 | Ground too steep to walk | 25° or more under the route | Assumption |
+| The Sun is low: shadows hide holes and rocks | Below 10° above the horizon | Assumption |
+| "Next morning" starts the walk when the Sun is | 15° up, on its way up | Assumption |
 | Return leg | A straight line from the last waypoint to the base | Simplification |
 | Terrain | Slopes do not slow the walk; they only change the verdict | Simplification |
 
@@ -38,6 +40,9 @@ every number follows.
 | The route, out and back, crosses ground of 25° or more | No-go |
 | The route, out and back, crosses ground of 15° or more | Caution |
 | The route enters a mapped dune field (loose sand) | Caution |
+| The Sun is below the horizon at the planned start | No-go |
+| The walk would still be out after sunset | No-go |
+| The Sun gets lower than 10° during the walk | Caution |
 
 Most forecast arrivals at Mars are rated minor or a glancing blow (all ten in the 30 days to 2026-11-14). Counting them would have kept walks on caution 61% of the time, so they are shown in the Site tab but do not change the verdict.
 
@@ -78,7 +83,34 @@ Mars Trek. It maps fields between 65° S and 65° N from orbit; small patches of
   measured in the feed pushes like a light breeze on Earth. The dust it lifts is the risk, and
   opacity is not served yet.
 
-Daylight and weather do not change the verdict yet. The dose stays the published average; a CME
+## The Mars clock and daylight
+
+The app computes time on Mars itself, with the algorithm NASA GISS publishes for its Mars24
+sunclock (Allison and McEwen 2000): the Mars Sol Date, local mean and true solar time, the season
+(Ls), and where the Sun stands in the sky of each site. `src/mission/mars-time.ts` is tested
+against the two worked examples of the Mars24 algorithm page (2000-01-06 and the landing of
+Spirit); every value matches to a few ten-thousandths of a degree.
+
+The Sun itself comes from NASA/JPL Horizons, the ephemeris service of JPL: the app asks for the
+Sun's elevation seen from the landing point every 10 minutes over three days, and reads sunrise,
+sunset and the daylight of a walk from that table. Horizons sends no CORS header, so the web app
+asks through `api/horizons.js`, a Vercel function on the same host that only builds that one
+query; the phone apps ask directly. When Horizons does not answer, the Mars24 algorithm takes
+over and the screen says so. The two agree within about a minute (tested on 2026-11-14 at Gale).
+
+A walk is timed from its planned start (now, or the next morning) for as long as it lasts. Walk
+durations are Earth hours; a sol is 24 h 40 min. Latitudes are used as the app stores them
+(planetocentric); Mars24 uses planetographic ones, under half a degree apart at the landing sites,
+which moves sunrise and sunset by under a minute.
+
+## Not available yet
+
+- **Dust opacity (#42):** NASA serves no public opacity feed. The REMS feed gives the sky as a
+  word ("Sunny"), which the Site tab shows as it is. A dust storm does not enter the verdict.
+- **Weather at Jezero (#41):** the public MEDA feed of Perseverance stops in April 2024 and carries
+  no wind and no opacity, so Jezero shows the Gale weather as a reference.
+
+Weather does not change the verdict yet. The dose stays the published average; a CME
 only adds a caution, because DONKI forecasts its arrival, not the dose it brings. When DONKI does
 not answer, the verdict leaves space weather out and the Site tab says so.
 
