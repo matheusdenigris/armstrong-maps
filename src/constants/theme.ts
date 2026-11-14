@@ -49,6 +49,17 @@ export const Colors = {
   selectedSurface: '#121A27',
   /** Low-emphasis divider and spotlight overlays. */
   overlay: 'rgba(255, 255, 255, 0.08)',
+  /** Glass over the globe: a faint fill, its edge, and the fill under the pointer. */
+  glassLight: 'rgba(255, 255, 255, 0.06)',
+  glassBorder: 'rgba(255, 255, 255, 0.14)',
+  glassHover: 'rgba(255, 255, 255, 0.12)',
+  /** Dark glass behind a label that sits on the planet. */
+  glassDark: 'rgba(4, 6, 10, 0.5)',
+  /** A warning that is not an alarm. */
+  cautionTint: 'rgba(251, 191, 36, 0.1)',
+  /** Secondary and tertiary text, on the globe and in the panels. */
+  textSoft: 'rgba(238, 242, 247, 0.62)',
+  textFaint: 'rgba(238, 242, 247, 0.42)',
   /** A named white keeps controls free of ad-hoc colour literals. */
   white: '#FFFFFF',
 } as const;
@@ -69,6 +80,11 @@ export const Radius = {
   small: 6,
   medium: 12,
   large: 20,
+  /** Cards inside a panel, and the panels themselves. */
+  card: 16,
+  pane: 24,
+  /** Fully rounded ends, whatever the height. */
+  pill: 999,
 } as const;
 
 /**

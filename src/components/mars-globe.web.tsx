@@ -1,5 +1,5 @@
 import { useEffect, useImperativeHandle, useRef, useState, type ComponentRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 
@@ -73,7 +73,7 @@ export function MarsGlobe({ sites, onOpen, ref }: MarsGlobeProps) {
             accessible={false}
             tabIndex={-1}
             onPress={() => engine.current?.flyTo(site)}
-            style={styles.label}>
+            style={[styles.label, BLUR]}>
             <Text style={styles.labelText} numberOfLines={1}>
               {site.name}
             </Text>
@@ -83,6 +83,12 @@ export function MarsGlobe({ sites, onOpen, ref }: MarsGlobeProps) {
     </View>
   );
 }
+
+/** The planet shows softly through a label. */
+const BLUR = {
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
+} as ViewStyle;
 
 const styles = StyleSheet.create({
   host: {
@@ -95,15 +101,17 @@ const styles = StyleSheet.create({
     top: 0,
     // Hidden until the first frame places it.
     opacity: 0,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
-    borderRadius: Radius.small,
-    backgroundColor: Colors.glass,
+    paddingHorizontal: Spacing.two + Spacing.one,
+    paddingVertical: Spacing.one + Spacing.half,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.glassDark,
   },
   labelText: {
     color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 12,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
   },
   failed: {
     color: Colors.textMuted,

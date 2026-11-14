@@ -111,7 +111,8 @@ export function startGlobe(
     width: '100%',
     height: '100%',
     touchAction: 'none',
-    cursor: 'grab',
+    // An arrow at rest; the hand shows only while the planet is being turned.
+    cursor: 'default',
     outline: 'none',
   });
   host.prepend(canvas);
@@ -313,7 +314,7 @@ export function startGlobe(
     if (!pointers.has(event.pointerId)) {
       // A closed hand is reserved for a drag. A marker is an actionable destination, so advertise
       // it with the normal picker cursor before the click.
-      canvas.style.cursor = nearestSite(point.x, point.y) ? 'pointer' : 'grab';
+      canvas.style.cursor = nearestSite(point.x, point.y) ? 'pointer' : 'default';
       return;
     }
     pointers.set(event.pointerId, point);
@@ -364,12 +365,12 @@ export function startGlobe(
       if (site) flyTo(site);
     }
     press = null;
-    canvas.style.cursor = nearestSite(point.x, point.y) ? 'pointer' : 'grab';
+    canvas.style.cursor = nearestSite(point.x, point.y) ? 'pointer' : 'default';
     dirty = true;
   }
 
   function onPointerLeave() {
-    if (pointers.size === 0) canvas.style.cursor = 'grab';
+    if (pointers.size === 0) canvas.style.cursor = 'default';
   }
 
   function onWheel(event: WheelEvent) {
