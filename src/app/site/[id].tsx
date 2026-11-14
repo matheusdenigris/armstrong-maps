@@ -94,6 +94,9 @@ const GALE = SITES[0].landing;
 const ENLIL_CACHE = { key: 'donki-enlil', freshForHours: 3 };
 const SEP_CACHE = { key: 'donki-sep', freshForHours: 3 };
 
+/** The fill of the small button that closes the tip on the map: a shade on its light card. */
+const COACH_CLOSE = 'rgba(4, 6, 10, 0.1)';
+
 /** Styles only a browser understands: transitions and keyframe animations. */
 const web = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle) : null);
 /** One curve for everything that opens, closes or comes in: quick to start, soft to land. */
@@ -180,6 +183,8 @@ function SiteMap({ site }: { site: Site }) {
   const endWalk = useMission((state) => state.endWalk);
   const [tab, setTab] = useState<Tab>('map');
   const [panelTab, setPanelTab] = useState<PanelTab>('walk');
+  // The card that spells out the first step can be closed; it stays closed for this visit.
+  const [coachClosed, setCoachClosed] = useState(false);
   const calm = useReducedMotion();
 
   // The walk in progress, if there is one. Its position is simulated from the plan.
@@ -419,6 +424,8 @@ function SiteMap({ site }: { site: Site }) {
       onViewChange={setView}
       onPress={(point) => addWaypoint(site.id, point)}
       preview={preview}
+      coach={route.length === 0 && !coachClosed}
+      onCloseCoach={() => setCoachClosed(true)}
       walk={walk}
       stops={route.length}
       sources={sources}
@@ -653,6 +660,9 @@ type MapStageProps = {
   onViewChange: (view: MapView) => void;
   onPress: (point: { lat: number; lon: number }) => void;
   preview: MapPreview | null;
+  /** Whether the card that spells out the first step is on the map. */
+  coach: boolean;
+  onCloseCoach: () => void;
   walk: WalkEvaluation;
   stops: number;
   sources: string;
@@ -676,6 +686,8 @@ function MapStage({
   onViewChange,
   onPress,
   preview,
+  coach,
+  onCloseCoach,
   walk,
   stops,
   sources,
@@ -699,8 +711,8 @@ function MapStage({
         onPress={onPress}
         preview={preview}
         // The zoom buttons stand clear of what is at the foot of the map, which is taller while
-        // the route is empty and the first step is spelled out.
-        controlsBottom={showFoot ? (stops === 0 ? 176 : desktop ? 112 : 116) : Spacing.three}
+        // the first step is spelled out.
+        controlsBottom={showFoot ? (coach ? 176 : desktop ? 112 : 116) : Spacing.three}
         accessibilityLabel={`Map of ${site.name}. Drag to move, pinch or use the buttons to zoom, tap to add a waypoint.`}>
         <MapHud
           view={view}
@@ -708,6 +720,8 @@ function MapStage({
           stops={stops}
           sources={sources}
           legends={legends}
+          coach={coach}
+          onCloseCoach={onCloseCoach}
           desktop={desktop}
           scaleAfterToggle={scaleAfterToggle}
           showFoot={showFoot}
@@ -725,6 +739,8 @@ type MapHudProps = {
   sources: string;
   /** The layers that are on over the base: each gets its colour key on the map. */
   legends: readonly MapLayer[];
+  coach: boolean;
+  onCloseCoach: () => void;
   desktop: boolean;
   scaleAfterToggle: boolean;
   showFoot: boolean;
@@ -738,6 +754,8 @@ function MapHud({
   stops,
   sources,
   legends,
+  coach,
+  onCloseCoach,
   scaleAfterToggle,
   desktop,
   showFoot,
@@ -780,18 +798,29 @@ function MapHud({
             </Pressable>
           ) : null}
           {/* With no route yet, the way to make one is the loudest thing on the map. */}
-          {stops === 0 ? (
+          {coach ? (
             <View style={styles.mapCoach}>
               <Text style={styles.mapCoachTitle}>Click or tap the map to mark the first waypoint</Text>
               <Text style={styles.mapCoachText}>
                 The walk goes from the base through each point you mark, and straight back.
               </Text>
+              <Pressable
+                onPress={onCloseCoach}
+                accessibilityRole="button"
+                accessibilityLabel="Close this tip"
+                hitSlop={10}
+                style={({ pressed }) => [styles.mapCoachClose, pressed && styles.mapCoachClosePressed]}>
+                <Text style={styles.mapCoachCloseText}>×</Text>
+              </Pressable>
             </View>
           ) : null}
           <View style={styles.mapHint}>
-            {stops === 0 ? null : (
+            {/* With the card closed, the same step stays as one quiet line. */}
+            {coach ? null : (
               <Text style={styles.mapHintText} numberOfLines={desktop ? 1 : 2}>
-                {`${stops} ${stops === 1 ? 'waypoint' : 'waypoints'} · click or tap the map to add another`}
+                {stops === 0
+                  ? 'Click or tap the map to mark a waypoint'
+                  : `${stops} ${stops === 1 ? 'waypoint' : 'waypoints'} · click or tap the map to add another`}
               </Text>
             )}
             <Text style={styles.mapCredit} numberOfLines={1}>
@@ -1257,11 +1286,32 @@ const styles = StyleSheet.create({
   mapCoach: {
     alignItems: 'center',
     gap: Spacing.half,
-    maxWidth: 420,
-    paddingHorizontal: Spacing.four,
+    maxWidth: 440,
+    // Room on both sides for the button that closes it, so the text stays centred.
+    paddingHorizontal: Spacing.five + Spacing.two,
     paddingVertical: Spacing.two + Spacing.one,
     borderRadius: Radius.large,
     backgroundColor: Colors.text,
+  },
+  mapCoachClose: {
+    position: 'absolute',
+    top: Spacing.two,
+    right: Spacing.two,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.pill,
+    backgroundColor: COACH_CLOSE,
+  },
+  mapCoachClosePressed: {
+    opacity: 0.6,
+  },
+  mapCoachCloseText: {
+    color: Colors.background,
+    fontFamily: Fonts.sans,
+    fontSize: 16,
+    lineHeight: 18,
   },
   mapCoachTitle: {
     color: Colors.background,
