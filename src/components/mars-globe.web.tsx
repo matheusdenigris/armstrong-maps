@@ -14,16 +14,18 @@ export const GLOBE_AVAILABLE = true;
  * Mars from orbit. Drag to turn it, pinch or use the wheel to move in, and pick a landing site.
  * The landing-site markers are the selectable regions with high-resolution mosaics.
  */
-export function MarsGlobe({ sites, onOpen, ref }: MarsGlobeProps) {
+export function MarsGlobe({ sites, onOpen, onHover, ref }: MarsGlobeProps) {
   const host = useRef<ComponentRef<typeof View>>(null);
   const labels = useRef(new Map<string, HTMLElement>());
   const engine = useRef<GlobeEngine | null>(null);
   const open = useRef(onOpen);
+  const hover = useRef(onHover);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     open.current = onOpen;
-  }, [onOpen]);
+    hover.current = onHover;
+  }, [onOpen, onHover]);
 
   useImperativeHandle(ref, () => ({ flyTo: (site) => engine.current?.flyTo(site) }), []);
 
@@ -35,6 +37,7 @@ export function MarsGlobe({ sites, onOpen, ref }: MarsGlobeProps) {
       started = startGlobe(element, sites, {
         onOpen: (site) => open.current(site),
         labelOf: (id) => labels.current.get(id),
+        onHover: (site) => hover.current?.(site),
       });
     } catch {
       // No WebGL here (an old browser, or the GPU is blocked): say so instead of a blank box.
@@ -73,6 +76,8 @@ export function MarsGlobe({ sites, onOpen, ref }: MarsGlobeProps) {
             accessible={false}
             tabIndex={-1}
             onPress={() => engine.current?.flyTo(site)}
+            onHoverIn={() => onHover?.(site)}
+            onHoverOut={() => onHover?.(null)}
             style={[styles.label, BLUR]}>
             <Text style={styles.labelText} numberOfLines={1}>
               {site.name}

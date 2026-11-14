@@ -17,6 +17,7 @@ import { Logo } from '@/components/logo';
 import { GLOBE_AVAILABLE, MarsGlobe, type GlobeHandle } from '@/components/mars-globe';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { SITES, type Site } from '@/data/sites';
+import { formatLatLon } from '@/mission/format';
 
 /** From this width the headline sits beside the globe instead of over its top. */
 const WIDE_LAYOUT = 900;
@@ -38,6 +39,7 @@ const GLASS = web({
   WebkitBackdropFilter: 'blur(24px) saturate(160%)',
 });
 const EASE = web({ transition: 'background-color 160ms ease, border-color 160ms ease' });
+const FADE = web({ transition: 'opacity 220ms ease' });
 
 /**
  * False while the page is still the HTML rendered ahead of time, which does not know the window
@@ -57,6 +59,14 @@ export default function HomeScreen() {
   const hydrated = useHydrated();
   const globe = useRef<GlobeHandle>(null);
   const [pickedSite, setPickedSite] = useState<string | null>(null);
+  // The site under the pointer, on the globe or in the dock. The last one stays in the brief
+  // while it fades out.
+  const [hoveredSite, setHoveredSite] = useState<string | null>(null);
+  const [briefed, setBriefed] = useState<Site | null>(null);
+  const hover = (site: Site | null) => {
+    setHoveredSite(site ? site.id : null);
+    if (site) setBriefed(site);
+  };
 
   const showGlobe = GLOBE_AVAILABLE && hydrated;
   const short = height <= SHORT_VIEWPORT;
@@ -69,6 +79,7 @@ export default function HomeScreen() {
   /** With a globe on screen, a site first flies there and the map opens on arrival. */
   const choose: SitePress = (site, event) => {
     setPickedSite(site.id);
+    setBriefed(site);
     if (!globe.current) return;
     event.preventDefault();
     globe.current.flyTo(site);
@@ -83,7 +94,7 @@ export default function HomeScreen() {
 
       {showGlobe ? (
         <View style={styles.stage}>
-          <MarsGlobe ref={globe} sites={SITES} onOpen={open} />
+          <MarsGlobe ref={globe} sites={SITES} onOpen={open} onHover={hover} />
           {/* The edges of the screen fall off into space, so the text reads over the stars. */}
           <View
             pointerEvents="none"
@@ -98,6 +109,9 @@ export default function HomeScreen() {
 
           <TopBar />
           <Headline size={titleSize} wide={wide} short={short} />
+          {wide && briefed ? (
+            <SiteBrief site={briefed} shown={hoveredSite !== null || pickedSite !== null} />
+          ) : null}
 
           <View pointerEvents="box-none" style={styles.bottom}>
             {short ? null : (
@@ -105,7 +119,7 @@ export default function HomeScreen() {
                 {picked ? `Descending to ${picked.name}…` : 'Drag to turn the planet · pick a site'}
               </Text>
             )}
-            <SiteDock picked={pickedSite} onPress={choose} wide={wide} />
+            <SiteDock picked={pickedSite} onPress={choose} onHover={hover} wide={wide} />
             <Text pointerEvents="none" style={styles.credit}>
               {CREDIT}
             </Text>
@@ -178,14 +192,51 @@ function Headline({ size, wide, short }: { size: number; wide: boolean; short: b
   );
 }
 
+/**
+ * What a site is, beside the globe, while the pointer is on it. It takes no clicks: the site
+ * itself is what is pressed.
+ */
+function SiteBrief({ site, shown }: { site: Site; shown: boolean }) {
+  return (
+    <View
+      pointerEvents="none"
+      accessibilityLiveRegion="polite"
+      style={[styles.brief, FADE, { opacity: shown ? 1 : 0 }]}>
+      <Text style={styles.briefCaption}>Landing site</Text>
+      <Text style={styles.briefName}>{site.name}</Text>
+      <Text style={styles.briefMission}>{site.mission}</Text>
+      <Text style={styles.briefScience}>{site.science}</Text>
+      <View style={styles.briefFacts}>
+        <Fact label="Base" value={site.landing.name} />
+        <Fact label="Coordinates" value={formatLatLon(site.landing, 2)} mono />
+        <Fact
+          label="Close-up imagery"
+          value={`${site.layers.length} ${site.layers.length === 1 ? 'mosaic' : 'mosaics'}`}
+        />
+      </View>
+    </View>
+  );
+}
+
+function Fact({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <View style={styles.fact}>
+      <Text style={styles.factLabel}>{label}</Text>
+      <Text style={[styles.factValue, mono && styles.factMono]}>{value}</Text>
+    </View>
+  );
+}
+
 /** The landing sites as one rounded bar of glass: the accessible way in beside the globe. */
 function SiteDock({
   picked,
   onPress,
+  onHover,
   wide,
 }: {
   picked: string | null;
   onPress: SitePress;
+  onHover: (site: Site | null) => void;
   wide: boolean;
 }) {
   const pills = SITES.map((site) => (
@@ -194,6 +245,7 @@ function SiteDock({
       site={site}
       active={site.id === picked}
       onPress={(event) => onPress(site, event)}
+      onHover={(over) => onHover(over ? site : null)}
     />
   ));
   return (
@@ -215,17 +267,28 @@ function SiteDock({
   );
 }
 
-type SitePillProps = { site: Site; active: boolean; onPress: (event: Cancellable) => void };
+type SitePillProps = {
+  site: Site;
+  active: boolean;
+  onPress: (event: Cancellable) => void;
+  onHover: (over: boolean) => void;
+};
 
-function SitePill({ site, active, onPress }: SitePillProps) {
-  const [hovered, setHovered] = useState(false);
+function SitePill({ site, active, onPress, onHover }: SitePillProps) {
+  const [hovered, setHoveredState] = useState(false);
+  const setHovered = (over: boolean) => {
+    setHoveredState(over);
+    onHover(over);
+  };
   return (
     <Link href={{ pathname: '/site/[id]', params: { id: site.id } }} onPress={onPress} asChild>
       <Pressable
         accessibilityRole="link"
         accessibilityLabel={`Open the map of ${site.name}`}
         onHoverIn={() => setHovered(true)}
-        onHoverOut={() => setHovered(false)}>
+        onHoverOut={() => setHovered(false)}
+        onFocus={() => setHovered(true)}
+        onBlur={() => setHovered(false)}>
         {({ pressed }) => (
           <View
             style={[
@@ -394,6 +457,69 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 25,
     maxWidth: 360,
+  },
+
+  brief: {
+    position: 'absolute',
+    right: Spacing.six - Spacing.three,
+    top: 0,
+    bottom: 0,
+    width: 320,
+    justifyContent: 'center',
+    gap: Spacing.two,
+  },
+  briefCaption: {
+    color: Colors.textFaint,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+  },
+  briefName: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 32,
+    lineHeight: 36,
+    letterSpacing: -0.8,
+  },
+  briefMission: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  briefScience: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 15,
+    lineHeight: 22,
+    paddingTop: Spacing.two,
+  },
+  briefFacts: {
+    gap: Spacing.two,
+    paddingTop: Spacing.three,
+  },
+  fact: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+    paddingBottom: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.glassBorder,
+  },
+  factLabel: {
+    color: Colors.textFaint,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+  },
+  factValue: {
+    flexShrink: 1,
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    textAlign: 'right',
+  },
+  factMono: {
+    fontFamily: Fonts.mono,
   },
 
   bottom: {

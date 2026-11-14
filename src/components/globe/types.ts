@@ -11,5 +11,7 @@ export type MarsGlobeProps = {
   sites: readonly Site[];
   /** A site was chosen on the globe, or `flyTo` has arrived. */
   onOpen: (site: Site) => void;
+  /** The pointer is over a site on the globe (its marker or its label), or over none. */
+  onHover?: (site: Site | null) => void;
   ref?: Ref<GlobeHandle>;
 };
