@@ -11,6 +11,10 @@ export const Colors = {
   surface: '#10141B',
   /** Raised or pressed surface. */
   surfaceRaised: '#19202A',
+  /** Translucent surfaces used over imagery. */
+  surfaceGlass: 'rgba(16, 20, 27, 0.66)',
+  surfaceGlassActive: 'rgba(25, 32, 42, 0.82)',
+  glassBorder: 'rgba(242, 244, 247, 0.22)',
   /** Hairlines between panels. */
   border: '#242C38',
   text: '#F2F4F7',

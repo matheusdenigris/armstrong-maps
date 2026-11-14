@@ -1,6 +1,6 @@
 import { Link, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
-import { useRef, useSyncExternalStore } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -35,6 +35,7 @@ export default function HomeScreen() {
   const { width, height } = useWindowDimensions();
   const hydrated = useHydrated();
   const globe = useRef<GlobeHandle>(null);
+  const [activeSite, setActiveSite] = useState<Site>(SITES[0]);
 
   const wideGlobe = GLOBE_AVAILABLE && hydrated && width >= WIDE_GLOBE;
   const stacked = GLOBE_AVAILABLE && hydrated && !wideGlobe;
@@ -43,6 +44,7 @@ export default function HomeScreen() {
 
   /** With a globe on screen, a card first flies there and the map opens on arrival. */
   const choose = (site: Site, event: Cancellable) => {
+    setActiveSite(site);
     if (!globe.current) return;
     event.preventDefault();
     globe.current.flyTo(site);
@@ -54,8 +56,8 @@ export default function HomeScreen() {
       <Text style={styles.section} accessibilityRole="header">
         LANDING SITES
       </Text>
-      {SITES.map((site, index) => (
-        <SiteCard key={site.id} index={index + 1} site={site} onPress={(event) => choose(site, event)} />
+      {SITES.map((site) => (
+        <SiteCard key={site.id} site={site} onPress={(event) => choose(site, event)} />
       ))}
     </ScrollView>
   );
@@ -85,6 +87,21 @@ export default function HomeScreen() {
             border: 1px solid ${Colors.text};
             border-radius: ${Radius.large}px;
           }
+
+          #mission-navigation [role="link"] {
+            -webkit-backdrop-filter: blur(18px) saturate(150%);
+            backdrop-filter: blur(18px) saturate(150%);
+          }
+
+          #mission-navigation [id^="mission-tile-"] {
+            transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            #mission-navigation [id^="mission-tile-"] {
+              transition: none;
+            }
+          }
         `}</style>
       </Head>
 
@@ -94,7 +111,8 @@ export default function HomeScreen() {
           <View style={styles.topBar} pointerEvents="none">
             <Brand />
           </View>
-          <View style={styles.siteDock}>{list}</View>
+          <MissionNavigation activeSite={activeSite} onInspect={setActiveSite} onPress={choose} />
+          <MissionDetails site={activeSite} />
           <View style={styles.globeCaption} pointerEvents="none">
             <Text style={styles.hint} numberOfLines={1}>
               Drag to turn, scroll to move in. Blue outlines: high-resolution coverage.
@@ -151,9 +169,65 @@ function Hero() {
   );
 }
 
-type SiteCardProps = { index: number; site: Site; onPress: (event: Cancellable) => void };
+type SiteCardProps = { site: Site; onPress: (event: Cancellable) => void };
 
-function SiteCard({ index, site, onPress }: SiteCardProps) {
+type MissionNavigationProps = {
+  activeSite: Site;
+  onInspect: (site: Site) => void;
+  onPress: (site: Site, event: Cancellable) => void;
+};
+
+function MissionNavigation({ activeSite, onInspect, onPress }: MissionNavigationProps) {
+  return (
+    <View nativeID="mission-navigation" style={styles.missionNavigation}>
+      <ScrollView
+        horizontal
+        style={styles.missionNavigationScroll}
+        contentContainerStyle={styles.missionNavigationContent}
+        showsHorizontalScrollIndicator={false}>
+        {SITES.map((site) => (
+          <Link key={site.id} href={{ pathname: '/site/[id]', params: { id: site.id } }} onPress={(event) => onPress(site, event)} asChild>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={`Inspect ${site.name}`}
+              onFocus={() => onInspect(site)}
+              onHoverIn={() => onInspect(site)}
+              onPressIn={() => onInspect(site)}>
+              {(state) => (
+                <View
+                  nativeID={`mission-tile-${site.id}`}
+                  style={[
+                    styles.missionTile,
+                    activeSite.id === site.id && styles.missionTileActive,
+                    // `hovered` exists on the web only, and the native types do not know it.
+                    (state as { hovered?: boolean }).hovered && styles.missionTileHovered,
+                  ]}>
+                  <Text style={styles.missionTileName}>
+                    {site.name}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+          </Link>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function MissionDetails({ site }: { site: Site }) {
+  return (
+    <View style={styles.missionDetails} pointerEvents="none">
+      <Text style={styles.section}>MISSION BRIEFING</Text>
+      <Text style={styles.detailName}>{site.name}</Text>
+      <Text style={styles.detailMission}>{site.mission}</Text>
+      <Text style={styles.detailScience}>{site.science}</Text>
+      <Text style={styles.detailCoords}>{formatLatLon(site.landing, 2)}</Text>
+    </View>
+  );
+}
+
+function SiteCard({ site, onPress }: SiteCardProps) {
   return (
     <Link href={{ pathname: '/site/[id]', params: { id: site.id } }} onPress={onPress} asChild>
       <Pressable accessibilityRole="link" accessibilityLabel={`Open the map of ${site.name}`}>
@@ -165,7 +239,6 @@ function SiteCard({ index, site, onPress }: SiteCardProps) {
               (state as { hovered?: boolean }).hovered && styles.cardHovered,
               state.pressed && styles.cardPressed,
             ]}>
-            <Text style={styles.cardIndex}>{String(index).padStart(2, '0')}</Text>
             <View style={styles.cardDetails}>
               <Text style={styles.cardName}>{site.name}</Text>
               <Text style={styles.cardMission}>{site.mission}</Text>
@@ -223,13 +296,88 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 7,
   },
-  siteDock: {
+  missionNavigation: {
     position: 'absolute',
     top: Spacing.three,
+    right: 0,
+    left: 0,
+    zIndex: 1,
+    alignItems: 'center',
+  },
+  missionNavigationContent: {
+    flexDirection: 'row',
+    gap: Spacing.one,
+    padding: Spacing.one,
+  },
+  missionNavigationScroll: {
+    alignSelf: 'center',
+    maxWidth: '100%',
+  },
+  missionTile: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    maxWidth: 160,
+    minHeight: 44,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.two,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    borderRadius: Radius.medium,
+    backgroundColor: Colors.surfaceGlass,
+  },
+  missionTileActive: {
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceGlassActive,
+  },
+  missionTileHovered: {
+    borderColor: Colors.mars,
+    backgroundColor: Colors.surfaceGlassActive,
+    transform: [{ translateY: -2 }],
+  },
+  missionTileName: {
+    color: Colors.text,
+    fontFamily: Fonts.mono,
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  missionDetails: {
+    position: 'absolute',
+    top: 88,
     right: Spacing.four,
-    bottom: Spacing.four,
     zIndex: 1,
     width: 340,
+    gap: Spacing.two,
+    padding: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    borderRadius: Radius.medium,
+    backgroundColor: Colors.surfaceGlass,
+  },
+  detailName: {
+    color: Colors.text,
+    fontFamily: Fonts.mono,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  detailMission: {
+    color: Colors.mars,
+    fontFamily: Fonts.mono,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 19,
+  },
+  detailScience: {
+    color: Colors.textMuted,
+    fontFamily: Fonts.mono,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  detailCoords: {
+    color: Colors.text,
+    fontFamily: Fonts.mono,
+    fontSize: 12,
   },
   globeCaption: {
     position: 'absolute',
@@ -294,9 +442,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   card: {
-    flexDirection: 'row',
     padding: Spacing.three,
-    gap: Spacing.three,
     borderRadius: Radius.medium,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.border,
