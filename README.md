@@ -125,11 +125,6 @@ of the same site, through a short cut with drawn dust; those photographs were no
 planned route. The stars behind the globe and the light on it are
 decoration.
 
-## English only
-
-The whole repository is in English: interface, code, docs, issues and commit messages. CI fails
-when it finds anything else (`scripts/check-english.mjs`).
-
 ## Use of AI
 
 This project is developed with the help of Claude (Anthropic) working as a coding agent under the
