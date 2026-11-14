@@ -12,7 +12,7 @@ export const GLOBE_AVAILABLE = true;
 
 /**
  * Mars from orbit. Drag to turn it, pinch or use the wheel to move in, and pick a landing site.
- * The blue outlines are the regions where Mars Trek has high-resolution mosaics.
+ * The landing-site markers are the selectable regions with high-resolution mosaics.
  */
 export function MarsGlobe({ sites, onOpen, ref }: MarsGlobeProps) {
   const host = useRef<ComponentRef<typeof View>>(null);
@@ -63,6 +63,7 @@ export function MarsGlobe({ sites, onOpen, ref }: MarsGlobeProps) {
         sites.map((site) => (
           <Pressable
             key={site.id}
+            nativeID={`globe-label-${site.id}`}
             ref={(node) => {
               const element = node as unknown as HTMLElement | null;
               if (element) labels.current.set(site.id, element);
@@ -97,7 +98,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.one,
     borderRadius: Radius.small,
-    backgroundColor: 'rgba(7, 9, 13, 0.72)',
+    backgroundColor: Colors.glass,
   },
   labelText: {
     color: Colors.text,

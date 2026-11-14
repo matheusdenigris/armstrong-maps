@@ -309,8 +309,14 @@ export function startGlobe(
   }
 
   function onPointerMove(event: PointerEvent) {
-    if (!pointers.has(event.pointerId)) return;
-    pointers.set(event.pointerId, local(event));
+    const point = local(event);
+    if (!pointers.has(event.pointerId)) {
+      // A closed hand is reserved for a drag. A marker is an actionable destination, so advertise
+      // it with the normal picker cursor before the click.
+      canvas.style.cursor = nearestSite(point.x, point.y) ? 'pointer' : 'grab';
+      return;
+    }
+    pointers.set(event.pointerId, point);
     const middle = centre();
     const now = performance.now();
     const dx = middle.x - last.x;
@@ -338,6 +344,7 @@ export function startGlobe(
 
   function onPointerUp(event: PointerEvent) {
     if (!pointers.has(event.pointerId)) return;
+    const point = local(event);
     pointers.delete(event.pointerId);
     if (pointers.size > 0) {
       // One finger left after a pinch: carry on from where it is, without a jump or a throw.
@@ -347,7 +354,6 @@ export function startGlobe(
       spin = { lat: 0, lon: 0 };
       return;
     }
-    canvas.style.cursor = 'grab';
     const now = performance.now();
     // A finger that stopped before lifting does not throw the globe.
     if (now - last.at > 90) spin = { lat: 0, lon: 0 };
@@ -358,7 +364,12 @@ export function startGlobe(
       if (site) flyTo(site);
     }
     press = null;
+    canvas.style.cursor = nearestSite(point.x, point.y) ? 'pointer' : 'grab';
     dirty = true;
+  }
+
+  function onPointerLeave() {
+    if (pointers.size === 0) canvas.style.cursor = 'grab';
   }
 
   function onWheel(event: WheelEvent) {
@@ -406,6 +417,7 @@ export function startGlobe(
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
   canvas.addEventListener('pointercancel', onPointerUp);
+  canvas.addEventListener('pointerleave', onPointerLeave);
   canvas.addEventListener('wheel', onWheel, { passive: false });
   frame = requestAnimationFrame(tick);
 
@@ -420,6 +432,7 @@ export function startGlobe(
       canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointercancel', onPointerUp);
+      canvas.removeEventListener('pointerleave', onPointerLeave);
       canvas.removeEventListener('wheel', onWheel);
       dispose();
       surface.dispose();

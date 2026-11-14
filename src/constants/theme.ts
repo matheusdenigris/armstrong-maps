@@ -6,30 +6,51 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   /** Screen background: deep space. */
-  background: '#07090D',
+  background: '#04060A',
   /** Panels and sheets that sit on the background. */
-  surface: '#10141B',
+  surface: '#090D14',
   /** Raised or pressed surface. */
-  surfaceRaised: '#19202A',
+  surfaceRaised: '#0F141D',
   /** Hairlines between panels. */
-  border: '#242C38',
-  text: '#F2F4F7',
-  textMuted: '#9AA4B2',
+  border: '#1B2433',
+  /** Stronger technical rules and button outlines. */
+  borderStrong: '#2C394D',
+  text: '#EEF2F7',
+  textMuted: '#8794A6',
   /** Mars: the planet and the brand. */
-  mars: '#E2562F',
-  /** Mars, lighter: hover on a Mars-coloured control. */
-  marsLight: '#F07A55',
-  /** Navigation: routes, coverage areas, links. */
-  nav: '#4C8DFF',
-  /** Walk status. */
-  go: '#3DD68C',
-  caution: '#F5B83D',
-  noGo: '#F0513F',
-  /** Marks a NASA source on the docs page. A colour only: never the NASA insignia. */
+  mars: '#FC3D21',
+  /** A lighter Mars accent for the documentation scrollbar hover state. */
+  marsLight: '#FF745F',
+  /** Source cards on the documentation screen. A colour only, never the NASA insignia. */
   nasa: '#FC3D21',
-  /** Soft fills behind an active item or an icon. */
-  navTint: 'rgba(76, 141, 255, 0.14)',
+  /** Documentation navigation fills, derived from the active accent colours. */
+  navTint: 'rgba(47, 107, 255, 0.14)',
   nasaTint: 'rgba(252, 61, 33, 0.14)',
+  /** Navigation: routes, coverage areas, links. */
+  nav: '#2F6BFF',
+  /** Deeper navigation blue for map labels and overlays. */
+  navDeep: '#0B3D91',
+  /** Live-data, focus, and route telemetry accent. */
+  cyan: '#5EEAD4',
+  /** Walk status. */
+  go: '#4ADE80',
+  caution: '#FBBF24',
+  noGo: '#F87171',
+  /** Source-specific map-layer accents. */
+  topographic: '#F59E0B',
+  thermal: '#FB7185',
+  spectral: '#A78BFA',
+  /** Uncovered map fallback behind imagery. */
+  mapBackground: '#120B08',
+  /** Translucent mission-control HUD surfaces. */
+  glass: 'rgba(4, 6, 10, 0.82)',
+  glassStrong: 'rgba(4, 6, 10, 0.92)',
+  /** Selected settings and layer card fill. */
+  selectedSurface: '#121A27',
+  /** Low-emphasis divider and spotlight overlays. */
+  overlay: 'rgba(255, 255, 255, 0.08)',
+  /** A named white keeps controls free of ad-hoc colour literals. */
+  white: '#FFFFFF',
 } as const;
 
 export type ColorName = keyof typeof Colors;
@@ -50,14 +71,18 @@ export const Radius = {
   large: 20,
 } as const;
 
-/** Sans for reading, mono for telemetry and labels. */
+/**
+ * The three source type roles. The root layout loads matching font files under these family
+ * names; platform fallbacks keep static HTML legible before hydration.
+ */
 export const Fonts = Platform.select({
-  ios: { sans: 'system-ui', mono: 'ui-monospace' },
+  ios: { display: 'Michroma', sans: 'SpaceGrotesk', mono: 'JetBrainsMono' },
   web: {
-    sans: 'ui-sans-serif, system-ui, sans-serif',
-    mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    display: 'Michroma, Eurostile, system-ui, sans-serif',
+    sans: 'SpaceGrotesk, ui-sans-serif, system-ui, sans-serif',
+    mono: 'JetBrainsMono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   },
-  default: { sans: 'normal', mono: 'monospace' },
+  default: { display: 'Michroma', sans: 'SpaceGrotesk', mono: 'JetBrainsMono' },
 })!;
 
 /** Content never grows wider than this on tablets and desktop browsers. */

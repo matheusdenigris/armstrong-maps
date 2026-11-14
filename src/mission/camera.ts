@@ -17,6 +17,26 @@ export type Pixel = { x: number; y: number };
 
 export type ScaleLimits = { min: number; max: number };
 
+/**
+ * A surface map remains useful while it shows a regional frame. Beyond this it becomes a flat
+ * equirectangular overview; the landing screen's globe is the appropriate whole-planet view.
+ */
+export const MAX_SURFACE_FRAME_HEIGHT_DEGREES = 90;
+
+/**
+ * Raises a map's minimum scale when necessary to keep a whole-planet rectangle out of its frame.
+ * The caller's limits still win when they are more restrictive.
+ */
+export function limitsForSurfaceFrame(limits: ScaleLimits, size: Size): ScaleLimits {
+  return {
+    ...limits,
+    min: Math.min(
+      limits.max,
+      Math.max(limits.min, size.height / MAX_SURFACE_FRAME_HEIGHT_DEGREES),
+    ),
+  };
+}
+
 /** Where a place on Mars falls on screen. */
 export function project(view: MapView, size: Size, point: LatLon): Pixel {
   return {
@@ -52,12 +72,16 @@ export function viewAround(
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
+/** Keeps a requested map scale inside its allowed range before it affects the camera position. */
+export const clampScale = (pixelsPerDegree: number, limits: ScaleLimits) =>
+  clamp(pixelsPerDegree, limits.min, limits.max);
+
 /** Keeps the centre on the planet and the scale inside its limits. */
 export function clampView(view: MapView, limits: ScaleLimits): MapView {
   return {
     lat: clamp(view.lat, -90, 90),
     lon: clamp(view.lon, -180, 180),
-    pixelsPerDegree: clamp(view.pixelsPerDegree, limits.min, limits.max),
+    pixelsPerDegree: clampScale(view.pixelsPerDegree, limits),
   };
 }
 

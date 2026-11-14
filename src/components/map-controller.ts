@@ -6,6 +6,7 @@
  * hears about a new camera once per frame.
  */
 import {
+  clampScale,
   clampView,
   hasDrifted,
   unproject,
@@ -87,6 +88,15 @@ export class MapController {
 
   configure(options: MapOptions) {
     this.options = options;
+    // A resized map can raise its minimum scale. Keep the rendered camera within those new bounds.
+    this.camera = {
+      view: clampView(this.camera.view, options.limits),
+      base: clampView(this.camera.base, options.limits),
+    };
+  }
+
+  currentCamera() {
+    return this.camera;
   }
 
   setSize(size: Size) {
@@ -124,7 +134,7 @@ export class MapController {
     const spread = spreadOf(points);
     const scale =
       gesture.spread > 0 && spread > 0 ? gesture.scale * (spread / gesture.spread) : gesture.scale;
-    this.show(viewAround(gesture.anchor, at, scale, size));
+    this.show(this.zoomedView(gesture.anchor, at, scale, size));
   }
 
   end() {
@@ -167,7 +177,7 @@ export class MapController {
     const factor = Math.exp(-Math.max(-240, Math.min(240, delta)) * 0.002);
     const { view } = this.camera;
     const anchor = unproject(view, this.size, at);
-    this.show(viewAround(anchor, at, view.pixelsPerDegree * factor, this.size));
+    this.show(this.zoomedView(anchor, at, view.pixelsPerDegree * factor, this.size));
     this.settleSoon();
   }
 
@@ -180,7 +190,7 @@ export class MapController {
     const from = this.camera.view;
     const anchor = unproject(from, size, at);
     if (this.options.reduceMotion) {
-      this.show(viewAround(anchor, at, from.pixelsPerDegree * factor, size));
+      this.show(this.zoomedView(anchor, at, from.pixelsPerDegree * factor, size));
       this.settleSoon();
       return;
     }
@@ -188,7 +198,7 @@ export class MapController {
     const step = () => {
       const t = Math.min(1, (Date.now() - started) / TWEEN_MS);
       const eased = 1 - (1 - t) ** 3;
-      this.show(viewAround(anchor, at, from.pixelsPerDegree * factor ** eased, size));
+      this.show(this.zoomedView(anchor, at, from.pixelsPerDegree * factor ** eased, size));
       if (t < 1) {
         this.tween = requestAnimationFrame(step);
       } else {
@@ -218,6 +228,11 @@ export class MapController {
       travelled: keep?.travelled ?? 0,
       last: at,
     };
+  }
+
+  /** Clamp scale before anchoring a zoom so attempts past a limit cannot shift the map. */
+  private zoomedView(anchor: LatLon, at: Pixel, scale: number, size: Size): MapView {
+    return viewAround(anchor, at, clampScale(scale, this.options.limits), size);
   }
 
   /** Shows a view on the next frame. Tiles are laid out again only when it has drifted. */

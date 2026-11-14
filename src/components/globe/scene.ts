@@ -1,14 +1,12 @@
 /**
- * The 3D scene of the globe: Mars, a thin atmosphere, the regions with high-resolution coverage
- * and a marker on each landing site. Plain three.js, with nothing that depends on a browser, so
- * the same scene can run on a phone's OpenGL context.
+ * The 3D scene of the globe: Mars, a thin atmosphere, and a marker on each landing site. Plain
+ * three.js, with nothing that depends on a browser, so the same scene can run on a phone's
+ * OpenGL context.
  */
 import * as THREE from 'three';
 
-import { Colors } from '@/constants/theme';
 import type { Site } from '@/data/sites';
 import type { LatLon } from '@/mission/geo';
-import type { Bounds } from '@/mission/tiles';
 
 /** Vertical field of view of the camera, in degrees. */
 export const FIELD_OF_VIEW = 35;
@@ -34,31 +32,6 @@ export function fitDistance(aspect: number, room = 1.18): number {
   const vertical = (FIELD_OF_VIEW * RAD) / 2;
   const horizontal = Math.atan(Math.tan(vertical) * aspect);
   return room / Math.sin(Math.min(vertical, horizontal));
-}
-
-/** The outline of a rectangle of latitude and longitude, following the curve of the planet. */
-function outline(bounds: Bounds, radius: number): THREE.BufferGeometry {
-  const steps = 12;
-  const corners: LatLon[] = [
-    { lat: bounds.north, lon: bounds.west },
-    { lat: bounds.north, lon: bounds.east },
-    { lat: bounds.south, lon: bounds.east },
-    { lat: bounds.south, lon: bounds.west },
-  ];
-  const points: THREE.Vector3[] = [];
-  corners.forEach((from, index) => {
-    const to = corners[(index + 1) % corners.length];
-    for (let step = 0; step < steps; step += 1) {
-      const t = step / steps;
-      points.push(
-        toVector(
-          { lat: from.lat + (to.lat - from.lat) * t, lon: from.lon + (to.lon - from.lon) * t },
-          radius,
-        ),
-      );
-    }
-  });
-  return new THREE.BufferGeometry().setFromPoints(points);
 }
 
 /** A ring with a dot in the middle, drawn into a small texture. */
@@ -176,7 +149,6 @@ export function createGlobeScene(sites: readonly Site[], surface: THREE.Texture)
   );
   scene.add(planet, atmosphere(), starField());
 
-  const coverage = new THREE.LineBasicMaterial({ color: Colors.nav, transparent: true, opacity: 0.9 });
   const pin = new THREE.SpriteMaterial({
     map: markerTexture(),
     color: 0xffffff,
@@ -185,7 +157,6 @@ export function createGlobeScene(sites: readonly Site[], surface: THREE.Texture)
     sizeAttenuation: true,
   });
   for (const site of sites) {
-    scene.add(new THREE.LineLoop(outline(site.region, 1.003), coverage));
     const marker = new THREE.Sprite(pin);
     marker.position.copy(toVector(site.landing, 1.012));
     marker.scale.setScalar(0.052);

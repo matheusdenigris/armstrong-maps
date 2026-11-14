@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { memo, useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
   PixelRatio,
@@ -18,6 +18,7 @@ import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { tileUrl, type MapLayer } from '@/data/layers';
 import {
   project,
+  limitsForSurfaceFrame,
   visibleBounds,
   type MapView,
   type Pixel,
@@ -76,6 +77,16 @@ type SurfaceMapProps = {
 
 const webOnly = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle) : null);
 
+const sameView = (left: MapView, right: MapView) =>
+  left.lat === right.lat &&
+  left.lon === right.lon &&
+  left.pixelsPerDegree === right.pixelsPerDegree;
+
+const sameCamera = (
+  left: { view: MapView; base: MapView },
+  right: { view: MapView; base: MapView },
+) => sameView(left.view, right.view) && sameView(left.base, right.base);
+
 /**
  * A map of Mars that is dragged with one finger and pinched with two. On the web the mouse drags
  * and the wheel zooms. Tiles are equirectangular, so the map is too.
@@ -101,13 +112,33 @@ export function SurfaceMap({
   const node = useRef<ComponentRef<typeof View>>(null);
   const controller = useRef<MapController | null>(null);
   const origin = useRef<Pixel>({ x: 0, y: 0 });
+  const frameLimits = useMemo(
+    () => (size ? limitsForSurfaceFrame(limits, size) : limits),
+    [limits, size],
+  );
 
   useEffect(() => {
-    const options = { home, limits, reduceMotion, onCamera: setCamera, onViewChange, onPress };
+    const options = {
+      home,
+      limits: frameLimits,
+      reduceMotion,
+      onCamera: setCamera,
+      onViewChange,
+      onPress,
+    };
     if (controller.current) controller.current.configure(options);
     else controller.current = new MapController(options);
     if (size) controller.current.setSize(size);
-  }, [home, limits, reduceMotion, onViewChange, onPress, size]);
+  }, [frameLimits, home, reduceMotion, onViewChange, onPress, size]);
+
+  // Keep the React copy of the camera in step when a resize raises the zoom-out floor.
+  useEffect(() => {
+    const next = controller.current?.currentCamera();
+    if (!next) return;
+    setCamera((previous) =>
+      sameCamera(previous, next) ? previous : { view: next.view, base: next.base },
+    );
+  }, [frameLimits]);
 
   useEffect(() => () => controller.current?.dispose(), []);
 
@@ -171,6 +202,8 @@ export function SurfaceMap({
   }
 
   const { view, base } = camera;
+  const atClosestZoom = view.pixelsPerDegree >= frameLimits.max;
+  const atWidestZoom = view.pixelsPerDegree <= frameLimits.min;
   const zoom = view.pixelsPerDegree / base.pixelsPerDegree;
   // Maps the tile plane, laid out for `base`, onto the current view.
   const planeStyle: ViewStyle | null = size && {
@@ -205,6 +238,13 @@ export function SurfaceMap({
           <TilePlane layers={layers} opacity={opacity} base={base} size={size} />
         </View>
       )}
+
+      <View pointerEvents="none" style={styles.frame}>
+        <View style={[styles.corner, styles.cornerTopLeft]} />
+        <View style={[styles.corner, styles.cornerTopRight]} />
+        <View style={[styles.corner, styles.cornerBottomLeft]} />
+        <View style={[styles.corner, styles.cornerBottomRight]} />
+      </View>
 
       {size && (paths.length > 0 || rings.length > 0) && (
         <Svg width={size.width} height={size.height} style={styles.overlay} pointerEvents="none">
@@ -272,16 +312,19 @@ export function SurfaceMap({
           label="Zoom in"
           glyph="plus"
           onPress={() => controller.current?.zoomBy(ZOOM_STEP)}
+          disabled={atClosestZoom}
         />
         <MapButton
           label="Zoom out"
           glyph="minus"
           onPress={() => controller.current?.zoomBy(1 / ZOOM_STEP)}
+          disabled={atWidestZoom}
         />
         <MapButton
           label="Back to the landing site"
           glyph="target"
           onPress={() => controller.current?.recentre()}
+          last
         />
       </View>
     </View>
@@ -362,15 +405,28 @@ export const TilePlane = memo(function TilePlane({ layers, opacity, base, size }
 });
 
 type Glyph = 'plus' | 'minus' | 'target';
-type MapButtonProps = { label: string; glyph: Glyph; onPress: () => void };
+type MapButtonProps = {
+  label: string;
+  glyph: Glyph;
+  onPress: () => void;
+  last?: boolean;
+  disabled?: boolean;
+};
 
-function MapButton({ label, glyph, onPress }: MapButtonProps) {
+function MapButton({ label, glyph, onPress, last = false, disabled = false }: MapButtonProps) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}>
+      accessibilityState={{ disabled }}
+      style={({ pressed }) => [
+        styles.button,
+        last && styles.buttonLast,
+        disabled && styles.buttonDisabled,
+        pressed && !disabled && styles.buttonPressed,
+      ]}>
       <Svg
         width={20}
         height={20}
@@ -396,7 +452,7 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
     overflow: 'hidden',
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.mapBackground,
   },
   tile: {
     position: 'absolute',
@@ -406,6 +462,44 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     top: 0,
+  },
+  frame: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  corner: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderColor: Colors.textMuted,
+    opacity: 0.62,
+  },
+  cornerTopLeft: {
+    top: Spacing.two,
+    left: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+  },
+  cornerTopRight: {
+    top: Spacing.two,
+    right: Spacing.two,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: StyleSheet.hairlineWidth,
+  },
+  cornerBottomLeft: {
+    bottom: Spacing.two,
+    left: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+  },
+  cornerBottomRight: {
+    right: Spacing.two,
+    bottom: Spacing.two,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   marker: {
     position: 'absolute',
@@ -421,34 +515,48 @@ const styles = StyleSheet.create({
     height: 14,
     borderRadius: 7,
     borderWidth: 2,
-    borderColor: Colors.text,
+    borderColor: Colors.background,
   },
   markerLabel: {
     color: Colors.text,
     fontFamily: Fonts.mono,
-    fontSize: 12,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.5,
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.half,
     borderRadius: Radius.small,
-    backgroundColor: 'rgba(7, 9, 13, 0.78)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    backgroundColor: Colors.glass,
     overflow: 'hidden',
   },
   controls: {
     position: 'absolute',
     right: Spacing.three,
-    gap: Spacing.two,
+    gap: 0,
+    overflow: 'hidden',
+    borderRadius: Radius.small,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    backgroundColor: Colors.glassStrong,
   },
   button: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: Radius.medium,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    backgroundColor: 'rgba(16, 20, 27, 0.92)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.glassStrong,
+  },
+  buttonLast: {
+    borderBottomWidth: 0,
   },
   buttonPressed: {
     backgroundColor: Colors.surfaceRaised,
+  },
+  buttonDisabled: {
+    opacity: 0.42,
   },
 });

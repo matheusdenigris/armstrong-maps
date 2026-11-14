@@ -3,14 +3,6 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import type { RoverTrack } from '@/data/rover';
-import {
-  CME_WINDOW,
-  DONKI_CREDIT,
-  DONKI_WINDOW_DAYS,
-  marsSpaceWeather,
-  type MarsArrival,
-  type SepEvent,
-} from '@/data/space-weather';
 import { REMS_CREDIT, type SolWeather } from '@/data/weather';
 import { formatDistance, formatLatLon } from '@/mission/format';
 import type { Feed } from '@/state/use-feed';
@@ -22,8 +14,6 @@ type EnvironmentPanelProps = {
   weather: Feed<SolWeather[]>;
   /** The rover of this site and its traverse, when the site has one. */
   rover: { name: string; track: Feed<RoverTrack> } | null;
-  /** Space weather from NASA DONKI, and the moment it is judged at. */
-  space: { arrivals: Feed<MarsArrival[]>; sep: Feed<SepEvent[]>; now: Date };
 };
 
 const degrees = (value: number | null) => (value === null ? 'No reading' : `${value} °C`);
@@ -36,7 +26,6 @@ export function EnvironmentPanel({
   distanceFromGaleM,
   weather,
   rover,
-  space,
 }: EnvironmentPanelProps) {
   // Within a few kilometres of Bradbury Landing the readings are local.
   const local = distanceFromGaleM < 50_000;
@@ -44,26 +33,25 @@ export function EnvironmentPanel({
 
   return (
     <View style={styles.panel}>
-      <Text style={styles.heading} accessibilityRole="header">
-        WEATHER · MEASURED AT GALE CRATER
-      </Text>
+      <PanelHeading number="03" title="SITE CONDITIONS" />
+      <SectionHeading title="WEATHER · MEASURED AT GALE CRATER" color={Colors.nav} />
       {!local ? (
-        <Text style={styles.warning}>
+        <Text style={[styles.warning, { borderLeftColor: Colors.caution }]}>
           {siteName} is {formatDistance(distanceFromGaleM)} from the weather station. These
           readings are a reference, not the weather here.
         </Text>
       ) : null}
       {weather.status === 'loading' || weather.status === 'idle' ? (
-        <Text style={styles.note}>Asking the station for its latest sol.</Text>
+        <StatusNote text="Asking the station for its latest sol." color={Colors.nav} />
       ) : null}
       {weather.status === 'failed' ? (
-        <Text style={styles.note}>The weather feed did not answer. No reading to show.</Text>
+        <StatusNote text="The weather feed did not answer. No reading to show." color={Colors.noGo} />
       ) : null}
       {weather.status === 'ready' && !latest ? (
-        <Text style={styles.note}>The weather feed answered without any sol.</Text>
+        <StatusNote text="The weather feed answered without any sol." color={Colors.caution} />
       ) : null}
       {latest ? (
-        <View style={styles.card}>
+        <View style={[styles.card, { borderLeftColor: Colors.nav }]}>
           <Text style={styles.cardTitle}>
             Sol {latest.sol} · {latest.earthDate} on Earth
           </Text>
@@ -89,10 +77,8 @@ export function EnvironmentPanel({
         </View>
       ) : null}
 
-      <Text style={styles.heading} accessibilityRole="header">
-        RADIATION · PUBLISHED AVERAGE
-      </Text>
-      <View style={styles.card}>
+      <SectionHeading title="RADIATION · PUBLISHED AVERAGE" color={Colors.caution} />
+      <View style={[styles.card, { borderLeftColor: Colors.caution }]}>
         <Text style={styles.cardTitle}>
           {SURFACE_RADIATION.msvPerDay} ± {SURFACE_RADIATION.uncertaintyMsvPerDay} mSv per Earth day
         </Text>
@@ -100,25 +86,21 @@ export function EnvironmentPanel({
         <Text style={styles.source}>{SURFACE_RADIATION.source}. Not a live reading.</Text>
       </View>
 
-      <Text style={styles.heading} accessibilityRole="header">
-        SPACE WEATHER · NASA DONKI
-      </Text>
-      <SpaceWeatherCard {...space} />
-
       {rover ? (
         <>
-          <Text style={styles.heading} accessibilityRole="header">
-            ROVER · {rover.name.toUpperCase()}
-          </Text>
-          <View style={styles.card}>
+          <SectionHeading title={`ROVER · ${rover.name.toUpperCase()}`} color={Colors.mars} />
+          <View style={[styles.card, { borderLeftColor: Colors.mars }]}>
             {rover.track.status === 'loading' || rover.track.status === 'idle' ? (
-              <Text style={styles.note}>Asking for the traverse.</Text>
+              <StatusNote text="Asking for the traverse." color={Colors.mars} />
             ) : null}
             {rover.track.status === 'failed' ? (
-              <Text style={styles.note}>The traverse feed did not answer. No position to show.</Text>
+              <StatusNote
+                text="The traverse feed did not answer. No position to show."
+                color={Colors.noGo}
+              />
             ) : null}
             {rover.track.status === 'ready' && !rover.track.data.latest ? (
-              <Text style={styles.note}>The traverse feed answered without a position.</Text>
+              <StatusNote text="The traverse feed answered without a position." color={Colors.caution} />
             ) : null}
             {rover.track.status === 'ready' && rover.track.data.latest ? (
               <>
@@ -142,82 +124,30 @@ export function EnvironmentPanel({
   );
 }
 
-/** "2026-10-27T12:00Z" as "2026-10-27 12:00 UTC". */
-const utc = (iso: string) => `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
-
-const hours = (value: number) =>
-  Math.abs(value) < 48 ? `${Math.round(Math.abs(value))} h` : `${Math.round(Math.abs(value) / 24)} days`;
-
-/** The CME forecast for Mars and the recent solar particle events, each labelled for what it is. */
-function SpaceWeatherCard({ arrivals, sep, now }: EnvironmentPanelProps['space']) {
-  const forecast = arrivals.status === 'ready' ? marsSpaceWeather(arrivals.data, now) : null;
-  const alert = forecast !== null && forecast.level !== 'quiet';
-  const weakKind = forecast?.weak
-    ? forecast.weak.arrival.glancing
-      ? 'glancing blow'
-      : 'minor impact'
-    : '';
-
+function PanelHeading({ number, title }: { number: string; title: string }) {
   return (
-    <View style={[styles.card, alert && styles.cardAlert]}>
-      {arrivals.status === 'idle' || arrivals.status === 'loading' ? (
-        <Text style={styles.note}>Asking DONKI for CME forecasts at Mars.</Text>
-      ) : null}
-      {arrivals.status === 'failed' ? (
-        <Text style={styles.note}>
-          DONKI did not answer (it may be busy or over its hourly limit). No forecast to show, and
-          the walk verdict does not count space weather.
-        </Text>
-      ) : null}
-      {forecast ? (
-        <>
-          <Text style={[styles.cardTitle, alert && styles.alertText]}>
-            {forecast.level === 'arriving' && forecast.next
-              ? `CME forecast to hit Mars in ${hours(forecast.next.hours)}`
-              : forecast.level === 'passing' && forecast.next
-                ? `A CME hit Mars ${hours(forecast.next.hours)} ago`
-                : `No CME forecast to hit Mars in the next ${CME_WINDOW.aheadHours} h`}
-          </Text>
-          {forecast.next ? (
-            <Text style={styles.mono}>
-              {forecast.level === 'quiet' ? 'Next forecast: ' : ''}
-              {utc(forecast.next.arrival.arrivalTime)}
-            </Text>
-          ) : null}
-          {forecast.weak ? (
-            <Text style={styles.note}>
-              Also forecast: a {weakKind} at Mars,{' '}
-              {forecast.weak.hours >= 0 ? `in ${hours(forecast.weak.hours)}` : `${hours(forecast.weak.hours)} ago`}{' '}
-              ({utc(forecast.weak.arrival.arrivalTime)}). The model rates it too weak to change the verdict.
-            </Text>
-          ) : null}
-          <Text style={styles.note}>
-            {alert
-              ? 'The walk verdict adds a caution: solar particles could raise the dose above the average.'
-              : `Only a CME the model expects to hit Mars squarely changes the verdict. ${arrivals.status === 'ready' ? arrivals.data.length : 0} arrivals at Mars in the model runs of the last ${DONKI_WINDOW_DAYS} days.`}
-          </Text>
-        </>
-      ) : null}
+    <View style={styles.panelHeading} accessible accessibilityRole="header">
+      <Text style={styles.panelNumber}>{number}</Text>
+      <Text style={styles.panelTitle}>{title}</Text>
+      <View style={styles.panelRule} />
+    </View>
+  );
+}
 
-      <View style={styles.stack}>
-        <Text style={styles.readingLabel}>
-          Solar particle events near the Earth, last {DONKI_WINDOW_DAYS} days
-        </Text>
-        <Text style={styles.readingValue}>
-          {sep.status === 'ready'
-            ? sep.data.length === 0
-              ? 'None'
-              : `${sep.data.length} · latest ${utc(sep.data[0].time)}`
-            : sep.status === 'failed'
-              ? 'No answer from DONKI'
-              : 'Asking'}
-        </Text>
-      </View>
-      <Text style={styles.source}>
-        {DONKI_CREDIT}. CME arrivals are a WSA-Enlil model forecast; particle events are seen near
-        the Earth. Neither is a reading on Mars. The {CME_WINDOW.aheadHours} h window is a project
-        assumption.
-      </Text>
+function SectionHeading({ title, color }: { title: string; color: string }) {
+  return (
+    <View style={styles.heading} accessible accessibilityRole="header">
+      <View style={[styles.headingMarker, { backgroundColor: color }]} />
+      <Text style={styles.headingText}>{title}</Text>
+    </View>
+  );
+}
+
+function StatusNote({ text, color }: { text: string; color: string }) {
+  return (
+    <View style={[styles.statusNote, { borderLeftColor: color }]}>
+      <View style={[styles.statusDot, { backgroundColor: color }]} />
+      <Text style={styles.note}>{text}</Text>
     </View>
   );
 }
@@ -233,73 +163,132 @@ function Reading({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   panel: {
-    gap: Spacing.two,
+    gap: Spacing.three,
     paddingHorizontal: Spacing.three,
     paddingBottom: Spacing.three,
   },
+  panelHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingTop: Spacing.one,
+  },
+  panelNumber: {
+    color: Colors.mars,
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  panelTitle: {
+    color: Colors.text,
+    fontFamily: Fonts.mono,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  panelRule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Colors.border,
+  },
   heading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  headingMarker: {
+    width: 8,
+    height: 8,
+    borderRadius: Radius.small,
+  },
+  headingText: {
     color: Colors.textMuted,
     fontFamily: Fonts.mono,
     fontSize: 10,
-    letterSpacing: 1.5,
-    paddingTop: Spacing.two,
+    fontWeight: '600',
+    letterSpacing: 1.3,
   },
   warning: {
     color: Colors.text,
     fontFamily: Fonts.sans,
     fontSize: 13,
     lineHeight: 18,
-    paddingLeft: Spacing.two + Spacing.one,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
     borderLeftWidth: 3,
-    borderLeftColor: Colors.caution,
+    borderColor: Colors.border,
+    borderRadius: Radius.small,
+    backgroundColor: Colors.surface,
   },
   card: {
     gap: Spacing.two,
     padding: Spacing.two + Spacing.one,
-    borderRadius: Radius.medium,
+    borderRadius: Radius.small,
     borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
     borderColor: Colors.border,
-    backgroundColor: Colors.surfaceRaised,
-  },
-  cardAlert: {
-    borderColor: Colors.caution,
-  },
-  alertText: {
-    color: Colors.caution,
+    backgroundColor: Colors.surface,
   },
   cardTitle: {
     color: Colors.text,
-    fontFamily: Fonts.sans,
-    fontSize: 15,
+    fontFamily: Fonts.mono,
+    fontSize: 13,
     fontWeight: '600',
+    lineHeight: 18,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    rowGap: Spacing.two,
+    gap: Spacing.one,
   },
   reading: {
-    width: '50%',
-    paddingRight: Spacing.two,
-    gap: Spacing.half,
-  },
-  stack: {
-    gap: Spacing.half,
+    width: '49%',
+    minHeight: 68,
+    gap: Spacing.one,
+    padding: Spacing.two,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+    borderRadius: Radius.small,
+    backgroundColor: Colors.surfaceRaised,
   },
   readingLabel: {
     color: Colors.textMuted,
-    fontFamily: Fonts.sans,
-    fontSize: 12,
+    fontFamily: Fonts.mono,
+    fontSize: 9,
+    fontWeight: '600',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   readingValue: {
     color: Colors.text,
     fontFamily: Fonts.mono,
-    fontSize: 14,
+    fontSize: 13,
+    lineHeight: 18,
   },
   mono: {
     color: Colors.text,
     fontFamily: Fonts.mono,
     fontSize: 13,
+  },
+  statusNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
+    borderColor: Colors.border,
+    borderRadius: Radius.small,
+    backgroundColor: Colors.surface,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: Radius.small,
+    marginTop: Spacing.one + Spacing.half,
   },
   note: {
     color: Colors.textMuted,
@@ -309,8 +298,11 @@ const styles = StyleSheet.create({
   },
   source: {
     color: Colors.textMuted,
-    fontFamily: Fonts.sans,
+    fontFamily: Fonts.mono,
     fontSize: 11,
     lineHeight: 15,
+    paddingTop: Spacing.one,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
   },
 });
