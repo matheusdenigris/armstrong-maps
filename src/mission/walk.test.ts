@@ -92,6 +92,30 @@ describe('evaluateWalk', () => {
     expect(evaluateWalk(BASE, [], DOSE_RATE, WALK_ASSUMPTIONS, { maxSlopeDeg: 40 }).verdict).toBe('go');
   });
 
+  it('refuses a walk that starts in the dark or runs into the night', () => {
+    const dark = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, {
+      daylight: { startElevation: -5, lowestElevation: -20 },
+    });
+    expect(dark.verdict).toBe('no-go');
+    expect(dark.reasons).toEqual(['starts-in-dark']);
+    const late = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, {
+      daylight: { startElevation: 20, lowestElevation: -3 },
+    });
+    expect(late.reasons).toEqual(['into-night']);
+  });
+
+  it('warns about a low Sun, and says nothing in full daylight', () => {
+    const low = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, {
+      daylight: { startElevation: 30, lowestElevation: 6 },
+    });
+    expect(low.verdict).toBe('caution');
+    expect(low.reasons).toEqual(['low-sun']);
+    const day = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, {
+      daylight: { startElevation: 30, lowestElevation: 25 },
+    });
+    expect(day.reasons).toEqual([]);
+  });
+
   it('adds a caution when a CME is at Mars', () => {
     const walk = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, { cmeAtMars: true });
     expect(walk.verdict).toBe('caution');
