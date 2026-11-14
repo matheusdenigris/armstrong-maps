@@ -1,5 +1,15 @@
 import Slider from '@react-native-community/slider';
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  LinearTransition,
+  ReduceMotion,
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import type { LayerKind, MapLayer } from '@/data/layers';
@@ -21,6 +31,11 @@ const KINDS: { kind: LayerKind; title: string; color: string }[] = [
   { kind: 'thermal', title: 'THERMAL', color: Colors.thermal },
   { kind: 'spectral', title: 'SPECTRAL', color: Colors.spectral },
 ];
+
+const LAYER_CONTROL_TRANSITION_MS = 160;
+const LAYER_LAYOUT_TRANSITION = LinearTransition.duration(LAYER_CONTROL_TRANSITION_MS)
+  .easing(Easing.out(Easing.cubic))
+  .reduceMotion(ReduceMotion.System);
 
 /** The layers of the map by kind of data, with a switch and adjustable opacity for each overlay. */
 export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: LayerPanelProps) {
@@ -51,8 +66,9 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
               const opacity = active[layer.id];
               const on = opacity !== undefined;
               return (
-                <View
+                <Animated.View
                   key={layer.id}
+                  layout={LAYER_LAYOUT_TRANSITION}
                   style={[styles.layer, on && styles.layerOn]}>
                   <Pressable
                     onPress={() => onToggle(layer.id)}
@@ -60,9 +76,7 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
                     accessibilityState={{ checked: on }}
                     accessibilityLabel={`${layer.name}, ${layer.source}`}
                     style={({ pressed }) => [styles.toggle, pressed && styles.togglePressed]}>
-                    <View style={[styles.switch, on && { backgroundColor: color }]}>
-                      <View style={[styles.knob, on && styles.knobOn]} />
-                    </View>
+                    <LayerSwitch on={on} color={color} />
                     <View style={styles.text}>
                       <Text style={styles.name}>{layer.name}</Text>
                       <Text style={[styles.source, { color }]}>{layer.source}</Text>
@@ -95,7 +109,7 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
                       />
                     </View>
                   ) : null}
-                </View>
+                </Animated.View>
               );
             })}
           </View>
@@ -107,6 +121,31 @@ export function LayerPanel({ base, overlays, active, onToggle, onOpacity }: Laye
         coverage.
       </Text>
     </View>
+  );
+}
+
+function LayerSwitch({ on, color }: { on: boolean; color: string }) {
+  const progress = useSharedValue(on ? 1 : 0);
+
+  useEffect(() => {
+    progress.value = withTiming(on ? 1 : 0, {
+      duration: LAYER_CONTROL_TRANSITION_MS,
+      easing: Easing.out(Easing.cubic),
+      reduceMotion: ReduceMotion.System,
+    });
+  }, [on, progress]);
+
+  const switchStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(progress.value, [0, 1], [Colors.glassBorder, color]),
+  }));
+  const knobStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: progress.value * 18 }],
+  }));
+
+  return (
+    <Animated.View style={[styles.switch, switchStyle]}>
+      <Animated.View style={[styles.knob, knobStyle]} />
+    </Animated.View>
   );
 }
 
@@ -196,9 +235,6 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     backgroundColor: Colors.white,
-  },
-  knobOn: {
-    marginLeft: 18,
   },
   text: {
     flex: 1,

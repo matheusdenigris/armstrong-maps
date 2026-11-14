@@ -2,6 +2,8 @@ import { Image } from 'expo-image';
 import { memo, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
+  Animated,
+  Easing,
   PixelRatio,
   Platform,
   Pressable,
@@ -76,6 +78,7 @@ type SurfaceMapProps = {
 };
 
 const webOnly = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle) : null);
+const LAYER_REVEAL_MS = 160;
 
 const sameView = (left: MapView, right: MapView) =>
   left.lat === right.lat &&
@@ -235,7 +238,13 @@ export function SurfaceMap({
       onResponderTerminate={() => controller.current?.end()}>
       {size && planeStyle && (
         <View style={[StyleSheet.absoluteFill, planeStyle]} pointerEvents="none">
-          <TilePlane layers={layers} opacity={opacity} base={base} size={size} />
+          <TilePlane
+            layers={layers}
+            opacity={opacity}
+            base={base}
+            size={size}
+            reduceMotion={reduceMotion}
+          />
         </View>
       )}
 
@@ -330,13 +339,20 @@ type TilePlaneProps = {
   opacity?: Readonly<Record<string, number>>;
   base: MapView;
   size: Size;
+  reduceMotion?: boolean;
 };
 
 /**
  * Every layer in two passes: a coarse one over a wide area, so something is there while panning
  * and while sharp tiles load, and a sharp one over the screen.
  */
-export const TilePlane = memo(function TilePlane({ layers, opacity, base, size }: TilePlaneProps) {
+export const TilePlane = memo(function TilePlane({
+  layers,
+  opacity,
+  base,
+  size,
+  reduceMotion = false,
+}: TilePlaneProps) {
   // Phones pack two or three device pixels in a point; ask for a deeper level so tiles stay crisp.
   const density = Math.min(PixelRatio.get(), 2);
   const sharpArea = visibleBounds(base, size, 0.25);
@@ -375,28 +391,78 @@ export const TilePlane = memo(function TilePlane({ layers, opacity, base, size }
           pixelsPerDegree: base.pixelsPerDegree / 4,
           limit: 24,
         }).filter((tile) => tile.level < sharpLevel);
-        // The layer fades as one sheet, so the coarse pass does not show through the sharp one.
         return (
-          <View
+          <LayerTiles
             key={layer.id}
-            style={[StyleSheet.absoluteFill, { opacity: opacity?.[layer.id] ?? 1 }]}>
-            {[...coarse, ...sharp].map((tile) => (
-              <Image
-                key={`${tile.level}/${tile.row}/${tile.col}`}
-                source={{ uri: tileUrl(layer, tile) }}
-                style={[styles.tile, place(tile)]}
-                contentFit="fill"
-                cachePolicy="memory-disk"
-                transition={0}
-                accessible={false}
-              />
-            ))}
-          </View>
+            layer={layer}
+            tiles={[...coarse, ...sharp]}
+            place={place}
+            opacity={opacity?.[layer.id] ?? 1}
+            animateIn={opacity?.[layer.id] !== undefined}
+            reduceMotion={reduceMotion}
+          />
         );
       })}
     </>
   );
 });
+
+type LayerTilesProps = {
+  layer: MapLayer;
+  tiles: readonly TileAddress[];
+  place: (tile: TileAddress) => { left: number; top: number; width: number; height: number };
+  opacity: number;
+  animateIn: boolean;
+  reduceMotion: boolean;
+};
+
+/** A newly enabled overlay fades in as one sheet, so its coarse tiles do not show through. */
+function LayerTiles({ layer, tiles, place, opacity, animateIn, reduceMotion }: LayerTilesProps) {
+  const [shownOpacity] = useState(
+    () => new Animated.Value(animateIn && !reduceMotion ? 0 : opacity),
+  );
+  const hasEntered = useRef(!animateIn || reduceMotion);
+
+  useEffect(() => {
+    if (reduceMotion || !animateIn) {
+      shownOpacity.stopAnimation();
+      shownOpacity.setValue(opacity);
+      hasEntered.current = true;
+      return;
+    }
+    // The fade belongs to turning a layer on. Slider adjustments must follow the thumb directly.
+    if (hasEntered.current) {
+      shownOpacity.stopAnimation();
+      shownOpacity.setValue(opacity);
+      return;
+    }
+    hasEntered.current = true;
+    const transition = Animated.timing(shownOpacity, {
+      toValue: opacity,
+      duration: LAYER_REVEAL_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    transition.start();
+    return () => transition.stop();
+  }, [animateIn, opacity, reduceMotion, shownOpacity]);
+
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, { opacity: shownOpacity }]}>
+      {tiles.map((tile) => (
+        <Image
+          key={`${tile.level}/${tile.row}/${tile.col}`}
+          source={{ uri: tileUrl(layer, tile) }}
+          style={[styles.tile, place(tile)]}
+          contentFit="fill"
+          cachePolicy="memory-disk"
+          transition={0}
+          accessible={false}
+        />
+      ))}
+    </Animated.View>
+  );
+}
 
 type Glyph = 'plus' | 'minus' | 'target';
 type MapButtonProps = {
