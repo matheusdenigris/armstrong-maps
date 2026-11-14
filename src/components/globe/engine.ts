@@ -16,6 +16,8 @@ export type GlobeCallbacks = {
   onOpen: (site: Site) => void;
   /** The element that carries the label of a site; the engine moves it every frame. */
   labelOf: (id: string) => HTMLElement | undefined;
+  /** The pointer is over the marker of a site, or over none. */
+  onHover?: (site: Site | null) => void;
 };
 
 export type GlobeEngine = {
@@ -35,6 +37,11 @@ const TAP_MAX_MS = 300;
 const TAP_REACH = 34;
 /** Degrees per second of the idle spin, eastwards. */
 const IDLE_SPIN = 2.4;
+/** After the planet is let go, it starts turning by itself again: how soon, and how gently. */
+const RESUME_AFTER_MS = 250;
+const RESUME_OVER_MS = 600;
+/** Below this speed, in degrees per second, a thrown planet is taken as at rest. */
+const AT_REST = 1.5;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
@@ -126,7 +133,7 @@ export function startGlobe(
   surface.colorSpace = THREE.SRGBColorSpace;
   surface.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-  const { scene, camera, dispose } = createGlobeScene(sites, surface);
+  const { scene, camera, dispose } = createGlobeScene(sites, surface, renderer.getPixelRatio());
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   // What the camera looks at, and from how far.
@@ -134,6 +141,9 @@ export function startGlobe(
   let size = { width: 1, height: 1 };
   let farthest = 6;
   let idle = !reduceMotion;
+  // When the idle spin was last interrupted, and from when it picks up again.
+  let resumeAt: number | null = null;
+  let hovered: Site | null = null;
   let dirty = true;
   let texturePending = true;
   let textureAt = 0;
@@ -234,7 +244,7 @@ export function startGlobe(
         callbacks.onOpen(site);
       }
     } else if (pointers.size === 0) {
-      if (Math.abs(spin.lat) + Math.abs(spin.lon) > 0.4) {
+      if (Math.abs(spin.lat) + Math.abs(spin.lon) > AT_REST) {
         // Coast after a drag, losing speed.
         view.lon -= spin.lon * seconds;
         view.lat = clamp(view.lat + spin.lat * seconds, -85, 85);
@@ -244,6 +254,15 @@ export function startGlobe(
       } else if (idle) {
         view.lon += IDLE_SPIN * seconds;
         dirty = true;
+      } else if (resumeAt !== null && now >= resumeAt) {
+        // Let go and at rest: the planet picks its turning up again, slowly at first.
+        const gain = Math.min(1, (now - resumeAt) / RESUME_OVER_MS);
+        view.lon += IDLE_SPIN * gain * gain * seconds;
+        dirty = true;
+        if (gain === 1) {
+          idle = true;
+          resumeAt = null;
+        }
       }
     }
 
@@ -288,8 +307,20 @@ export function startGlobe(
 
   function takeOver() {
     idle = false;
+    resumeAt = null;
     flight = null;
     spin = { lat: 0, lon: 0 };
+  }
+
+  /** The planet was let go: after a pause it turns by itself again. */
+  function letGo() {
+    if (!reduceMotion && !flight) resumeAt = performance.now() + RESUME_AFTER_MS;
+  }
+
+  function hover(site: Site | null) {
+    if (site === hovered) return;
+    hovered = site;
+    callbacks.onHover?.(site);
   }
 
   function onPointerDown(event: PointerEvent) {
@@ -314,7 +345,9 @@ export function startGlobe(
     if (!pointers.has(event.pointerId)) {
       // A closed hand is reserved for a drag. A marker is an actionable destination, so advertise
       // it with the normal picker cursor before the click.
-      canvas.style.cursor = nearestSite(point.x, point.y) ? 'pointer' : 'default';
+      const over = nearestSite(point.x, point.y);
+      canvas.style.cursor = over ? 'pointer' : 'default';
+      hover(over);
       return;
     }
     pointers.set(event.pointerId, point);
@@ -367,10 +400,12 @@ export function startGlobe(
     press = null;
     canvas.style.cursor = nearestSite(point.x, point.y) ? 'pointer' : 'default';
     dirty = true;
+    letGo();
   }
 
   function onPointerLeave() {
     if (pointers.size === 0) canvas.style.cursor = 'default';
+    hover(null);
   }
 
   function onWheel(event: WheelEvent) {
@@ -383,6 +418,7 @@ export function startGlobe(
       farthest,
     );
     dirty = true;
+    letGo();
   }
 
   function nearestSite(x: number, y: number): Site | null {
@@ -403,6 +439,7 @@ export function startGlobe(
 
   function flyTo(site: Site) {
     idle = false;
+    resumeAt = null;
     spin = { lat: 0, lon: 0 };
     const to = { lat: site.landing.lat, lon: site.landing.lon, distance: ARRIVAL_DISTANCE };
     if (reduceMotion) {
