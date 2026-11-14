@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EnvironmentPanel } from '@/components/environment-panel';
 import { LayerPanel } from '@/components/layer-panel';
+import { PhotosPanel } from '@/components/photos-panel';
 import { ScaleBar } from '@/components/scale-bar';
 import {
   SurfaceMap,
@@ -15,10 +16,18 @@ import {
 } from '@/components/surface-map';
 import { WalkDetails, WalkSummary } from '@/components/walk-panel';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { imageSearchUrl, parseImageSearch } from '@/data/image-library';
 import { GLOBAL_LAYERS, VIKING_GLOBAL } from '@/data/layers';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { ROVERS, parseRoverTrack } from '@/data/rover';
+import { RAW_IMAGE_FEEDS, parseRawImages, rawImagesUrl } from '@/data/rover-images';
 import { SITES, findSite, type Site } from '@/data/sites';
+import {
+  donkiUrls,
+  marsSpaceWeather,
+  parseMarsArrivals,
+  parseSepEvents,
+} from '@/data/space-weather';
 import { REMS_FEED, parseWeather } from '@/data/weather';
 import type { MapView } from '@/mission/camera';
 import { formatLatLon } from '@/mission/format';
@@ -47,7 +56,7 @@ const OVERLAYS = GLOBAL_LAYERS.filter((layer) => layer !== VIKING_GLOBAL);
 /** The weather station is on Curiosity, which landed at Gale crater. */
 const GALE = SITES[0].landing;
 
-type Tab = 'walk' | 'layers' | 'site';
+type Tab = 'walk' | 'layers' | 'site' | 'photos';
 
 /** False on the page rendered ahead of time, which does not know the size of the window. */
 function useHydrated() {
@@ -87,6 +96,20 @@ function SiteMap({ site }: { site: Site }) {
   const rover = site.rover ? ROVERS[site.rover] : null;
   const track = useFeed(rover?.feed ?? null, parseRoverTrack);
   const weather = useFeed(tab === 'site' ? REMS_FEED : null, parseWeather);
+  // Space weather changes the verdict, so the CME forecast is asked for at once. The addresses
+  // only change once a day, and each is asked for once per visit.
+  const [now] = useState(() => new Date());
+  const donki = useMemo(() => donkiUrls(now), [now]);
+  const arrivals = useFeed(donki.enlil, parseMarsArrivals);
+  const sep = useFeed(tab === 'site' ? donki.sep : null, parseSepEvents);
+  const cmeAtMars =
+    arrivals.status === 'ready' && marsSpaceWeather(arrivals.data, now).level !== 'quiet';
+  // Pictures wait for their tab.
+  const rawImages = useFeed(
+    tab === 'photos' && site.rover ? rawImagesUrl(site.rover) : null,
+    parseRawImages,
+  );
+  const library = useFeed(tab === 'photos' ? imageSearchUrl(site.photoQuery) : null, parseImageSearch);
 
   // The map lays its tiles out again when these change, so they must not change on every frame.
   const { home, limits } = useMemo(() => {
@@ -164,12 +187,14 @@ function SiteMap({ site }: { site: Site }) {
       },
     ];
     return {
-      walk: evaluateWalk(landing, route, SURFACE_RADIATION.msvPerDay),
+      walk: evaluateWalk(landing, route, SURFACE_RADIATION.msvPerDay, WALK_ASSUMPTIONS, {
+        cmeAtMars,
+      }),
       markers: pins,
       paths: lines,
       rings: circles,
     };
-  }, [site, route, rover, track]);
+  }, [site, route, rover, track, cmeAtMars]);
 
   const open = sideBySide || expanded;
   const panel = (
@@ -191,6 +216,7 @@ function SiteMap({ site }: { site: Site }) {
               onPress={() => setTab('layers')}
             />
             <TabButton label="Site" selected={tab === 'site'} onPress={() => setTab('site')} />
+            <TabButton label="Photos" selected={tab === 'photos'} onPress={() => setTab('photos')} />
           </View>
           {tab === 'walk' ? (
             <WalkDetails
@@ -215,6 +241,18 @@ function SiteMap({ site }: { site: Site }) {
               distanceFromGaleM={distance(site.landing, GALE)}
               weather={weather}
               rover={rover ? { name: rover.name, track } : null}
+              space={{ arrivals, sep, now }}
+            />
+          ) : null}
+          {tab === 'photos' ? (
+            <PhotosPanel
+              siteName={site.name}
+              rover={
+                rover && site.rover
+                  ? { name: rover.name, gallery: RAW_IMAGE_FEEDS[site.rover].gallery, images: rawImages }
+                  : null
+              }
+              library={library}
             />
           ) : null}
         </>
@@ -262,6 +300,13 @@ function SiteMap({ site }: { site: Site }) {
                 {site.mission}
               </Text>
             </View>
+            <Link
+              href="/docs"
+              style={styles.docs}
+              accessibilityRole="link"
+              accessibilityLabel="Docs: the NASA data and APIs behind the map">
+              Docs
+            </Link>
           </View>
         </View>
 
@@ -367,6 +412,15 @@ const styles = StyleSheet.create({
     paddingRight: Spacing.two,
     minHeight: 44,
     borderRadius: Radius.small,
+  },
+  docs: {
+    color: Colors.nav,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+    fontWeight: '600',
+    paddingVertical: Spacing.two + Spacing.one,
+    paddingLeft: Spacing.two,
+    minHeight: 44,
   },
   title: {
     flex: 1,
