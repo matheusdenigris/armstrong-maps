@@ -19,7 +19,7 @@ import { MiniMap } from '@/components/mini-map';
 import { PanoramaView } from '@/components/panorama-view';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { VIKING_GLOBAL } from '@/data/layers';
-import { panoramaNear } from '@/data/panoramas';
+import { sceneForWalk, sceneStretch } from '@/data/panoramas';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { SITES, findSite, type Site } from '@/data/sites';
 import { MARS_WIND } from '@/data/sounds';
@@ -166,8 +166,17 @@ function Visor({ site }: { site: Site }) {
       ? 'SHIP LINK · waiting for the ship to start the walk'
       : `SHIP LINK · ${clock.running ? 'live' : 'on hold'} · ${clock.rate === 1 ? 'real time' : `${clock.rate}x`}`;
 
-  // The real photograph taken nearest to where the astronaut is now.
-  const { panorama, awayM, borrowed } = panoramaNear(site.id, progress.position);
+  // The scenery: a real photograph of the site, and a new one every stretch of walking.
+  const stretch = sceneStretch(WALK_ASSUMPTIONS.walkingSpeedKmh, clock?.rate ?? 1);
+  const scene = sceneForWalk(
+    site.id,
+    site.landing,
+    progress.position,
+    progress.walkedM,
+    progress.phase === 'at-base',
+    stretch,
+  );
+  const { panorama, awayM, borrowed } = scene;
   // Steps lift the view a little, near real time only: played fast it would be a blur.
   const stepping =
     clock?.running === true &&
@@ -448,7 +457,7 @@ function Visor({ site }: { site: Site }) {
         )}
         <View style={styles.foot} pointerEvents="box-none">
           <Text style={styles.tag} numberOfLines={1} pointerEvents="none">
-            SIMULATED MISSION · REAL PHOTO AND SOUND OF MARS
+            SIMULATED MISSION · REAL PHOTO {scene.index + 1}/{scene.count} AND SOUND OF MARS
           </Text>
           {turned ? (
             <Toggle
@@ -488,6 +497,9 @@ function Visor({ site }: { site: Site }) {
               ? 'It is not lined up with the compass.'
               : 'It is lined up with the compass.'}{' '}
             Black areas are where the camera took no frame; the sky above the frames is filled in.
+            {scene.count > 1
+              ? ` The scenery changes every ${formatDistance(stretch)} walked, through the ${scene.count} photographs of this site, to give the sense of ground being covered: no camera filmed the way between them, and the dust in the cut from one to the next is drawn.`
+              : ''}
           </Text>
           <Text style={styles.sourcesText}>
             Sound: real wind recorded by the SuperCam microphone of Perseverance at Jezero Crater on{' '}
