@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, LinearTransition, ReduceMotion } from 'react-native-reanimated';
 
 import { EnvironmentPanel } from '@/components/environment-panel';
+import { GroundCard } from '@/components/ground-card';
 import { HazardPanel } from '@/components/hazard-panel';
 import { LayerPanel, type PointSetRow } from '@/components/layer-panel';
 import { MarsClockPanel } from '@/components/mars-clock-panel';
@@ -77,15 +78,16 @@ import { REMS_FEED, parseWeather } from '@/data/weather';
 import { INSIGHT_SITE, insightWeatherUrl, parseInsightWind } from '@/data/wind';
 import type { MapView } from '@/mission/camera';
 import { elapsedSeconds } from '@/mission/clock';
-import { formatDistance, formatDuration, formatLatLon } from '@/mission/format';
+import { formatDistance, formatDuration, formatHeight, formatLatLon } from '@/mission/format';
 import { distance } from '@/mission/geo';
 import { walkHoursPlayed, walkProgress } from '@/mission/progress';
 import { TILE_PIXELS, tileSpan } from '@/mission/tiles';
 import { WALK_ASSUMPTIONS, evaluateWalk, severityOf, type WalkEvaluation } from '@/mission/walk';
 import { MAX_WAYPOINTS, useMission, useRoute } from '@/state/mission';
 import { useFeed } from '@/state/use-feed';
+import { useGroundReading } from '@/state/use-ground-reading';
 import { useTerrain } from '@/state/use-terrain';
-import { routeCrosses, routeSlope } from '@/mission/terrain';
+import { routeCrosses, routeSlope, slopeAt } from '@/mission/terrain';
 import { useNow } from '@/state/use-now';
 import { mars24Sun, nextSunCrossing, tableSun, walkDaylight } from '@/mission/mars-time';
 import { horizonsSunUrl, parseHorizonsSun } from '@/data/horizons';
@@ -262,6 +264,9 @@ function SiteMap({ site }: { site: Site }) {
   const sampleSites = useFeed(showsPoints('samples') ? SAMPLE_SITES_FEED : null, parseSampleSites);
   const flights = useFeed(showsPoints('flights') ? HELICOPTER_FEED : null, parseHelicopterFlights);
   const [chosenPointId, setChosenPointId] = useState<string | null>(null);
+  // Reading the ground: while it is on, a press reads a point instead of marking one.
+  const [probing, setProbing] = useState(false);
+  const ground = useGroundReading(site);
   const { pointRows, pointKeys, missionPoints, mapPoints } = useMemo(() => {
     const rows: PointSetRow[] = [];
     const found: MissionPoint[] = [];
@@ -503,8 +508,18 @@ function SiteMap({ site }: { site: Site }) {
   // Under a mouse pointer the map shows the leg a press would add. Not while a walk runs: the
   // route is locked then.
   const preview = useMemo<MapPreview | null>(() => {
-    // Nor while a mission point is open: the next press closes it.
-    if (clock !== null || chosenPointId !== null) return null;
+    // Reading the ground adds nothing to the route, so it goes on while a walk runs.
+    if (probing) {
+      return {
+        color: Colors.cyan,
+        describe: (to) => ({
+          title: 'Click to read the ground here',
+          detail: formatLatLon(to, 4),
+        }),
+      };
+    }
+    // Nor while a mission point or a reading is open: the next press closes it.
+    if (clock !== null || chosenPointId !== null || ground.reading !== null) return null;
     const from = route.length > 0 ? route[route.length - 1] : site.landing;
     const origin = route.length > 0 ? `waypoint ${route.length}` : 'the base';
     return {
@@ -519,7 +534,7 @@ function SiteMap({ site }: { site: Site }) {
         };
       },
     };
-  }, [clock, chosenPointId, route, site]);
+  }, [clock, chosenPointId, ground.reading, probing, route, site]);
 
   // What NASA published about the chosen place, beside its mark. It can join the walk while
   // the route can still change.
@@ -544,6 +559,56 @@ function SiteMap({ site }: { site: Site }) {
         ),
       }
     : null;
+
+  // What the elevation models say about the point that was read, beside it on the map.
+  const readPoint = ground.reading?.point ?? null;
+  // The sharper grid near the base first, then the wider one. One cell is looked up: cheap enough
+  // to do on every draw.
+  const readSlope = readPoint
+    ? [terrain.near, terrain.around]
+        .flatMap((feed) => {
+          if (feed.status !== 'ready') return [];
+          const degrees = slopeAt(feed.data.slopes, readPoint);
+          return degrees === null ? [] : [{ degrees, cellM: feed.data.slopes.cellM }];
+        })
+        .at(0) ?? null
+    : null;
+  const groundCard: MapCard | null = ground.reading
+    ? {
+        point: ground.reading.point,
+        content: (
+          <GroundCard
+            reading={ground.reading}
+            slope={readSlope}
+            limits={{
+              cautionDeg: WALK_ASSUMPTIONS.cautionSlopeDeg,
+              noGoDeg: WALK_ASSUMPTIONS.noGoSlopeDeg,
+            }}
+            onAdd={
+              canAddPoint
+                ? () => {
+                    if (ground.reading) addWaypoint(site.id, ground.reading.point);
+                    ground.clear();
+                  }
+                : undefined
+            }
+            onClose={ground.clear}
+          />
+        ),
+      }
+    : null;
+  // The point that was read has a mark, and its height for a label.
+  const shownMarkers = useMemo<readonly MapMarker[]>(() => {
+    if (!ground.reading) return markers;
+    const { point, height } = ground.reading;
+    const label =
+      height.status === 'ready'
+        ? formatHeight(height.metres)
+        : height.status === 'loading'
+          ? 'Reading'
+          : 'No height';
+    return [...markers, { id: 'ground', point, label, color: Colors.cyan }];
+  }, [ground.reading, markers]);
 
   const roverSol =
     rover && track.status === 'ready' && track.data.latest
@@ -679,7 +744,7 @@ function SiteMap({ site }: { site: Site }) {
       limits={limits}
       layers={layers}
       overlays={overlays}
-      markers={markers}
+      markers={shownMarkers}
       paths={paths}
       rings={rings}
       images={hazardImages}
@@ -687,19 +752,36 @@ function SiteMap({ site }: { site: Site }) {
       arrows={windArrows}
       points={mapPoints}
       chosenPoint={chosenPoint?.id ?? null}
-      onPointPress={(pointId) =>
-        setChosenPointId((current) => (current === pointId ? null : pointId))
-      }
-      card={pointCard}
+      onPointPress={(pointId) => {
+        ground.clear();
+        setChosenPointId((current) => (current === pointId ? null : pointId));
+      }}
+      card={groundCard ?? pointCard}
       pointKeys={pointKeys}
       view={view}
       onViewChange={setView}
-      // With a mission point open, a press on the ground closes it and marks nothing.
-      onPress={(point) =>
-        chosenPoint ? setChosenPointId(null) : addWaypoint(site.id, point)
-      }
+      // While the ground is being read, a press reads a point. Otherwise, with a card open,
+      // a press on the ground closes it and marks nothing.
+      onPress={(point) => {
+        if (probing) {
+          setChosenPointId(null);
+          ground.read(point);
+        } else if (ground.reading) {
+          ground.clear();
+        } else if (chosenPoint) {
+          setChosenPointId(null);
+        } else {
+          addWaypoint(site.id, point);
+        }
+      }}
       preview={preview}
-      coach={route.length === 0 && !coachClosed}
+      probing={probing}
+      onToggleProbe={() => {
+        // Leaving the reading puts the last one away with it.
+        if (probing) ground.clear();
+        setProbing((on) => !on);
+      }}
+      coach={route.length === 0 && !coachClosed && !probing}
       onCloseCoach={() => setCoachClosed(true)}
       walk={walk}
       stops={route.length}
@@ -946,6 +1028,9 @@ type MapStageProps = {
   onViewChange: (view: MapView) => void;
   onPress: (point: { lat: number; lon: number }) => void;
   preview: MapPreview | null;
+  /** The ground is being read: a press reads a point instead of marking one. */
+  probing: boolean;
+  onToggleProbe: () => void;
   /** Whether the card that spells out the first step is on the map. */
   coach: boolean;
   onCloseCoach: () => void;
@@ -982,6 +1067,8 @@ function MapStage({
   onViewChange,
   onPress,
   preview,
+  probing,
+  onToggleProbe,
   coach,
   onCloseCoach,
   walk,
@@ -1014,6 +1101,7 @@ function MapStage({
         onViewChange={onViewChange}
         onPress={onPress}
         preview={preview}
+        probe={{ on: probing, onToggle: onToggleProbe }}
         // The zoom buttons stand clear of what is at the foot of the map, which is taller while
         // the first step is spelled out.
         controlsBottom={showFoot ? (coach ? 176 : desktop ? 112 : 116) : Spacing.three}
@@ -1023,6 +1111,7 @@ function MapStage({
           walk={walk}
           stops={stops}
           locked={locked}
+          probing={probing}
           sources={sources}
           legends={legends}
           pointKeys={pointKeys}
@@ -1044,6 +1133,7 @@ type MapHudProps = {
   stops: number;
   /** A walk is running, so the route cannot change. */
   locked: boolean;
+  probing: boolean;
   sources: string;
   /** The layers that are on over the base: each gets its colour key on the map. */
   legends: readonly MapLayer[];
@@ -1062,6 +1152,7 @@ function MapHud({
   walk,
   stops,
   locked,
+  probing,
   sources,
   legends,
   pointKeys,
@@ -1137,7 +1228,9 @@ function MapHud({
             {/* With the card closed, the same step stays as one quiet line. */}
             {coach ? null : (
               <Text style={styles.mapHintText} numberOfLines={desktop ? 1 : 2}>
-                {stops === 0
+                {probing
+                  ? 'Reading the ground · click or tap the map to read a point'
+                  : stops === 0
                   ? 'Click or tap the map to mark a waypoint'
                   : `${stops} ${stops === 1 ? 'waypoint' : 'waypoints'} · ${
                       locked ? 'locked while the walk runs' : 'click or tap the map to add another'

@@ -216,7 +216,7 @@ const GUIDE: DocPage[] = [
               { title: 'Open a site', text: 'Pick Gale Crater on the globe or in the bar of sites. The view flies down and the map opens on the landing point, where the base stands.' },
               { title: 'Mark waypoints', text: `Click or tap the map: each press adds a waypoint, and the leg under the pointer is previewed before you press. Stay inside the dashed ring: it is the ${a.walkBackLimitKm} km walk-back limit.` },
               { title: 'Read the verdict', text: 'The Walk panel gives the verdict with its reasons, the distance out and back, the time outside, the life support used and the dose. Undo removes the last waypoint and Clear removes them all.' },
-              { title: 'Add layers', text: 'In the Layers panel, switch on relief or infrared to see the ground the route crosses. Each layer has an opacity, and a colour key appears on the map.' },
+              { title: 'Add layers', text: 'In the Layers panel, switch on relief or infrared to see the ground the route crosses. Each layer has an opacity, and a colour key appears on the map. The pin button on the map reads the height and the slope of any point you press.' },
               { title: 'Start the walk', text: 'Press Start the walk. The astronaut visor opens in a new tab and the walk starts when it has loaded. Pause in the console and the visor holds.' },
             ],
           },

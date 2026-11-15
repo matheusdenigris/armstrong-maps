@@ -137,7 +137,7 @@ export const SOURCES: readonly DataSource[] = [
     kind: 'live',
     gives:
       'Grids of heights the app turns into slope: 1 m HiRISE models at Gale and Gusev, the InSight mosaic at Elysium, and the 200 m MOLA and HRSC blend everywhere (Fergason et al. 2018).',
-    usedIn: 'The steep ground shading on the map, the Hazards card in the Layers tab, and a caution or no-go in the walk verdict.',
+    usedIn: 'The steep ground shading on the map, the Hazards card in the Layers tab, a caution or no-go in the walk verdict, and the height of a point read with the pin button of the map.',
     endpoint:
       'https://trek.nasa.gov/mars/trekarcgis/rest/services/{model}/ImageServer/exportImage?bbox={west,south,east,north}&size={w},{h}&format=bsq&pixelType={F32|S16}&f=image',
     key: 'None',

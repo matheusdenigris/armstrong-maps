@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { duneQueryUrl, meanDirection, parseDunes } from './dunes';
 import { findSite } from './sites';
-import { elevationUrl, parseElevation, terrainAreas } from './terrain';
+import { elevationModelsAt, elevationUrl, heightUrl, parseElevation, parseHeight, terrainAreas } from './terrain';
 import { earthEquivalentMs, insightWeatherUrl, parseInsightWind } from './wind';
 
 describe('terrain areas', () => {
@@ -118,5 +118,47 @@ describe('InSight wind', () => {
   it('compares the push of the wind on Mars and on the Earth', () => {
     // sqrt(0.016 / 1.217) is about 0.115.
     expect(earthEquivalentMs(20)).toBeCloseTo(2.29, 2);
+  });
+});
+
+describe('the height of one point', () => {
+  const gale = findSite('gale')!;
+  const jezero = findSite('jezero')!;
+
+  it('asks the sharp model first where it covers the point, then the global one', () => {
+    const models = elevationModelsAt(gale, gale.landing);
+    expect(models.map((model) => model.resolutionM)).toEqual([1, 200]);
+  });
+
+  it('asks only the global model outside the sharp one, and at a site that has none', () => {
+    const farFromBase = { lat: gale.landing.lat + 1, lon: gale.landing.lon };
+    expect(elevationModelsAt(gale, farFromBase).map((model) => model.resolutionM)).toEqual([200]);
+    expect(elevationModelsAt(jezero, jezero.landing).map((model) => model.resolutionM)).toEqual([200]);
+  });
+
+  it('writes the point into the address as east longitude and latitude', () => {
+    const [sharp] = elevationModelsAt(gale, gale.landing);
+    const url = heightUrl(sharp, { lat: -4.5, lon: 137.25 });
+
+    expect(url).toContain('/Gale_DEM_SMG_1m/ImageServer/identify?');
+    expect(decodeURIComponent(url)).toContain('geometry={"x":137.25,"y":-4.5}');
+    expect(url).toContain('f=json');
+  });
+
+  it('reads the height the service gives, as text or as a number', () => {
+    expect(parseHeight({ objectId: 0, name: 'Pixel', value: '-4502.99' })).toBeCloseTo(-4502.99, 2);
+    expect(parseHeight({ value: -4503 })).toBe(-4503);
+  });
+
+  it('has no height where the model has no data', () => {
+    expect(parseHeight({ value: 'NoData' })).toBeNull();
+    // The services mark a gap with a number no place on Mars has.
+    expect(parseHeight({ value: '-32768' })).toBeNull();
+    expect(parseHeight({})).toBeNull();
+  });
+
+  it('does not take an error for a reading', () => {
+    expect(() => parseHeight({ error: { code: 400, message: 'Invalid' } })).toThrow();
+    expect(() => parseHeight(null)).toThrow();
   });
 });

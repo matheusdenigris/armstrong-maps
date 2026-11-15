@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   formatClock,
   formatDistance,
+  formatHeight,
+  formatHeightFrom,
   formatDose,
   formatDuration,
   formatLat,
@@ -90,5 +92,20 @@ describe('roundLength', () => {
   it('returns zero when nothing fits', () => {
     expect(roundLength(0)).toBe(0);
     expect(roundLength(-5)).toBe(0);
+  });
+});
+
+describe('heights', () => {
+  it('writes a height in whole metres with its sign', () => {
+    expect(formatHeight(-4502.99)).toBe('-4,503 m');
+    expect(formatHeight(21229.4)).toBe('21,229 m');
+    expect(formatHeight(-0.2)).toBe('0 m');
+    expect(formatHeight(812)).toBe('812 m');
+  });
+
+  it('says how far up or down a place is from another', () => {
+    expect(formatHeightFrom(12.4, 'the base')).toBe('12 m above the base');
+    expect(formatHeightFrom(-1234.6, 'the base')).toBe('1,235 m below the base');
+    expect(formatHeightFrom(0.3, 'the base')).toBe('Level with the base');
   });
 });

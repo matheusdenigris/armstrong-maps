@@ -95,11 +95,12 @@ const CARD_GAP = 14;
 const CARD_MARGIN = 8;
 
 /**
- * What a press on the map would add, shown under the pointer before the press: a line from
- * `from` to the pointer, and two lines of text about the place under it.
+ * What a press on the map would do, shown under the pointer before the press: two lines of
+ * text about the place under it and, when the press adds a leg, a line from `from` to the
+ * pointer.
  */
 export type MapPreview = {
-  from: LatLon;
+  from?: LatLon;
   color: string;
   describe: (to: LatLon) => { title: string; detail: string };
 };
@@ -159,6 +160,11 @@ type SurfaceMapProps = {
   /** Shown under a mouse pointer, where there is one. Null when a press would add nothing. */
   preview?: MapPreview | null;
   accessibilityLabel: string;
+  /**
+   * A button above the zoom buttons that turns reading the ground on and off. While it is on,
+   * the screen takes a press as a point to read instead of a point to mark.
+   */
+  probe?: { on: boolean; onToggle: () => void };
   /** Room to leave under the zoom buttons, for whatever the screen puts at the bottom. */
   controlsBottom?: number;
   children?: ReactNode;
@@ -202,6 +208,7 @@ export function SurfaceMap({
   onViewChange,
   onPress,
   preview = null,
+  probe,
   accessibilityLabel,
   controlsBottom = Spacing.three,
   children,
@@ -559,6 +566,14 @@ export function SurfaceMap({
       ) : null}
 
       <View style={[styles.controls, { bottom: controlsBottom }]}>
+        {probe ? (
+          <MapButton
+            label={probe.on ? 'Stop reading the ground' : 'Read the ground at a point'}
+            glyph="probe"
+            onPress={probe.onToggle}
+            active={probe.on}
+          />
+        ) : null}
         <MapButton
           label="Zoom in"
           glyph="plus"
@@ -903,7 +918,7 @@ function Markers({ markers, view, size }: MarkersProps) {
   );
 }
 
-type Glyph = 'plus' | 'minus' | 'target';
+type Glyph = 'plus' | 'minus' | 'target' | 'probe';
 type PointerPreviewProps = {
   host: RefObject<ComponentRef<typeof View> | null>;
   view: MapView;
@@ -984,7 +999,7 @@ function PointerPreview({ host, view, size, preview, points }: PointerPreviewPro
   }, [host]);
 
   if (!at) return null;
-  const from = project(view, size, preview.from);
+  const from = preview.from ? project(view, size, preview.from) : null;
   // Over a mark, a press opens it: no leg is drawn, and the note names the mark.
   const mark = nearestInReach(view, size, points, at, POINT_REACH);
   const { title, detail } = mark
@@ -996,7 +1011,7 @@ function PointerPreview({ host, view, size, preview, points }: PointerPreviewPro
   return (
     <>
       <Svg width={size.width} height={size.height} style={styles.overlay} pointerEvents="none">
-        {mark ? null : (
+        {mark || !from ? null : (
           <Line
             x1={from.x}
             y1={from.y}
@@ -1052,31 +1067,49 @@ type MapButtonProps = {
   onPress: () => void;
   last?: boolean;
   disabled?: boolean;
+  /** The button is a switch, and it is on. */
+  active?: boolean;
 };
 
-function MapButton({ label, glyph, onPress, last = false, disabled = false }: MapButtonProps) {
+function MapButton({
+  label,
+  glyph,
+  onPress,
+  last = false,
+  disabled = false,
+  active,
+}: MapButtonProps) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled }}
+      accessibilityState={active === undefined ? { disabled } : { disabled, selected: active }}
       style={({ pressed }) => [
         styles.button,
         last && styles.buttonLast,
         disabled && styles.buttonDisabled,
         pressed && !disabled && styles.buttonPressed,
+        active && styles.buttonActive,
       ]}>
       <Svg
         width={20}
         height={20}
         viewBox="0 0 20 20"
         fill="none"
-        stroke={Colors.text}
+        stroke={active ? Colors.background : Colors.text}
         strokeWidth={2}
-        strokeLinecap="round">
-        {glyph !== 'target' && <Path d="M4 10h12" />}
+        strokeLinecap="round"
+        strokeLinejoin="round">
+        {(glyph === 'plus' || glyph === 'minus') && <Path d="M4 10h12" />}
+        {/* A pin with a point in it: read what is at this place. */}
+        {glyph === 'probe' && (
+          <>
+            <Path d="M10 18c-2.6-3-5-5.7-5-8.6a5 5 0 0 1 10 0c0 2.9-2.4 5.6-5 8.6z" />
+            <Circle cx={10} cy={9.2} r={1.4} />
+          </>
+        )}
         {glyph === 'plus' && <Path d="M10 4v12" />}
         {glyph === 'target' && (
           <>
@@ -1232,5 +1265,9 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.42,
+  },
+  // A switch that is on: light, like a chosen option anywhere else.
+  buttonActive: {
+    backgroundColor: Colors.text,
   },
 });

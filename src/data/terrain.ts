@@ -11,8 +11,14 @@
  *
  * Each service, its pixel size and its coverage were read from its description
  * (`<service>/ImageServer?f=json`) on 2026-11-14.
+ *
+ * The same services give the height of one point (`identify`), which is how the map reads the
+ * ground where the person presses. The global blend covers every site, so a point always has
+ * a model to ask; the vertical reference of each model was not checked, so a height is shown
+ * as the model gives it and compared only with the base in the same model.
  */
-import { intersect, type Bounds } from '@/mission/tiles';
+import type { LatLon } from '@/mission/geo';
+import { contains, intersect, type Bounds } from '@/mission/tiles';
 import type { ElevationGrid } from '@/mission/terrain';
 
 import type { Site } from './sites';
@@ -150,3 +156,64 @@ export function parseElevation(buffer: ArrayBuffer, area: TerrainArea): Elevatio
 }
 
 export const TERRAIN_CREDIT = 'Elevation models served by NASA/JPL Mars Trek';
+
+/** The models that can have a height for a point of a site, the sharpest first. */
+export function elevationModelsAt(site: Site, point: LatLon): ElevationModel[] {
+  const local = LOCAL[site.id];
+  return local && contains(local.coverage, point) ? [local, GLOBAL_BLEND] : [GLOBAL_BLEND];
+}
+
+/** The address that returns the height of a model at one point. */
+export function heightUrl(model: ElevationModel, point: LatLon): string {
+  const geometry = encodeURIComponent(JSON.stringify({ x: point.lon, y: point.lat }));
+  const query = [
+    `geometry=${geometry}`,
+    'geometryType=esriGeometryPoint',
+    'returnGeometry=false',
+    'returnCatalogItems=false',
+    'f=json',
+  ].join('&');
+  return `${SERVICES}/${model.service}/ImageServer/identify?${query}`;
+}
+
+/**
+ * The height in an answer of the service, in metres, or null where the model has none ("NoData",
+ * or a value out of the range of Mars). An answer that reports an error is thrown.
+ */
+export function parseHeight(body: unknown): number | null {
+  if (typeof body !== 'object' || body === null) {
+    throw new Error('The elevation service sent no answer to read');
+  }
+  if ('error' in body) throw new Error('The elevation service reported an error');
+  const raw = (body as { value?: unknown }).value;
+  const value = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : Number.NaN;
+  return Number.isFinite(value) && value >= LOWEST_M && value <= HIGHEST_M ? value : null;
+}
+
+/** The height one model has at a point, or null where it has none. Throws when it does not answer. */
+export async function readHeight(model: ElevationModel, point: LatLon): Promise<number | null> {
+  const response = await fetch(heightUrl(model, point));
+  if (!response.ok) throw new Error(`The elevation service answered ${response.status}`);
+  return parseHeight(await response.json());
+}
+
+export type HeightAnswer =
+  | { status: 'ready'; metres: number; model: ElevationModel }
+  /** Every model that covers the point answered, and none has a height there. */
+  | { status: 'no-data' }
+  /** A model did not answer, and none gave a height. */
+  | { status: 'failed' };
+
+/** The height of a point of a site, from the sharpest model that has one. */
+export async function heightAt(site: Site, point: LatLon): Promise<HeightAnswer> {
+  let failed = false;
+  for (const model of elevationModelsAt(site, point)) {
+    try {
+      const metres = await readHeight(model, point);
+      if (metres !== null) return { status: 'ready', metres, model };
+    } catch {
+      failed = true;
+    }
+  }
+  return failed ? { status: 'failed' } : { status: 'no-data' };
+}

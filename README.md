@@ -60,6 +60,10 @@ The app has three views:
 - **Hazardous ground**: slopes too steep to walk, computed from NASA elevation models (1 m HiRISE
   at Gale and Gusev) near the base and from the 200 m MOLA and HRSC blend around it, and mapped
   dune fields of loose sand. Both are shaded on the map and enter the verdict.
+- **Read the ground**: the pin button on the map reads any point pressed: its height from the
+  sharpest NASA elevation model there, how far up or down it is from the base, and the slope of
+  the ground. Thermal and spectral layers are served as pictures, so the app says no value can be
+  read for them.
 - **Wind**: the last sols measured by InSight, with a wind rose and how hard the gusts push compared
   with the Earth, and the prevailing wind written in the slip faces of the region's dunes.
 - **Mars clock and daylight**: the Sun over each site from NASA/JPL Horizons, and local solar time

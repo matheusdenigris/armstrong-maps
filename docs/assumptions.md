@@ -58,6 +58,12 @@ base:
 | Elysium | InSight mosaic (HiRISE, CTX, HRSC), about 20 m | MOLA and HRSC blend, 200 m |
 | Jezero, Meridiani | MOLA and HRSC blend, 200 m | MOLA and HRSC blend, 200 m |
 
+The same services give the height of one point, which is what the pin button of the map reads: the
+sharp model where it covers the point, the 200 m blend everywhere else, so every site has a height
+to show. The vertical reference of each model was not checked: a height is shown as the model
+gives it, and it is compared only with the height of the base in the same model. The thermal and
+spectral layers have no such service; they are pictures, and the app says no value can be read.
+
 The app computes the slope of each cell from its neighbours, with the radius of Mars. A model gives
 the mean slope over a cell, so a ledge or a boulder smaller than a cell does not show: real ground
 can be steeper than the shading. Jezero's sharper models (CTX at 20 m, HiRISE at 1 m) are listed in

@@ -61,3 +61,18 @@ export function roundLength(maxMetres: number): number {
   const lead = maxMetres / power;
   return (lead >= 5 ? 5 : lead >= 2 ? 2 : 1) * power;
 }
+
+/** A height in whole metres, with the sign the model gives it: "-4,503 m". */
+export function formatHeight(metres: number): string {
+  // Not toLocaleString: the phone's own language must not change how a number is written.
+  const whole = Math.round(metres);
+  const digits = String(Math.abs(whole)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${whole < 0 ? '-' : ''}${digits} m`;
+}
+
+/** How far up or down a place is from another: "12 m above the base", "Level with the base". */
+export function formatHeightFrom(metres: number, place: string): string {
+  const whole = Math.round(metres);
+  if (whole === 0) return `Level with ${place}`;
+  return `${formatHeight(Math.abs(whole))} ${whole > 0 ? 'above' : 'below'} ${place}`;
+}
