@@ -436,12 +436,15 @@ function Visor({ site }: { site: Site }) {
           </Link>
           {wide ? (
             <View style={styles.state} pointerEvents="none">
-              <Text style={styles.status} numberOfLines={1} accessibilityLiveRegion="polite">
-                {status}
-              </Text>
-              <Text style={styles.link} numberOfLines={1}>
-                {link}
-              </Text>
+              {/* On its own plate, like every text here: the sky behind it can be white. */}
+              <View style={[styles.statePlate, GLASS]}>
+                <Text style={styles.status} numberOfLines={1} accessibilityLiveRegion="polite">
+                  {status}
+                </Text>
+                <Text style={styles.link} numberOfLines={1}>
+                  {link}
+                </Text>
+              </View>
             </View>
           ) : (
             <View style={styles.state} />
@@ -610,7 +613,7 @@ function Rim({ width, height, rim }: { width: number; height: number; rim: numbe
   const edge = `M0 ${top + rise}Q${width / 2} ${top - rise} ${width} ${top + rise}`;
   return (
     <Svg width={width} height={height} style={styles.overlay} pointerEvents="none">
-      <Path d={`${edge}L${width} ${height}L0 ${height}Z`} fill={Colors.background} opacity={0.96} />
+      <Path d={`${edge}L${width} ${height}L0 ${height}Z`} fill={Colors.visorRim} />
       <Path d={edge} fill="none" stroke={Colors.white} strokeWidth={1} opacity={0.22} />
     </Svg>
   );
@@ -787,13 +790,22 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
-    backgroundColor: Colors.glassDark,
+    backgroundColor: Colors.visorPlate,
     overflow: 'hidden',
   },
   state: {
     flex: 1,
+    alignItems: 'flex-start',
+  },
+  statePlate: {
+    maxWidth: '100%',
     gap: Spacing.half,
-    paddingHorizontal: Spacing.one,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one + Spacing.half,
+    borderRadius: Radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.visorPlate,
   },
   stateLine: {
     alignSelf: 'flex-start',
@@ -805,7 +817,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
-    backgroundColor: Colors.glassDark,
+    backgroundColor: Colors.visorPlate,
   },
   status: {
     color: Colors.text,
@@ -828,7 +840,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
-    backgroundColor: Colors.glassDark,
+    backgroundColor: Colors.visorPlate,
   },
   headingLabel: {
     color: Colors.textSoft,
@@ -886,7 +898,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
-    backgroundColor: Colors.glassDark,
+    backgroundColor: Colors.visorPlate,
     maxWidth: '90%',
   },
   waitingText: {
@@ -908,7 +920,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
-    backgroundColor: Colors.glassDark,
+    backgroundColor: Colors.visorPlate,
   },
   targetLabel: {
     color: Colors.textSoft,
@@ -1022,9 +1034,9 @@ const styles = StyleSheet.create({
   },
   tag: {
     flex: 1,
-    color: Colors.textFaint,
+    color: Colors.textSoft,
     fontFamily: Fonts.sans,
-    fontSize: 11,
+    fontSize: 12,
   },
   toggle: {
     minHeight: 36,
@@ -1033,7 +1045,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
-    backgroundColor: Colors.glassDark,
+    backgroundColor: Colors.visorPlate,
   },
   toggleOn: {
     borderColor: Colors.text,

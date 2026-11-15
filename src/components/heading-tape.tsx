@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   tape: {
     height: 42,
     overflow: 'hidden',
-    backgroundColor: Colors.glassDark,
+    backgroundColor: Colors.visorPlate,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.glassBorder,
   },
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   label: {
     color: Colors.textSoft,
     fontFamily: Fonts.mono,
-    fontSize: 11,
+    fontSize: 12,
     paddingTop: 4,
   },
   labelMajor: {
