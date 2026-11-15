@@ -588,6 +588,8 @@ const GUIDE: DocPage[] = [
               ['Mission clock', 'Time outside against the time planned, and the waypoints done.'],
               ['Dose', 'The radiation picked up so far and the rate it is counted at.'],
               ['Weather', 'Air temperature and pressure, only where there is a station: Gale Crater.'],
+              ['Alert tone', 'With the sound on, a short tone and, where the phone allows it, a vibration when an alert appears. Once for each time it appears.'],
+              ['Phone look', 'On a phone with motion sensors, the view can follow the phone. It turns by as much as the phone turned; it is not a compass.'],
             ],
           },
           {
@@ -611,13 +613,13 @@ const GUIDE: DocPage[] = [
           },
           {
             kind: 'text',
-            text: `Each photograph is a mosaic taken from one fixed spot. To give the sense of ground being covered, the visor goes through the photographs of the site in order, from the one taken nearest to the landing point outwards, and changes scene every ${SCENE_EVERY_M} m walked. Played fast, a scene still stays at least ${SCENE_MIN_SECONDS} seconds. Meridiani and Elysium borrow the photographs of Gale, and the visor says so.`,
+            text: `Each photograph is a mosaic taken from one fixed spot. To give the sense of ground being covered, the visor goes through the photographs of the site in order, from the one taken nearest to the landing point outwards, and changes scene every ${SCENE_EVERY_M} m walked. Played fast, a scene still stays at least ${SCENE_MIN_SECONDS} seconds. Elysium borrows the photographs of Gale, and the visor says so: NASA publishes no full-circle photograph from InSight.`,
           },
           {
             kind: 'callout',
             tone: 'warning',
             title: 'Real pictures, illustrative framing',
-            text: 'The photographs are real and from that site, but they were not taken on the planned route, and only one is lined up with the compass. The move into the picture and the dust between two scenes are drawn. The visor says how far from the simulated position each photograph was taken.',
+            text: 'The photographs are real and from that site, but they were not taken on the planned route, and only two are lined up with the compass. The move into the picture and the dust between two scenes are drawn. The visor says how far from the simulated position each photograph was taken.',
           },
           {
             kind: 'cards',
@@ -742,7 +744,7 @@ const GUIDE: DocPage[] = [
               ['Rover traverse', `Published live for ${sitesWithRover}, the two sites with a working rover.`],
               ['Weather', `Measured at Gale Crater only. At the other sites it is shown as a reference, with the distance to the station. A reading older than ${STALE_AFTER_DAYS} days is called out as old.`],
               ['Close-up imagery', 'A regional mosaic and a high-resolution one at every site. The high-resolution one covers a strip around the landing point, not the whole region.'],
-              ['Visor photographs', 'Gale, Jezero and Gusev have their own. Meridiani and Elysium borrow the ones from Gale.'],
+              ['Visor photographs', 'Gale, Jezero, Gusev and Meridiani have their own. Elysium borrows the ones from Gale: the widest photograph NASA publishes from InSight covers 290 degrees, not the full circle.'],
               ['Radiation', 'The same published average everywhere: it was measured at Gale.'],
             ],
           },
@@ -819,7 +821,8 @@ const GUIDE: DocPage[] = [
               'Within a scene the view moves slowly into a still picture. Nothing in it shifts against anything else, as it would on a real walk.',
               'The change of scene is a gust of dust that rises over the view and clears on the next photograph. The dust is drawn.',
               'The picture does not rise and fall with the steps. When the device asks for reduced motion, it does not move into the photograph either.',
-              'Only one photograph has a caption that says where north is. The others are not lined up with the compass, and the visor says which case it is.',
+              'Two photographs have a caption that says where north is. The others are not lined up with the compass, and the visor says which case it is.',
+              'Where a photograph has no ground to show in one direction (the mosaic has no frame there, or the rover stands in the way), the view is held a little higher so the gap stays under the rim of the helmet. Ground is never drawn in.',
               'Where a mosaic has no frame for a patch of sky, the visor draws the sky in the colours beside it. The ground is never filled in: a gap in it stays black.',
               'The wind was recorded at Jezero and plays at every site, louder than published.',
             ],
@@ -948,6 +951,18 @@ const GUIDE: DocPage[] = [
           {
             kind: 'text',
             text: 'The mission is saved on the device, and the two tabs follow each other through the saved state and the storage event of the browser. That is why both have to be in the same browser: a link between two devices is not built yet.',
+          },
+          {
+            kind: 'text',
+            text: 'During a walk the Link tab of the console (on a phone, the Walk tab) shows whether the base sees the astronaut: the line from a mast at the base to the antenna on the suit, over the NASA elevation model and the curve of the planet. Where the ground is in the way the visor says the link is lost. Over a few kilometres the signal takes microseconds, so no delay is shown.',
+          },
+          {
+            kind: 'text',
+            text: 'The ship can send a short message. The visor shows it until the astronaut acknowledges it, with a chime when the sound is on that is longer and higher the more serious the ship marked the message (routine, attention or urgent), and the console says when it was shown and when it was acknowledged. A message sent with no line of sight waits until the link is back.',
+          },
+          {
+            kind: 'text',
+            text: 'The walk log lists the start, each waypoint, the alerts, the link dropping and coming back, the messages and the end, each with the time of the walk. It stays after the walk ends and can be exported as a text file.',
           },
         ],
       },

@@ -97,7 +97,13 @@ screen needs a source or a "simulated" or "assumption" label.
 - **The ship owns the walk.** Only the console starts, pauses or ends it; the visor reads the
   state. The clock (`src/mission/clock.ts`) stores an anchor instead of ticking, so every tab
   works out the same time. Tabs follow each other through the saved state and the browser's
-  `storage` event (`src/app/_layout.tsx`).
+  `storage` event (`src/app/_layout.tsx`). The visor writes two things only: that a message from
+  the ship was shown, and that it was acknowledged.
+- **The link and the log are worked out, not recorded.** Whether the base sees the astronaut is
+  the line of sight over the elevation model (`src/mission/line-of-sight.ts`), which the console
+  publishes for the visor. The walk log (`src/mission/walk-log.ts`) comes from the plan, so the
+  same walk always gives the same log; only the messages are stored. Antenna heights are
+  assumptions, and no signal delay is shown: over a few kilometres there is none.
 - **The visor is the astronaut's helmet, and it is a mission tool.** What goes on its display is
   what keeps the astronaut alive and the mission on course: life support, the way back, the next
   waypoint, alerts. Safety numbers and alert codes come from `src/mission/safety.ts`; the screen

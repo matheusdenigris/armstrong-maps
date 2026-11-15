@@ -17,14 +17,24 @@ import Svg, { Path } from 'react-native-svg';
 import { HeadingTape, turnTo } from '@/components/heading-tape';
 import { MiniMap } from '@/components/mini-map';
 import { PanoramaView } from '@/components/panorama-view';
+import { PRIORITY_COLOR, PRIORITY_LABEL } from '@/components/ship-link';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { VIKING_GLOBAL } from '@/data/layers';
-import { panoramaUrl, sceneForWalk, sceneStretch, scenesOf } from '@/data/panoramas';
+import {
+  eyeDistance,
+  lowestPitch,
+  panoramaUrl,
+  sceneForWalk,
+  sceneStretch,
+  scenesOf,
+} from '@/data/panoramas';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { SITES, findSite, type Site } from '@/data/sites';
 import { MARS_WIND } from '@/data/sounds';
 import { REMS_CREDIT, REMS_FEED, parseWeather, readingAgeDays } from '@/data/weather';
 import { elapsedSeconds } from '@/mission/clock';
+import { LINK_ASSUMPTIONS } from '@/mission/line-of-sight';
+import { messageToAcknowledge, priorityOf } from '@/mission/messages';
 import {
   formatClock,
   formatDistance,
@@ -41,10 +51,12 @@ import {
 } from '@/mission/progress';
 import { walkSafety, type SafetyAlert, type SafetyLevel, type WalkSafety } from '@/mission/safety';
 import { WALK_ASSUMPTIONS, stopMinutes, type WalkStop } from '@/mission/walk';
-import { VISOR_READY_KEY, useMission, useRoute } from '@/state/mission';
+import { VISOR_READY_KEY, useMessages, useMission, useRoute } from '@/state/mission';
+import { useAlertSignal } from '@/state/use-alert-signal';
 import { AMBIENT_SOUND_AVAILABLE, useAmbientSound } from '@/state/use-ambient-sound';
 import { useFeed } from '@/state/use-feed';
 import { useNow } from '@/state/use-now';
+import { usePhoneLook } from '@/state/use-phone-look';
 import { useReducedMotion } from '@/state/use-reduced-motion';
 
 /** One page per site in the static web export. */
@@ -122,6 +134,15 @@ function Visor({ site }: { site: Site }) {
   const drag = useRef<{ x: number; y: number; look: Look } | null>(null);
   // Real wind, recorded on Mars. It starts only when the astronaut asks for it.
   const sound = useAmbientSound(MARS_WIND.url);
+  // The head can follow the phone instead of a finger. It turns by as much as the phone turned
+  // since this was switched on, from where the head was then: it is not a compass.
+  const lookAtStart = useRef<Look>(AHEAD);
+  const phone = usePhoneLook((change) =>
+    setLook({
+      yaw: lookAtStart.current.yaw + change.yaw,
+      pitch: clampPitch(lookAtStart.current.pitch + change.pitch),
+    }),
+  );
   // The only weather station is at Gale; elsewhere there is no reading to put on the display.
   const weather = useFeed(site.id === 'gale' ? REMS_FEED : null, parseWeather);
 
@@ -179,6 +200,28 @@ function Visor({ site }: { site: Site }) {
     : 0;
   const progress = walkProgress(site.landing, route, elapsedHours, SURFACE_RADIATION.msvPerDay);
   const safety = walkSafety(progress);
+
+  // The link with the ship. The ship works out whether it sees the astronaut over the
+  // ground; while it does not, nothing it sends gets through.
+  const messages = useMessages(site.id);
+  const linkState = useMission((state) => state.links[site.id]) ?? null;
+  const showMessages = useMission((state) => state.showMessages);
+  const acknowledgeMessage = useMission((state) => state.acknowledgeMessage);
+  const linkDown = clock !== null && linkState === 'blocked';
+  const unshown = messages.filter((message) => message.shownHours === null).length;
+  // A new alert and a new message are heard as well as shown, once each, while the sound is on.
+  // A message sounds by the priority the ship gave it: the more serious, the more insistent.
+  const shownPriorities = messages
+    .filter((message) => message.shownHours !== null)
+    .map(priorityOf);
+  const alertSignal = useAlertSignal(safety.alerts, sound.playing, shownPriorities);
+  const walkHours = progress.elapsedHours;
+  useEffect(() => {
+    // A message is marked as shown the moment the visor can show it. This and the
+    // acknowledgement are all the visor writes: the clock stays with the ship.
+    if (clock !== null && !linkDown && unshown > 0) showMessages(site.id, walkHours);
+  }, [clock, linkDown, unshown, showMessages, site.id, walkHours]);
+  const toAcknowledge = clock !== null ? messageToAcknowledge(messages) : null;
   const heading = (((progress.heading + look.yaw) % 360) + 360) % 360;
 
   const over = clock !== null && progress.totalHours > 0 && elapsedHours >= progress.totalHours;
@@ -205,7 +248,9 @@ function Visor({ site }: { site: Site }) {
   const link =
     clock === null
       ? 'Ship link · waiting for the ship to start the walk'
-      : `Ship link · ${clock.running ? 'live' : 'on hold'} · ${clock.rate === 1 ? 'real time' : `${clock.rate}x`}`;
+      : linkDown
+        ? 'Ship link · lost · no line of sight to the base'
+        : `Ship link · ${clock.running ? 'live' : 'on hold'} · ${clock.rate === 1 ? 'real time' : `${clock.rate}x`}`;
 
   // The scenery: a real photograph of the site, and a new one every stretch of walking.
   const stretch = sceneStretch(WALK_ASSUMPTIONS.walkingSpeedKmh, clock?.rate ?? 1);
@@ -231,6 +276,20 @@ function Visor({ site }: { site: Site }) {
   // The lower rim of the helmet carries the instruments, and keeps the bottom of the photograph,
   // where the rover that took it shows, out of the astronaut's view.
   const rim = (wide ? 214 : 318) + insets.bottom;
+
+  // Where the photograph has no ground to show (a mosaic without frames there, or the rover in
+  // the way), the view is held a little higher, so that what is missing stays under the rim.
+  const RAD = Math.PI / 180;
+  const eye = size ? eyeDistance(size) : null;
+  const floor =
+    size && eye
+      ? lowestPitch(panorama, heading, {
+          downDeg: Math.atan((size.height / 2 - rim) / eye) / RAD,
+          sideDeg: Math.atan(size.width / 2 / eye) / RAD,
+          lowest: PITCH_DOWN,
+        })
+      : null;
+  const pitch = floor === null ? look.pitch : Math.max(look.pitch, Math.min(PITCH_UP, floor));
 
   const onLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -356,7 +415,8 @@ function Visor({ site }: { site: Site }) {
       onMoveShouldSetResponder={() => true}
       onResponderTerminationRequest={() => false}
       onResponderGrant={(event) => {
-        drag.current = { ...pointer(event), look };
+        // While the head follows the phone, a finger does not turn it too.
+        drag.current = phone.on ? null : { ...pointer(event), look };
       }}
       onResponderMove={(event) => {
         const start = drag.current;
@@ -380,7 +440,7 @@ function Visor({ site }: { site: Site }) {
         <PanoramaView
           panorama={panorama}
           heading={heading}
-          pitch={look.pitch}
+          pitch={pitch}
           size={size}
           advance={advance}
           still={calm}
@@ -419,12 +479,15 @@ function Visor({ site }: { site: Site }) {
           </Link>
           {wide ? (
             <View style={styles.state} pointerEvents="none">
-              <Text style={styles.status} numberOfLines={1} accessibilityLiveRegion="polite">
-                {status}
-              </Text>
-              <Text style={styles.link} numberOfLines={1}>
-                {link}
-              </Text>
+              {/* On its own plate, like every text here: the sky behind it can be white. */}
+              <View style={[styles.statePlate, GLASS]}>
+                <Text style={styles.status} numberOfLines={1} accessibilityLiveRegion="polite">
+                  {status}
+                </Text>
+                <Text style={[styles.link, linkDown && styles.linkDown]} numberOfLines={1}>
+                  {link}
+                </Text>
+              </View>
             </View>
           ) : (
             <View style={styles.state} />
@@ -435,10 +498,14 @@ function Visor({ site }: { site: Site }) {
           </View>
           {AMBIENT_SOUND_AVAILABLE ? (
             <Toggle
-              label="Sound of the wind on Mars, recorded by Perseverance"
+              label="Sound of the wind on Mars, recorded by Perseverance, and a tone for an alert or a message"
               text={sound.failed ? 'No sound' : sound.playing ? 'Sound on' : 'Sound off'}
               on={sound.playing}
-              onPress={() => void sound.toggle()}
+              onPress={() => {
+                // The same press lets the alert tone play: a browser starts sound only from one.
+                alertSignal.arm();
+                void sound.toggle();
+              }}
             />
           ) : null}
         </View>
@@ -448,7 +515,7 @@ function Visor({ site }: { site: Site }) {
             <Text style={styles.status} numberOfLines={1} accessibilityLiveRegion="polite">
               {status}
             </Text>
-            <Text style={styles.link} numberOfLines={1}>
+            <Text style={[styles.link, linkDown && styles.linkDown]} numberOfLines={1}>
               {link}
             </Text>
           </View>
@@ -474,7 +541,43 @@ function Visor({ site }: { site: Site }) {
               offTarget={offTarget}
               etaHours={etaHours}
               plan={route}
+              compact={!wide && toAcknowledge !== null}
             />
+          </View>
+        ) : null}
+
+        {/* A message from the ship, until the astronaut says it was read. */}
+        {toAcknowledge ? (
+          <View style={[styles.side, { marginLeft: insets.left + Spacing.three }]}>
+            <View
+              style={[
+                styles.message,
+                GLASS,
+                // An urgent message is outlined in its colour, like a warning.
+                priorityOf(toAcknowledge) === 'urgent' && styles.messageUrgent,
+              ]}
+              accessibilityRole="alert">
+              <View style={styles.messageHead}>
+                <View
+                  style={[
+                    styles.alertDot,
+                    { backgroundColor: PRIORITY_COLOR[priorityOf(toAcknowledge)] },
+                  ]}
+                />
+                <Text style={styles.messageFrom}>
+                  From the ship · {PRIORITY_LABEL[priorityOf(toAcknowledge)]} ·{' '}
+                  {formatClock(toAcknowledge.sentHours)}
+                </Text>
+              </View>
+              <Text style={styles.messageText}>{toAcknowledge.text}</Text>
+              <Pressable
+                onPress={() => acknowledgeMessage(site.id, toAcknowledge.id, walkHours)}
+                accessibilityRole="button"
+                accessibilityLabel="Acknowledge the message from the ship"
+                style={({ pressed }) => [styles.messageAck, pressed && styles.messageAckPressed]}>
+                <Text style={styles.messageAckText}>Acknowledge</Text>
+              </Pressable>
+            </View>
           </View>
         ) : null}
       </View>
@@ -517,10 +620,33 @@ function Visor({ site }: { site: Site }) {
           </>
         )}
         <View style={styles.foot} pointerEvents="box-none">
-          <Text style={styles.tag} numberOfLines={1} pointerEvents="none">
+          {/* On a phone the buttons leave it no room on their line, so it has its own. */}
+          <Text
+            style={[styles.tag, !wide && styles.tagOwnLine]}
+            numberOfLines={1}
+            pointerEvents="none">
             Simulated mission · real photo {scene.index + 1}/{scene.count} and sound of Mars
           </Text>
-          {turned ? (
+          {phone.available ? (
+            <Toggle
+              label="Turn the view by turning the phone. It follows the phone, not a compass."
+              text={
+                phone.on
+                  ? 'Phone look on'
+                  : phone.failed === 'blocked'
+                    ? 'Motion blocked'
+                    : phone.failed === 'no-sensor'
+                      ? 'No motion sensor'
+                      : 'Phone look'
+              }
+              on={phone.on}
+              onPress={() => {
+                lookAtStart.current = look;
+                void phone.toggle();
+              }}
+            />
+          ) : null}
+          {turned && !phone.on ? (
             <Toggle
               label="Look the way I am walking again"
               text="Face ahead"
@@ -559,6 +685,9 @@ function Visor({ site }: { site: Site }) {
               ? 'It is not lined up with the compass.'
               : 'It is lined up with the compass.'}{' '}
             Black areas are where the camera took no frame; the sky above the frames, and any gap in it, is filled in.
+            {panorama.groundGaps
+              ? ' Where this photograph has no ground to show, the view is held a little higher: ground is never drawn in.'
+              : ''}
             {scene.count > 1
               ? ` The scenery changes every ${formatDistance(stretch)} walked, through the ${scene.count} photographs of this site, to give the sense of ground being covered. Within a scene the view moves slowly into the still photograph. No camera filmed the way between two of them, and the dust in the cut from one to the next is drawn.`
               : ''}
@@ -567,7 +696,22 @@ function Visor({ site }: { site: Site }) {
             Sound: real wind recorded by the SuperCam microphone of Perseverance at Jezero Crater on{' '}
             {MARS_WIND.when}, on a loop and played louder than published
             {site.id === MARS_WIND.site ? '' : '; it was not recorded at this site'}.{' '}
-            {MARS_WIND.credit}.
+            {MARS_WIND.credit}. With the sound on, a short tone marks each alert when it appears
+            and each message from the ship when it arrives, longer and higher the more serious
+            the ship marked it, with a vibration where the phone allows it. The tones are
+            drawn, not recorded.
+          </Text>
+          {phone.available ? (
+            <Text style={styles.sourcesText}>
+              Phone look: the view turns by as much as the phone has turned since it was switched
+              on. It is not a compass reading: Mars has no global magnetic field to take one from.
+            </Text>
+          ) : null}
+          <Text style={styles.sourcesText}>
+            Ship link: the ship works out whether it sees the astronaut over the ground, from
+            the NASA elevation model, a {LINK_ASSUMPTIONS.baseAntennaM} m mast at the base and an
+            antenna {LINK_ASSUMPTIONS.suitAntennaM} m up on the suit. The antenna heights are
+            assumptions. While there is no line of sight, messages from the ship wait.
           </Text>
           <Text style={styles.sourcesText}>
             Dose rate: {SURFACE_RADIATION.source}, a published average.{' '}
@@ -590,7 +734,7 @@ function Rim({ width, height, rim }: { width: number; height: number; rim: numbe
   const edge = `M0 ${top + rise}Q${width / 2} ${top - rise} ${width} ${top + rise}`;
   return (
     <Svg width={width} height={height} style={styles.overlay} pointerEvents="none">
-      <Path d={`${edge}L${width} ${height}L0 ${height}Z`} fill={Colors.background} opacity={0.96} />
+      <Path d={`${edge}L${width} ${height}L0 ${height}Z`} fill={Colors.visorRim} />
       <Path d={edge} fill="none" stroke={Colors.white} strokeWidth={1} opacity={0.22} />
     </Svg>
   );
@@ -626,6 +770,11 @@ type TargetProps = {
   etaHours: number;
   /** The stops of the walk: what each is called, how long the work there is and what it is. */
   plan: readonly WalkStop[];
+  /**
+   * One line instead of a card: on a narrow screen a message from the ship needs the room, and
+   * the two must not reach the instruments on the rim.
+   */
+  compact?: boolean;
 };
 
 /** What a stop is called inside a sentence: its name, or its place in the walk. */
@@ -636,7 +785,26 @@ const placeName = (plan: readonly WalkStop[], index: number | null) =>
  * The next point to reach: how far, which way, and when. At a stop it is the work in hand
  * instead: how long is left of it, and where the walk goes afterwards.
  */
-function Target({ progress, offTarget, etaHours, plan }: TargetProps) {
+function Target({ progress, offTarget, etaHours, plan, compact = false }: TargetProps) {
+  if (compact) {
+    const working = progress.phase === 'working';
+    return (
+      <View style={[styles.targetLine, GLASS]}>
+        <Text style={styles.targetLabel} numberOfLines={1}>
+          {working
+            ? `Working at ${placeName(plan, progress.stop ?? 0)}`
+            : progress.stop === null
+              ? 'Base'
+              : (plan[progress.stop]?.name ?? `Waypoint ${progress.stop + 1}`)}
+        </Text>
+        <Text style={styles.targetLineValue} numberOfLines={1}>
+          {working
+            ? formatClock(progress.phaseHoursLeft)
+            : `${formatDistance(progress.distanceToTargetM)} · ${bearingText(progress.bearingToTarget)}`}
+        </Text>
+      </View>
+    );
+  }
   if (progress.phase === 'working') {
     const stop = progress.stop ?? 0;
     const here = plan[stop];
@@ -787,13 +955,22 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
-    backgroundColor: Colors.glassDark,
+    backgroundColor: Colors.visorPlate,
     overflow: 'hidden',
   },
   state: {
     flex: 1,
+    alignItems: 'flex-start',
+  },
+  statePlate: {
+    maxWidth: '100%',
     gap: Spacing.half,
-    paddingHorizontal: Spacing.one,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.one + Spacing.half,
+    borderRadius: Radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.visorPlate,
   },
   stateLine: {
     alignSelf: 'flex-start',
@@ -805,13 +982,63 @@ const styles = StyleSheet.create({
     borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
-    backgroundColor: Colors.glassDark,
+    backgroundColor: Colors.visorPlate,
   },
   status: {
     color: Colors.text,
     fontFamily: Fonts.sans,
     fontSize: 17,
     letterSpacing: -0.2,
+  },
+  linkDown: {
+    color: Colors.caution,
+  },
+  message: {
+    alignItems: 'flex-start',
+    gap: Spacing.one + Spacing.half,
+    maxWidth: 280,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    borderRadius: Radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.visorPlate,
+  },
+  messageHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  messageFrom: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+  },
+  messageUrgent: {
+    borderWidth: 1,
+    borderColor: Colors.noGo,
+  },
+  messageText: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  messageAck: {
+    minHeight: 40,
+    justifyContent: 'center',
+    marginTop: Spacing.one,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.text,
+  },
+  messageAckPressed: {
+    opacity: 0.82,
+  },
+  messageAckText: {
+    color: Colors.background,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
   },
   link: {
     color: Colors.textSoft,
@@ -828,7 +1055,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
-    backgroundColor: Colors.glassDark,
+    backgroundColor: Colors.visorPlate,
   },
   headingLabel: {
     color: Colors.textSoft,
@@ -886,7 +1113,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
-    backgroundColor: Colors.glassDark,
+    backgroundColor: Colors.visorPlate,
     maxWidth: '90%',
   },
   waitingText: {
@@ -908,7 +1135,23 @@ const styles = StyleSheet.create({
     borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
-    backgroundColor: Colors.glassDark,
+    backgroundColor: Colors.visorPlate,
+  },
+  targetLine: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.visorPlate,
+  },
+  targetLineValue: {
+    color: Colors.text,
+    fontFamily: Fonts.mono,
+    fontSize: 16,
   },
   targetLabel: {
     color: Colors.textSoft,
@@ -1025,12 +1268,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: Spacing.two,
+    flexWrap: 'wrap',
+    rowGap: Spacing.one,
   },
   tag: {
     flex: 1,
-    color: Colors.textFaint,
+    color: Colors.textSoft,
     fontFamily: Fonts.sans,
-    fontSize: 11,
+    fontSize: 12,
+  },
+  tagOwnLine: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: '100%',
   },
   toggle: {
     minHeight: 36,
@@ -1039,7 +1289,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
-    backgroundColor: Colors.glassDark,
+    backgroundColor: Colors.visorPlate,
   },
   toggleOn: {
     borderColor: Colors.text,

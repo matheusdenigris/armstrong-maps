@@ -64,6 +64,10 @@ The app has three views:
   sharpest NASA elevation model there, how far up or down it is from the base, and the slope of
   the ground. Thermal and spectral layers are served as pictures, so the app says no value can be
   read for them.
+- **Ship link, messages and walk log**: during a walk the console shows whether the base sees the
+  astronaut, from the line of sight over the NASA elevation model, and sends short messages that
+  the visor shows until they are acknowledged. The log of the walk (waypoints, alerts, link,
+  messages) stays after it ends and exports as a text file.
 - **Wind**: the last sols measured by InSight, with a wind rose and how hard the gusts push compared
   with the Earth, and the prevailing wind written in the slip faces of the region's dunes.
 - **Mars clock and daylight**: the Sun over each site from NASA/JPL Horizons, and local solar time

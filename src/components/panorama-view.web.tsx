@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react';
 
-import { headingToFraction, panoramaUrl, type Panorama } from '@/data/panoramas';
+import { eyeDistance, headingToFraction, panoramaUrl, type Panorama } from '@/data/panoramas';
 
 export type PanoramaViewProps = {
   panorama: Panorama;
@@ -56,15 +56,7 @@ const DEPTH = 0.36;
 const PUSH_OUT = 0.04;
 const PUSH_IN = 0.02;
 
-const RAD = Math.PI / 180;
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
-
-/** Distance from the eye to the picture, in pixels, for a lens that suits the shape of the screen. */
-function eyeDistance(size: { width: number; height: number }): number {
-  // A tall phone gets a wider lens, or it would see a sliver of the horizon.
-  const lens = size.width < size.height ? 82 : 58;
-  return size.height / 2 / Math.tan((lens * RAD) / 2);
-}
 
 type CylinderProps = {
   panorama: Panorama;
