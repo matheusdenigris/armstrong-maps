@@ -1,7 +1,6 @@
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
 import {
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -9,7 +8,6 @@ import {
   type ComponentRef,
 } from 'react';
 import {
-  AccessibilityInfo,
   Platform,
   Pressable,
   ScrollView,
@@ -37,6 +35,7 @@ import {
   searchDocs,
   type DocPage,
 } from '@/data/docs-pages';
+import { useReducedMotion } from '@/state/use-reduced-motion';
 
 const DESCRIPTION =
   'How Armstrong Maps works: every NASA API and data source it reads, what it takes from each, and what is measured, assumed or simulated.';
@@ -111,21 +110,6 @@ function useHydrated() {
     () => true,
     () => false,
   );
-}
-
-/** True when the person has asked the system for less movement: then nothing here animates. */
-function useReducedMotion() {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((on) => alive && setReduced(on));
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
-    return () => {
-      alive = false;
-      subscription.remove();
-    };
-  }, []);
-  return reduced;
 }
 
 type Hoverable = { pressed: boolean; hovered?: boolean };

@@ -9,13 +9,16 @@ export type PanoramaViewProps = {
   /** How far up (positive) or down the astronaut is looking, in degrees. */
   pitch: number;
   size: { width: number; height: number };
-  /** Vertical sway of a step, in pixels. Zero when standing still. */
-  sway?: number;
   /**
    * How far through this scene's stretch of walking the astronaut is, 0 to 1. The view moves
    * that far into the photograph, which gives the walk its depth.
    */
   advance?: number;
+  /**
+   * The person asked the system for less movement: the view does not move into the photograph,
+   * and a change of scene is a plain fade through the dust.
+   */
+  still?: boolean;
 };
 
 /** The picture is wrapped round the astronaut in this many flat strips; four degrees each. */
@@ -32,9 +35,9 @@ const FILL = 3000;
 const FADE_MS = 900;
 
 /**
- * The cut from one scene to the next: the astronaut strides forward into a gust of dust, and it
- * clears on the next place. It stands for the ground covered between two photographs, which no
- * camera filmed. The dust is drawn.
+ * The cut from one scene to the next: a gust of dust rises over the view and clears on the next
+ * place. It stands for the ground covered between two photographs, which no camera filmed. The
+ * dust is drawn.
  */
 const CUT_MS = 2200;
 const DUST = '#b9987a';
@@ -45,12 +48,13 @@ const DUST = '#b9987a';
  * the photograph shifts against anything else.
  */
 const DEPTH = 0.36;
-/** How far the view pushes into the scene it leaves, and how far back it starts in the next. */
-const PUSH_OUT = 0.26;
-const PUSH_IN = 0.12;
-/** Extra lift of the strides during the cut, in pixels, and how many of them. */
-const STRIDE = 9;
-const STRIDES = 4;
+/**
+ * How far the view drifts on into the scene it leaves, and how far back it starts in the next.
+ * Small on purpose: the cut carries on the slow move of the scene, it does not lunge. The view
+ * never rises and falls with the steps either, which reads as shaking.
+ */
+const PUSH_OUT = 0.04;
+const PUSH_IN = 0.02;
 
 const RAD = Math.PI / 180;
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
@@ -219,8 +223,8 @@ export function PanoramaView({
   heading,
   pitch,
   size,
-  sway = 0,
   advance = 0,
+  still = false,
 }: PanoramaViewProps) {
   // The scene on screen, which lags the one asked for by half a cut.
   const [scene, setScene] = useState(panorama);
@@ -246,13 +250,12 @@ export function PanoramaView({
     const next = new Image();
     next.src = panoramaUrl(panorama, false);
 
-    const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const started = performance.now();
     let frame = 0;
     let swapped = false;
     const step = (time: number) => {
       // The first frame can carry a time from before the cut was asked for.
-      const t = calm ? 1 : Math.min(1, Math.max(0, (time - started) / CUT_MS));
+      const t = Math.min(1, Math.max(0, (time - started) / CUT_MS));
       if (!swapped && t >= 0.5) {
         swapped = true;
         setScene(panorama);
@@ -311,14 +314,14 @@ export function PanoramaView({
     };
   }, [scene, gapped]);
 
-  // Leaving: stride into the scene while the dust rises. Arriving: settle as it clears.
+  // Leaving: drift on into the scene while the dust rises. Arriving: settle as it clears.
   const leaving = cut !== null && cut < 0.5;
   const part = cut === null ? 0 : leaving ? cut / 0.5 : (cut - 0.5) / 0.5;
-  const stridePush =
+  const cutPush =
     cut === null ? 0 : leaving ? ease(part) * PUSH_OUT : -(1 - ease(part)) * PUSH_IN;
-  const push = Math.min(1, Math.max(0, depth.advance)) * DEPTH + stridePush;
+  // Held still, the picture stays where it is and only the dust fades over it and away.
+  const push = still ? 0 : Math.min(1, Math.max(0, depth.advance)) * DEPTH + cutPush;
   const dust = cut === null ? 0 : leaving ? part ** 1.4 : (1 - part) ** 1.4;
-  const stride = cut === null ? 0 : Math.abs(Math.sin(cut * Math.PI * STRIDES)) * STRIDE;
 
   const ahead = Math.floor(headingToFraction(scene, heading) * STRIPS) % STRIPS;
 
@@ -341,7 +344,7 @@ export function PanoramaView({
         style={{
           position: 'absolute',
           left: size.width / 2,
-          top: size.height / 2 + sway + stride,
+          top: size.height / 2,
           transformStyle: 'preserve-3d',
           transform: `translateZ(${radius * (1 + push)}px) rotateX(${pitch}deg) rotateY(${
             headingToFraction(scene, heading) * 360

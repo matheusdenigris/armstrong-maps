@@ -45,6 +45,7 @@ import { VISOR_READY_KEY, useMission, useRoute } from '@/state/mission';
 import { AMBIENT_SOUND_AVAILABLE, useAmbientSound } from '@/state/use-ambient-sound';
 import { useFeed } from '@/state/use-feed';
 import { useNow } from '@/state/use-now';
+import { useReducedMotion } from '@/state/use-reduced-motion';
 
 /** One page per site in the static web export. */
 export function generateStaticParams() {
@@ -59,12 +60,6 @@ const RESTING_PITCH = -4;
 /** How far up and down the head can tilt, in degrees: the photographs are bands, not spheres. */
 const PITCH_UP = 22;
 const PITCH_DOWN = -14;
-/** Length of a step, in metres, and how far it lifts the view, in pixels. */
-const STEP = 0.75;
-const SWAY = 5;
-/** At a stop the view rises and falls a little, like someone standing: pixels, and seconds a cycle. */
-const IDLE_SWAY = 2;
-const IDLE_SECONDS = 5;
 /** The minimap shows about 300 m around the astronaut. */
 const MINIMAP_PIXELS_PER_DEGREE = 26_000;
 /** From this width the instruments sit in one row along the rim of the helmet. */
@@ -113,7 +108,9 @@ function Visor({ site }: { site: Site }) {
   const insets = useSafeAreaInsets();
   const route = useRoute(site.id);
   const clock = useMission((state) => state.clocks[site.id]) ?? null;
-  // Fast enough for the sway of the steps to look like walking.
+  // Asked for less movement, the picture holds still and a change of scene is a plain fade.
+  const calm = useReducedMotion();
+  // Fast enough for the move into the photograph to be smooth.
   const now = useNow(clock?.running ?? false, 60);
 
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
@@ -218,20 +215,10 @@ function Visor({ site }: { site: Site }) {
   );
   const { panorama, awayM, borrowed } = scene;
   // How far through this scene's stretch the astronaut is: the view moves that far into it.
+  // That slow move is the only movement of the picture. It does not rise and fall with the
+  // steps: at the speeds a walk is played, that reads as shaking.
   const advance =
     progress.phase === 'at-base' ? 0 : (progress.walkedM % stretch) / stretch;
-  // Steps lift the view a little, near real time only: played fast it would be a blur.
-  const stepping =
-    clock?.running === true &&
-    clock.rate <= 10 &&
-    (progress.phase === 'walking' || progress.phase === 'returning');
-  // Standing at a stop is not a frozen picture: the view keeps the slight movement of a person.
-  const standing = clock?.running === true && !over && progress.phase === 'working';
-  const sway = stepping
-    ? Math.abs(Math.sin((progress.walkedM / STEP) * Math.PI)) * SWAY
-    : standing
-      ? Math.sin((now / 1000 / IDLE_SECONDS) * 2 * Math.PI) * IDLE_SWAY
-      : 0;
   const layers = [VIKING_GLOBAL, ...site.layers];
   const path = [site.landing, ...route, site.landing];
   const latest = weather.status === 'ready' ? weather.data[0] : undefined;
@@ -391,8 +378,8 @@ function Visor({ site }: { site: Site }) {
           heading={heading}
           pitch={look.pitch}
           size={size}
-          sway={sway}
           advance={advance}
+          still={calm}
         />
       ) : null}
 

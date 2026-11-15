@@ -783,7 +783,8 @@ const GUIDE: DocPage[] = [
             items: [
               'The photographs in the visor are real, but they were not taken on the planned route. The visor says how far away each one was taken.',
               'Within a scene the view moves slowly into a still picture. Nothing in it shifts against anything else, as it would on a real walk.',
-              'The change of scene is a stride into a gust of dust. The dust and the stride are drawn.',
+              'The change of scene is a gust of dust that rises over the view and clears on the next photograph. The dust is drawn.',
+              'The picture does not rise and fall with the steps. When the device asks for reduced motion, it does not move into the photograph either.',
               'Only one photograph has a caption that says where north is. The others are not lined up with the compass, and the visor says which case it is.',
               'Where a mosaic has no frame for a patch of sky, the visor draws the sky in the colours beside it. The ground is never filled in: a gap in it stays black.',
               'The wind was recorded at Jezero and plays at every site, louder than published.',

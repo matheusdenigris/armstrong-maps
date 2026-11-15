@@ -1,8 +1,7 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
+import { useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
 import {
-  AccessibilityInfo,
   Platform,
   Pressable,
   ScrollView,
@@ -83,6 +82,7 @@ import { routeCrosses, routeSlope } from '@/mission/terrain';
 import { useNow } from '@/state/use-now';
 import { mars24Sun, nextSunCrossing, tableSun, walkDaylight } from '@/mission/mars-time';
 import { horizonsSunUrl, parseHorizonsSun } from '@/data/horizons';
+import { useReducedMotion } from '@/state/use-reduced-motion';
 
 /** One page per site in the static web export. */
 export function generateStaticParams() {
@@ -157,21 +157,6 @@ const KEYFRAMES = `
   @keyframes armstrong-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
   @keyframes armstrong-sheet { from { opacity: 0; transform: translateY(32px); } to { opacity: 1; transform: none; } }
 `;
-
-/** True when the person has asked the system for less movement: then nothing here animates. */
-function useReducedMotion() {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((on) => alive && setReduced(on));
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
-    return () => {
-      alive = false;
-      subscription.remove();
-    };
-  }, []);
-  return reduced;
-}
 
 type Tab = 'map' | 'layers' | 'walk' | 'site' | 'photos';
 /** What the right-hand panel of the desktop console shows: one subject at a time. */
@@ -687,6 +672,7 @@ function SiteMap({ site }: { site: Site }) {
       onCloseCoach={() => setCoachClosed(true)}
       walk={walk}
       stops={route.length}
+      locked={clock !== null}
       sources={sources}
       legends={coloured}
       desktop={desktopConsole}
@@ -934,6 +920,8 @@ type MapStageProps = {
   onCloseCoach: () => void;
   walk: WalkEvaluation;
   stops: number;
+  /** A walk is running, so the route cannot change. */
+  locked: boolean;
   sources: string;
   legends: readonly MapLayer[];
   desktop: boolean;
@@ -967,6 +955,7 @@ function MapStage({
   onCloseCoach,
   walk,
   stops,
+  locked,
   sources,
   legends,
   desktop,
@@ -1002,6 +991,7 @@ function MapStage({
           view={view}
           walk={walk}
           stops={stops}
+          locked={locked}
           sources={sources}
           legends={legends}
           pointKeys={pointKeys}
@@ -1021,6 +1011,8 @@ type MapHudProps = {
   view: MapView;
   walk: WalkEvaluation;
   stops: number;
+  /** A walk is running, so the route cannot change. */
+  locked: boolean;
   sources: string;
   /** The layers that are on over the base: each gets its colour key on the map. */
   legends: readonly MapLayer[];
@@ -1038,6 +1030,7 @@ function MapHud({
   view,
   walk,
   stops,
+  locked,
   sources,
   legends,
   pointKeys,
@@ -1108,7 +1101,9 @@ function MapHud({
               <Text style={styles.mapHintText} numberOfLines={desktop ? 1 : 2}>
                 {stops === 0
                   ? 'Click or tap the map to mark a waypoint'
-                  : `${stops} ${stops === 1 ? 'waypoint' : 'waypoints'} · click or tap the map to add another`}
+                  : `${stops} ${stops === 1 ? 'waypoint' : 'waypoints'} · ${
+                      locked ? 'locked while the walk runs' : 'click or tap the map to add another'
+                    }`}
               </Text>
             )}
             <Text style={styles.mapCredit} numberOfLines={1}>
@@ -1778,7 +1773,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     overflow: 'hidden',
-    backgroundColor: Colors.glassStrong,
+    // Solid: the key and the labels of the map under it would show through the text.
+    backgroundColor: Colors.background,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.glassBorder,
     borderTopLeftRadius: Radius.pane,
