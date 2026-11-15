@@ -71,6 +71,51 @@ describe('evaluateWalk', () => {
     expect(walk.reasons).toEqual(['into-reserve']);
   });
 
+  it('refuses a route over ground steeper than the no-go slope', () => {
+    const walk = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, { maxSlopeDeg: 27 });
+    expect(walk.verdict).toBe('no-go');
+    expect(walk.reasons).toEqual(['too-steep']);
+  });
+
+  it('warns about steep ground and dune fields', () => {
+    const walk = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, {
+      maxSlopeDeg: 18,
+      crossesDunes: true,
+    });
+    expect(walk.verdict).toBe('caution');
+    expect(walk.reasons).toEqual(['steep-ground', 'dune-field']);
+  });
+
+  it('says nothing about the ground when the model has not answered', () => {
+    const walk = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, { maxSlopeDeg: null });
+    expect(walk.reasons).toEqual([]);
+    expect(evaluateWalk(BASE, [], DOSE_RATE, WALK_ASSUMPTIONS, { maxSlopeDeg: 40 }).verdict).toBe('go');
+  });
+
+  it('refuses a walk that starts in the dark or runs into the night', () => {
+    const dark = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, {
+      daylight: { startElevation: -5, lowestElevation: -20 },
+    });
+    expect(dark.verdict).toBe('no-go');
+    expect(dark.reasons).toEqual(['starts-in-dark']);
+    const late = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, {
+      daylight: { startElevation: 20, lowestElevation: -3 },
+    });
+    expect(late.reasons).toEqual(['into-night']);
+  });
+
+  it('warns about a low Sun, and says nothing in full daylight', () => {
+    const low = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, {
+      daylight: { startElevation: 30, lowestElevation: 6 },
+    });
+    expect(low.verdict).toBe('caution');
+    expect(low.reasons).toEqual(['low-sun']);
+    const day = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, {
+      daylight: { startElevation: 30, lowestElevation: 25 },
+    });
+    expect(day.reasons).toEqual([]);
+  });
+
   it('adds a caution when a CME is at Mars', () => {
     const walk = evaluateWalk(BASE, [at(1000)], DOSE_RATE, WALK_ASSUMPTIONS, { cmeAtMars: true });
     expect(walk.verdict).toBe('caution');

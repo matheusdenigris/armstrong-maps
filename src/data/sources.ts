@@ -6,6 +6,8 @@
  * others are references a number depends on (a published constant) or partners whose instrument
  * NASA hosts.
  */
+import { DUNE_CREDIT } from './dunes';
+import { HORIZONS_API, HORIZONS_CREDIT } from './horizons';
 import { IMAGE_LIBRARY_API } from './image-library';
 import {
   HELICOPTER_FEED,
@@ -22,6 +24,7 @@ import { MARS_WIND } from './sounds';
 import { ROVERS } from './rover';
 import { DONKI_BASE } from './space-weather';
 import { REMS_FEED } from './weather';
+import { AIR_DENSITY_SOURCE, INSIGHT_CREDIT } from './wind';
 
 export type SourceKind =
   /** Read by the app every time it runs. */
@@ -82,6 +85,49 @@ export const SOURCES: readonly DataSource[] = [
     key: 'None',
     notes: 'Checked on 2026-11-14. A new layer is checked here before it is added.',
     reference: 'https://trek.nasa.gov/mars/',
+  },
+  {
+    id: 'elevation-models',
+    name: 'Elevation models: slope near the base and around it',
+    publisher: 'NASA/JPL Mars Trek image services; MOLA, HRSC and HiRISE teams',
+    nasa: true,
+    kind: 'live',
+    gives:
+      'Grids of heights the app turns into slope: 1 m HiRISE models at Gale and Gusev, the InSight mosaic at Elysium, and the 200 m MOLA and HRSC blend everywhere (Fergason et al. 2018).',
+    usedIn: 'The steep ground shading on the map, the Hazards card in the Layers tab, and a caution or no-go in the walk verdict.',
+    endpoint:
+      'https://trek.nasa.gov/mars/trekarcgis/rest/services/{model}/ImageServer/exportImage?bbox={west,south,east,north}&size={w},{h}&format=bsq&pixelType={F32|S16}&f=image',
+    key: 'None',
+    notes:
+      'Raw little-endian heights in metres; -3.4e38 marks no data. Slope is measured over each cell (about 60 m near the base, 200 m around it), so ground can be steeper than the model shows.',
+    reference: 'https://trek.nasa.gov/mars/',
+  },
+  {
+    id: 'insight-wind',
+    name: 'InSight wind',
+    publisher: INSIGHT_CREDIT,
+    nasa: true,
+    kind: 'live',
+    gives: 'Mean, lowest and highest wind speed and the most common direction of the last seven sols InSight sent (October 2020).',
+    usedIn: 'The wind panel of the Site tab, as a measurement at Elysium Planitia and a reference elsewhere.',
+    endpoint: 'https://api.nasa.gov/insight_weather/?api_key={key}&feedtype=json&ver=1.0',
+    key: 'api.nasa.gov key, or the shared DEMO_KEY',
+    notes: `The direction is where the wind blew from, within 11.25°. The lander has been silent since 2022. The push of the wind is compared with the Earth using air density: ${AIR_DENSITY_SOURCE}.`,
+    reference: 'https://mars.nasa.gov/insight/weather/',
+  },
+  {
+    id: 'jpl-horizons',
+    name: 'JPL Horizons: the Sun over each site',
+    publisher: HORIZONS_CREDIT,
+    nasa: true,
+    kind: 'live',
+    gives: "The Sun's elevation seen from the landing point, every 10 minutes over three days: sunrise, sunset and how high the Sun is during a walk.",
+    usedIn: 'The Mars clock of the Site tab, the daylight line of the safety check, and the daylight reasons of the verdict.',
+    endpoint: `${HORIZONS_API}?COMMAND='10'&CENTER='coord@499'&SITE_COORD='{-east lon},{lat},0'&QUANTITIES='4'&STEP_SIZE='10 m'&format=json`,
+    key: 'None',
+    notes:
+      'Horizons sends no CORS header, so the web app asks through its own forwarder (api/horizons.js); the phone apps ask directly. When it does not answer, the app computes the Sun with the Mars24 algorithm of NASA GISS, which agrees within about a minute.',
+    reference: 'https://ssd-api.jpl.nasa.gov/doc/horizons.html',
   },
   {
     id: 'rover-waypoints',
@@ -247,6 +293,21 @@ export const SOURCES: readonly DataSource[] = [
     key: 'None',
     notes: 'An average over about 300 sols at Gale. RAD has no public live feed.',
     reference: 'https://doi.org/10.1126/science.1244797',
+  },
+  {
+    id: 'dune-fields',
+    name: 'Dune fields and the wind that shaped them',
+    publisher: DUNE_CREDIT,
+    nasa: false,
+    kind: 'live',
+    gives:
+      'Outlines of mapped dune fields, and the direction their slip faces face: the prevailing wind at the last time the dunes changed much.',
+    usedIn: 'The dune outlines and wind arrows on the map, the wind panel of the Site tab, and a caution in the walk verdict.',
+    endpoint:
+      'https://trek.nasa.gov/mars/trekarcgis/rest/services/Dune_Field/MapServer/0/query?geometry={west,south,east,north}&returnGeometry=true&f=json',
+    key: 'None',
+    notes: 'Mapped between 65° S and 65° N from THEMIS and MOC images. USGS data, served by NASA/JPL Mars Trek.',
+    reference: 'https://pubs.usgs.gov/of/2007/1158/',
   },
   {
     id: 'mars-radius',

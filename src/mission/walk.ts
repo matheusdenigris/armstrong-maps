@@ -23,6 +23,15 @@ export type WalkAssumptions = {
   walkBackLimitKm: number;
   /** A waypoint past this share of the walk-back limit earns a warning. */
   nearLimitFraction: number;
+  /** Ground this steep or steeper under the route earns a caution, in degrees. */
+  cautionSlopeDeg: number;
+  /** Ground this steep or steeper under the route refuses the walk, in degrees. */
+  noGoSlopeDeg: number;
+  /**
+   * Below this elevation the Sun is low: long shadows hide holes and rocks, and the light fades
+   * fast. A walk in it earns a caution. In degrees.
+   */
+  lowSunDeg: number;
 };
 
 export const WALK_ASSUMPTIONS: WalkAssumptions = {
@@ -32,6 +41,9 @@ export const WALK_ASSUMPTIONS: WalkAssumptions = {
   minutesPerStop: 20,
   walkBackLimitKm: 5,
   nearLimitFraction: 0.8,
+  cautionSlopeDeg: 15,
+  noGoSlopeDeg: 25,
+  lowSunDeg: 10,
 };
 
 export type Verdict = 'go' | 'caution' | 'no-go';
@@ -42,7 +54,13 @@ export type WalkReason =
   | 'into-reserve'
   | 'beyond-walk-back-limit'
   | 'near-walk-back-limit'
-  | 'cme-at-mars';
+  | 'cme-at-mars'
+  | 'too-steep'
+  | 'steep-ground'
+  | 'dune-field'
+  | 'starts-in-dark'
+  | 'into-night'
+  | 'low-sun';
 
 const SEVERITY: Record<WalkReason, Verdict> = {
   'life-support-exceeded': 'no-go',
@@ -50,6 +68,12 @@ const SEVERITY: Record<WalkReason, Verdict> = {
   'beyond-walk-back-limit': 'no-go',
   'near-walk-back-limit': 'caution',
   'cme-at-mars': 'caution',
+  'too-steep': 'no-go',
+  'steep-ground': 'caution',
+  'dune-field': 'caution',
+  'starts-in-dark': 'no-go',
+  'into-night': 'no-go',
+  'low-sun': 'caution',
 };
 
 /** What is happening around the walk, from live sources. Unknown is left out. */
@@ -60,6 +84,20 @@ export type WalkConditions = {
    * above the average the evaluation uses.
    */
   cmeAtMars?: boolean;
+  /**
+   * The steepest ground under the route, out and back, in degrees, read from an elevation model.
+   * Left out when the model has not answered.
+   */
+  maxSlopeDeg?: number | null;
+  /** The route, out and back, runs into a mapped dune field: loose sand. */
+  crossesDunes?: boolean;
+  /** Where the Sun is over the walk, from the Mars clock. Left out when no start time is set. */
+  daylight?: {
+    /** Sun elevation at the start, in degrees. */
+    startElevation: number;
+    /** The lowest the Sun gets before the walk ends, in degrees. */
+    lowestElevation: number;
+  } | null;
 };
 
 export type WalkEvaluation = {
@@ -113,6 +151,22 @@ export function evaluateWalk(
 
   // Space weather only matters once there is a walk to take.
   if (conditions.cmeAtMars && waypoints.length > 0) reasons.push('cme-at-mars');
+
+  // So does the ground under it.
+  const slope = conditions.maxSlopeDeg;
+  if (waypoints.length > 0 && slope !== undefined && slope !== null) {
+    if (slope >= assumptions.noGoSlopeDeg) reasons.push('too-steep');
+    else if (slope >= assumptions.cautionSlopeDeg) reasons.push('steep-ground');
+  }
+  if (conditions.crossesDunes && waypoints.length > 0) reasons.push('dune-field');
+
+  // And the light: the walk has to start and end with the Sun up.
+  const sun = conditions.daylight;
+  if (sun && waypoints.length > 0) {
+    if (sun.startElevation < 0) reasons.push('starts-in-dark');
+    else if (sun.lowestElevation < 0) reasons.push('into-night');
+    else if (sun.lowestElevation < assumptions.lowSunDeg) reasons.push('low-sun');
+  }
 
   const verdict: Verdict = reasons.some((reason) => SEVERITY[reason] === 'no-go')
     ? 'no-go'

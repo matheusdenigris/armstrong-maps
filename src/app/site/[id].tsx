@@ -16,9 +16,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, LinearTransition, ReduceMotion } from 'react-native-reanimated';
 
 import { EnvironmentPanel } from '@/components/environment-panel';
+import { HazardPanel } from '@/components/hazard-panel';
 import { LayerPanel, type PointSetRow } from '@/components/layer-panel';
+import { MarsClockPanel } from '@/components/mars-clock-panel';
 import { MapLegend } from '@/components/map-legend';
 import { POINT_COLORS, PointCard, PointsKey } from '@/components/mission-points';
+import { SafetyCheck, type StartPlan } from '@/components/safety-check';
+import { WeatherChart } from '@/components/weather-chart';
 import { PhotosPanel } from '@/components/photos-panel';
 import { Logo } from '@/components/logo';
 import { ScaleBar } from '@/components/scale-bar';
@@ -26,6 +30,9 @@ import {
   SurfaceMap,
   type MapCard,
   type MapMarker,
+  type MapArea,
+  type MapArrow,
+  type MapImage,
   type MapPath,
   type MapPoint,
   type MapPreview,
@@ -33,7 +40,9 @@ import {
 } from '@/components/surface-map';
 import { WalkControls } from '@/components/walk-controls';
 import { RouteActions, WalkDetails, WalkSummary } from '@/components/walk-panel';
+import { WindPanel } from '@/components/wind-panel';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
+import { duneQueryUrl, parseDunes } from '@/data/dunes';
 import { imageSearchUrl, parseImageSearch } from '@/data/image-library';
 import { GLOBAL_LAYERS, VIKING_GLOBAL, type MapLayer } from '@/data/layers';
 import {
@@ -59,6 +68,7 @@ import {
   parseSepEvents,
 } from '@/data/space-weather';
 import { REMS_FEED, parseWeather } from '@/data/weather';
+import { INSIGHT_SITE, insightWeatherUrl, parseInsightWind } from '@/data/wind';
 import type { MapView } from '@/mission/camera';
 import { elapsedSeconds } from '@/mission/clock';
 import { formatDistance, formatDuration, formatLatLon } from '@/mission/format';
@@ -68,7 +78,11 @@ import { TILE_PIXELS, tileSpan } from '@/mission/tiles';
 import { WALK_ASSUMPTIONS, evaluateWalk, type WalkEvaluation } from '@/mission/walk';
 import { MAX_WAYPOINTS, useMission, useRoute } from '@/state/mission';
 import { useFeed } from '@/state/use-feed';
+import { useTerrain } from '@/state/use-terrain';
+import { routeCrosses, routeSlope } from '@/mission/terrain';
 import { useNow } from '@/state/use-now';
+import { mars24Sun, nextSunCrossing, tableSun, walkDaylight } from '@/mission/mars-time';
+import { horizonsSunUrl, parseHorizonsSun } from '@/data/horizons';
 
 /** One page per site in the static web export. */
 export function generateStaticParams() {
@@ -111,6 +125,12 @@ const GALE = SITES[0].landing;
  */
 const ENLIL_CACHE = { key: 'donki-enlil', freshForHours: 3 };
 const SEP_CACHE = { key: 'donki-sep', freshForHours: 3 };
+/** Wind InSight measured in 2020 does not change; the dune outlines barely do. */
+const INSIGHT_CACHE = { key: 'insight-wind', freshForHours: 24 };
+const DUNES_CACHE_HOURS = 24 * 7;
+
+/** "Next morning" starts the walk when the Sun is this high, in degrees: a project assumption. */
+const MORNING_SUN_DEG = 15;
 
 /** The fill of the small button that closes the tip on the map: a shade on its light card. */
 const COACH_CLOSE = 'rgba(4, 6, 10, 0.1)';
@@ -295,6 +315,93 @@ function SiteMap({ site }: { site: Site }) {
     parseRawImages,
   );
   const library = useFeed(showPhotos ? imageSearchUrl(site.photoQuery) : null, parseImageSearch);
+  // The ground: slope from NASA elevation models near the base and around it, and dune fields.
+  // Both enter the verdict, so they are asked for at once.
+  const terrain = useTerrain(site);
+  const dunesCache = useMemo(
+    () => ({ key: `dunes-${site.id}`, freshForHours: DUNES_CACHE_HOURS }),
+    [site.id],
+  );
+  const dunes = useFeed(duneQueryUrl(site.region), parseDunes, dunesCache);
+  const wind = useFeed(showSite ? insightWeatherUrl() : null, parseInsightWind, INSIGHT_CACHE);
+  const [hazards, setHazards] = useState({ slope: true, dunes: true });
+
+  // The Sun over the walk. The Mars clock moves on once a minute; the walk starts now or the next
+  // morning, when the Sun is MORNING_SUN_DEG up.
+  const minute = useNow(true, 60_000);
+  const [startPlan, setStartPlan] = useState<StartPlan>('now');
+  // The Sun of the site from NASA/JPL Horizons: three days from the start of today (UT), asked
+  // once a day. The web goes through its own forwarder, since Horizons sends no CORS header.
+  const today = new Date(minute).toISOString().slice(0, 10);
+  const horizonsCache = useMemo(
+    () => ({ key: `horizons-${site.id}`, freshForHours: 24 }),
+    [site.id],
+  );
+  const horizons = useFeed(
+    horizonsSunUrl(site.landing.lat, site.landing.lon, new Date(`${today}T00:00:00Z`), Platform.OS === 'web'),
+    parseHorizonsSun,
+    horizonsCache,
+  );
+  const sun = useMemo(() => {
+    const own = mars24Sun(site.landing.lat, site.landing.lon);
+    return horizons.status === 'ready' ? tableSun(horizons.data, own) : own;
+  }, [horizons, site]);
+  const sunSource = horizons.status === 'ready' ? 'horizons' : 'mars24';
+  const plannedStart = useMemo(() => {
+    const from = new Date(minute);
+    if (startPlan === 'now') return from;
+    return nextSunCrossing(from, sun, true, MORNING_SUN_DEG) ?? from;
+  }, [minute, startPlan, sun]);
+  const daylight = useMemo(() => {
+    if (route.length === 0) return null;
+    const hours = evaluateWalk(site.landing, route, SURFACE_RADIATION.msvPerDay).durationHours;
+    return walkDaylight(plannedStart, hours, sun);
+  }, [plannedStart, route, site, sun]);
+
+  // The ground under the whole walk, out and back.
+  const { groundSlope, crossesDunes } = useMemo(() => {
+    if (route.length === 0) return { groundSlope: null, crossesDunes: false };
+    const loop = [site.landing, ...route, site.landing];
+    const grids = [terrain.near, terrain.around].flatMap((feed) =>
+      feed.status === 'ready' ? [feed.data.slopes] : [],
+    );
+    return {
+      groundSlope: grids.length > 0 ? routeSlope(loop, grids) : null,
+      crossesDunes:
+        dunes.status === 'ready' &&
+        routeCrosses(
+          loop,
+          dunes.data.flatMap((field) => field.outlines),
+        ),
+    };
+  }, [site, route, terrain.near, terrain.around, dunes]);
+
+  // What the map draws for the hazards: the slope pictures (the wide one under the near one), the
+  // dune outlines and the way their wind blew.
+  const { hazardImages, hazardAreas, windArrows } = useMemo(() => {
+    const images: MapImage[] = hazards.slope
+      ? [terrain.around, terrain.near].flatMap((feed) =>
+          feed.status === 'ready'
+            ? [{ id: `slope-${feed.data.area.id}`, uri: feed.data.image, bounds: feed.data.area.bounds }]
+            : [],
+        )
+      : [];
+    const fields = hazards.dunes && dunes.status === 'ready' ? dunes.data : [];
+    const areas: MapArea[] = fields.flatMap((field) =>
+      field.outlines.map((outline, index) => ({
+        id: `dune-${field.id}-${index}`,
+        outline,
+        fill: Colors.duneFill,
+        stroke: Colors.duneStroke,
+      })),
+    );
+    const arrows: MapArrow[] = fields.flatMap((field) =>
+      field.downwindDeg === null
+        ? []
+        : [{ id: `wind-${field.id}`, point: field.centre, bearingDeg: field.downwindDeg, color: Colors.wind }],
+    );
+    return { hazardImages: images, hazardAreas: areas, windArrows: arrows };
+  }, [hazards, terrain.near, terrain.around, dunes]);
 
   // The map lays its tiles out again when these change, so they must not change on every frame.
   const { home, limits } = useMemo(() => {
@@ -380,12 +487,15 @@ function SiteMap({ site }: { site: Site }) {
     return {
       walk: evaluateWalk(landing, route, SURFACE_RADIATION.msvPerDay, WALK_ASSUMPTIONS, {
         cmeAtMars,
+        maxSlopeDeg: groundSlope?.maxDeg ?? null,
+        crossesDunes,
+        daylight,
       }),
       markers: pins,
       paths: lines,
       rings: circles,
     };
-  }, [site, route, rover, track, astronaut, cmeAtMars]);
+  }, [site, route, rover, track, astronaut, cmeAtMars, groundSlope, crossesDunes, daylight]);
 
   // Under a mouse pointer the map shows the leg a press would add. Not while a walk runs: the
   // route is locked then.
@@ -440,15 +550,27 @@ function SiteMap({ site }: { site: Site }) {
         : 'No rover';
 
   const layersContent = (
-    <LayerPanel
-      base={base}
-      overlays={OVERLAYS}
-      active={overlays}
-      onToggle={toggleOverlay}
-      onOpacity={setOverlayOpacity}
-      points={pointRows}
-      onTogglePoints={togglePoints}
-    />
+    <>
+      <HazardPanel
+        slopeOn={hazards.slope}
+        dunesOn={hazards.dunes}
+        onToggleSlope={() => setHazards((value) => ({ ...value, slope: !value.slope }))}
+        onToggleDunes={() => setHazards((value) => ({ ...value, dunes: !value.dunes }))}
+        near={terrain.near}
+        around={terrain.around}
+        dunes={dunes}
+        route={groundSlope}
+      />
+      <LayerPanel
+        base={base}
+        overlays={OVERLAYS}
+        active={overlays}
+        onToggle={toggleOverlay}
+        onOpacity={setOverlayOpacity}
+        points={pointRows}
+        onTogglePoints={togglePoints}
+      />
+    </>
   );
 
   const walkContent = (
@@ -477,18 +599,49 @@ function SiteMap({ site }: { site: Site }) {
         onEnd={() => endWalk(site.id)}
         onRate={(rate) => setWalkRate(site.id, rate)}
       />
+      <SafetyCheck
+        walk={walk}
+        stops={route.length}
+        lonEast={site.landing.lon}
+        startPlan={startPlan}
+        onStartPlan={setStartPlan}
+        daylight={daylight}
+        start={plannedStart}
+        spaceWeather={arrivals.status === 'ready' ? (cmeAtMars ? 'alert' : 'quiet') : 'unknown'}
+        ground={groundSlope}
+        groundKnown={terrain.near.status === 'ready' || terrain.around.status === 'ready'}
+        dunes={dunes.status === 'ready' ? (crossesDunes ? 'crossed' : 'clear') : 'unknown'}
+        sunSource={sunSource}
+      />
       <WalkDetails walk={walk} stops={route.length} />
     </>
   );
 
   const siteContent = (
-    <EnvironmentPanel
-      siteName={site.name}
-      distanceFromGaleM={distance(site.landing, GALE)}
-      weather={weather}
-      rover={rover ? { name: rover.name, track } : null}
-      space={{ arrivals, sep, now: visitStart }}
-    />
+    <>
+      <MarsClockPanel
+        siteName={site.name}
+        lat={site.landing.lat}
+        lonEast={site.landing.lon}
+        now={new Date(minute)}
+        sun={sun}
+        sunSource={sunSource}
+      />
+      <EnvironmentPanel
+        siteName={site.name}
+        distanceFromGaleM={distance(site.landing, GALE)}
+        weather={weather}
+        rover={rover ? { name: rover.name, track } : null}
+        space={{ arrivals, sep, now: visitStart }}
+      />
+      {weather.status === 'ready' ? <WeatherChart sols={weather.data} /> : null}
+      <WindPanel
+        siteName={site.name}
+        distanceFromInsightM={distance(site.landing, INSIGHT_SITE)}
+        sols={wind}
+        dunes={dunes}
+      />
+    </>
   );
 
   const photosContent = (
@@ -513,6 +666,9 @@ function SiteMap({ site }: { site: Site }) {
       markers={markers}
       paths={paths}
       rings={rings}
+      images={hazardImages}
+      areas={hazardAreas}
+      arrows={windArrows}
       points={mapPoints}
       chosenPoint={chosenPoint?.id ?? null}
       onPointPress={(pointId) =>
@@ -759,6 +915,10 @@ type MapStageProps = {
   markers: readonly MapMarker[];
   paths: readonly MapPath[];
   rings: readonly MapRing[];
+  /** The hazards drawn on the ground: slope pictures, dune fields and their wind. */
+  images: readonly MapImage[];
+  areas: readonly MapArea[];
+  arrows: readonly MapArrow[];
   points: readonly MapPoint[];
   chosenPoint: string | null;
   onPointPress: (id: string) => void;
@@ -791,6 +951,9 @@ function MapStage({
   markers,
   paths,
   rings,
+  images,
+  areas,
+  arrows,
   points,
   chosenPoint,
   onPointPress,
@@ -821,6 +984,9 @@ function MapStage({
         markers={markers}
         paths={paths}
         rings={rings}
+        images={images}
+        areas={areas}
+        arrows={arrows}
         points={points}
         chosenPoint={chosenPoint}
         onPointPress={onPointPress}
