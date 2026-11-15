@@ -40,6 +40,7 @@ import {
   type Size,
 } from '@/mission/camera';
 import { METRES_PER_DEGREE, type LatLon } from '@/mission/geo';
+import { MARK_SIZE, placeLabels } from '@/mission/labels';
 import { retryDelay, tileVerdict } from '@/mission/tile-health';
 import { tileBounds, tilesFor, type Bounds, type TileAddress } from '@/mission/tiles';
 
@@ -523,21 +524,7 @@ export function SurfaceMap({
         </Svg>
       )}
 
-      {size &&
-        markers.map((marker) => {
-          const at = project(view, size, marker.point);
-          return (
-            <View
-              key={marker.id}
-              pointerEvents="none"
-              style={[styles.marker, { left: at.x, top: at.y }]}>
-              <View style={[styles.markerDot, { backgroundColor: marker.color ?? Colors.nav }]} />
-              <Text style={styles.markerLabel} numberOfLines={1}>
-                {marker.label}
-              </Text>
-            </View>
-          );
-        })}
+      {size && markers.length > 0 ? <Markers markers={markers} view={view} size={size} /> : null}
 
       {size && preview && Platform.OS === 'web' ? (
         <PointerPreview
@@ -847,6 +834,75 @@ function LayerTiles({
   );
 }
 
+type MarkersProps = { markers: readonly MapMarker[]; view: MapView; size: Size };
+
+/** A label that has not been drawn yet is taken to be about this big, from its text. */
+const guessLabel = (text: string) => ({ width: text.length * 6.6 + 22, height: 24 });
+
+/**
+ * The marks of the map and their labels. Marks that are close would stack their labels on each
+ * other (the base, the astronaut who has just left it, the first waypoint), so each label takes
+ * a free spot around its mark (`placeLabels`). Marks placed first keep their spot.
+ */
+function Markers({ markers, view, size }: MarkersProps) {
+  // The size of each label as drawn, by its text.
+  const [drawn, setDrawn] = useState<Readonly<Record<string, { width: number; height: number }>>>(
+    {},
+  );
+  const measure = (text: string) => (event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    setDrawn((previous) => {
+      const before = previous[text];
+      if (before && Math.abs(before.width - width) < 0.5 && Math.abs(before.height - height) < 0.5) {
+        return previous;
+      }
+      return { ...previous, [text]: { width, height } };
+    });
+  };
+
+  const marks = markers.map((marker) => ({ marker, at: project(view, size, marker.point) }));
+  const places = placeLabels(
+    marks.map(({ marker, at }) => ({
+      id: marker.id,
+      at,
+      ...(drawn[marker.label] ?? guessLabel(marker.label)),
+    })),
+  );
+
+  return (
+    <>
+      {marks.map(({ marker, at }) => (
+        <View
+          key={`${marker.id}:mark`}
+          pointerEvents="none"
+          style={[
+            styles.markerDot,
+            {
+              left: at.x - MARK_SIZE / 2,
+              top: at.y - MARK_SIZE / 2,
+              backgroundColor: marker.color ?? Colors.nav,
+            },
+          ]}
+        />
+      ))}
+      {marks.map(({ marker }) => {
+        const place = places.get(marker.id);
+        if (!place) return null;
+        return (
+          <Text
+            key={`${marker.id}:label`}
+            pointerEvents="none"
+            onLayout={measure(marker.label)}
+            style={[styles.markerLabel, { left: place.left, top: place.top }]}
+            numberOfLines={1}>
+            {marker.label}
+          </Text>
+        );
+      })}
+    </>
+  );
+}
+
 type Glyph = 'plus' | 'minus' | 'target';
 type PointerPreviewProps = {
   host: RefObject<ComponentRef<typeof View> | null>;
@@ -1048,23 +1104,16 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
   },
-  marker: {
-    position: 'absolute',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    // The dot, not the corner of the row, sits on the point.
-    marginLeft: -7,
-    marginTop: -7,
-  },
   markerDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    position: 'absolute',
+    width: MARK_SIZE,
+    height: MARK_SIZE,
+    borderRadius: MARK_SIZE / 2,
     borderWidth: 2,
     borderColor: Colors.background,
   },
   markerLabel: {
+    position: 'absolute',
     color: Colors.text,
     fontFamily: Fonts.sans,
     fontSize: 12,
