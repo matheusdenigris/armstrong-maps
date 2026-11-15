@@ -216,7 +216,7 @@ function StatusMark({ status }: { status: Status }) {
     info: 'M12 11v6 M12 7.5v0.5',
   };
   return (
-    <Svg width={24} height={24} viewBox="0 0 24 24" accessible={false}>
+    <Svg width={24} height={24} viewBox="0 0 24 24">
       <Circle cx={12} cy={12} r={10} stroke={color} strokeWidth={1.8} fill="none" />
       <Path d={glyph[status]} stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </Svg>

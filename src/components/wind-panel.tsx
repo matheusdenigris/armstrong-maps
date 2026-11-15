@@ -127,7 +127,7 @@ function WindRose({ fromDeg }: { fromDeg: number | null }) {
   const size = 72;
   const c = size / 2;
   return (
-    <Svg width={size} height={size} accessible={false}>
+    <Svg width={size} height={size}>
       <Circle cx={c} cy={c} r={c - 2} stroke={Colors.border} strokeWidth={1.5} fill="none" />
       <Line x1={c} y1={4} x2={c} y2={12} stroke={Colors.textMuted} strokeWidth={2} />
       {fromDeg !== null ? (

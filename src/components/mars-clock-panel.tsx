@@ -108,7 +108,7 @@ function SunDial({ ltst, up }: { ltst: number; up: boolean }) {
   const x = cx + r * Math.cos(angle);
   const y = cy - r * Math.sin(angle);
   return (
-    <Svg width={width} height={height} accessible={false}>
+    <Svg width={width} height={height}>
       <Path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} stroke={Colors.border} strokeWidth={2} fill="none" />
       <Line x1={4} y1={cy} x2={width - 4} y2={cy} stroke={Colors.textMuted} strokeWidth={1} />
       <Circle cx={x} cy={y} r={6} fill={up ? Colors.caution : Colors.surface} stroke={Colors.caution} strokeWidth={1.5} />
