@@ -32,6 +32,8 @@ import { SITES, findSite, type Site } from '@/data/sites';
 import { MARS_WIND } from '@/data/sounds';
 import { REMS_CREDIT, REMS_FEED, parseWeather, readingAgeDays } from '@/data/weather';
 import { elapsedSeconds } from '@/mission/clock';
+import { LINK_ASSUMPTIONS } from '@/mission/line-of-sight';
+import { messageToAcknowledge } from '@/mission/messages';
 import {
   formatClock,
   formatDistance,
@@ -48,7 +50,7 @@ import {
 } from '@/mission/progress';
 import { walkSafety, type SafetyAlert, type SafetyLevel, type WalkSafety } from '@/mission/safety';
 import { WALK_ASSUMPTIONS } from '@/mission/walk';
-import { VISOR_READY_KEY, useMission, useRoute } from '@/state/mission';
+import { VISOR_READY_KEY, useMessages, useMission, useRoute } from '@/state/mission';
 import { useAlertSignal } from '@/state/use-alert-signal';
 import { AMBIENT_SOUND_AVAILABLE, useAmbientSound } from '@/state/use-ambient-sound';
 import { useFeed } from '@/state/use-feed';
@@ -197,6 +199,22 @@ function Visor({ site }: { site: Site }) {
   const safety = walkSafety(progress);
   // A new alert is heard as well as shown, once, while the sound is on.
   const alertSignal = useAlertSignal(safety.alerts, sound.playing);
+
+  // The link with the ship. The ship works out whether it sees the astronaut over the
+  // ground; while it does not, nothing it sends gets through.
+  const messages = useMessages(site.id);
+  const linkState = useMission((state) => state.links[site.id]) ?? null;
+  const showMessages = useMission((state) => state.showMessages);
+  const acknowledgeMessage = useMission((state) => state.acknowledgeMessage);
+  const linkDown = clock !== null && linkState === 'blocked';
+  const unshown = messages.filter((message) => message.shownHours === null).length;
+  const walkHours = progress.elapsedHours;
+  useEffect(() => {
+    // A message is marked as shown the moment the visor can show it. This and the
+    // acknowledgement are all the visor writes: the clock stays with the ship.
+    if (clock !== null && !linkDown && unshown > 0) showMessages(site.id, walkHours);
+  }, [clock, linkDown, unshown, showMessages, site.id, walkHours]);
+  const toAcknowledge = clock !== null ? messageToAcknowledge(messages) : null;
   const heading = (((progress.heading + look.yaw) % 360) + 360) % 360;
 
   const over = clock !== null && progress.totalHours > 0 && elapsedHours >= progress.totalHours;
@@ -221,7 +239,9 @@ function Visor({ site }: { site: Site }) {
   const link =
     clock === null
       ? 'Ship link · waiting for the ship to start the walk'
-      : `Ship link · ${clock.running ? 'live' : 'on hold'} · ${clock.rate === 1 ? 'real time' : `${clock.rate}x`}`;
+      : linkDown
+        ? 'Ship link · lost · no line of sight to the base'
+        : `Ship link · ${clock.running ? 'live' : 'on hold'} · ${clock.rate === 1 ? 'real time' : `${clock.rate}x`}`;
 
   // The scenery: a real photograph of the site, and a new one every stretch of walking.
   const stretch = sceneStretch(WALK_ASSUMPTIONS.walkingSpeedKmh, clock?.rate ?? 1);
@@ -455,7 +475,7 @@ function Visor({ site }: { site: Site }) {
                 <Text style={styles.status} numberOfLines={1} accessibilityLiveRegion="polite">
                   {status}
                 </Text>
-                <Text style={styles.link} numberOfLines={1}>
+                <Text style={[styles.link, linkDown && styles.linkDown]} numberOfLines={1}>
                   {link}
                 </Text>
               </View>
@@ -486,7 +506,7 @@ function Visor({ site }: { site: Site }) {
             <Text style={styles.status} numberOfLines={1} accessibilityLiveRegion="polite">
               {status}
             </Text>
-            <Text style={styles.link} numberOfLines={1}>
+            <Text style={[styles.link, linkDown && styles.linkDown]} numberOfLines={1}>
               {link}
             </Text>
           </View>
@@ -513,6 +533,25 @@ function Visor({ site }: { site: Site }) {
               etaHours={etaHours}
               stops={route.length}
             />
+          </View>
+        ) : null}
+
+        {/* A message from the ship, until the astronaut says it was read. */}
+        {toAcknowledge ? (
+          <View style={[styles.side, { marginLeft: insets.left + Spacing.three }]}>
+            <View style={[styles.message, GLASS]} accessibilityRole="alert">
+              <Text style={styles.messageFrom}>
+                From the ship · {formatClock(toAcknowledge.sentHours)}
+              </Text>
+              <Text style={styles.messageText}>{toAcknowledge.text}</Text>
+              <Pressable
+                onPress={() => acknowledgeMessage(site.id, toAcknowledge.id, walkHours)}
+                accessibilityRole="button"
+                accessibilityLabel="Acknowledge the message from the ship"
+                style={({ pressed }) => [styles.messageAck, pressed && styles.messageAckPressed]}>
+                <Text style={styles.messageAckText}>Acknowledge</Text>
+              </Pressable>
+            </View>
           </View>
         ) : null}
       </View>
@@ -640,6 +679,12 @@ function Visor({ site }: { site: Site }) {
               on. It is not a compass reading: Mars has no global magnetic field to take one from.
             </Text>
           ) : null}
+          <Text style={styles.sourcesText}>
+            Ship link: the ship works out whether it sees the astronaut over the ground, from
+            the NASA elevation model, a {LINK_ASSUMPTIONS.baseAntennaM} m mast at the base and an
+            antenna {LINK_ASSUMPTIONS.suitAntennaM} m up on the suit. The antenna heights are
+            assumptions. While there is no line of sight, messages from the ship wait.
+          </Text>
           <Text style={styles.sourcesText}>
             Dose rate: {SURFACE_RADIATION.source}, a published average.{' '}
             {site.id === 'gale'
@@ -872,6 +917,47 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 17,
     letterSpacing: -0.2,
+  },
+  linkDown: {
+    color: Colors.caution,
+  },
+  message: {
+    alignItems: 'flex-start',
+    gap: Spacing.one + Spacing.half,
+    maxWidth: 280,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    borderRadius: Radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.visorPlate,
+  },
+  messageFrom: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+  },
+  messageText: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  messageAck: {
+    minHeight: 40,
+    justifyContent: 'center',
+    marginTop: Spacing.one,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.text,
+  },
+  messageAckPressed: {
+    opacity: 0.82,
+  },
+  messageAckText: {
+    color: Colors.background,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
   },
   link: {
     color: Colors.textSoft,

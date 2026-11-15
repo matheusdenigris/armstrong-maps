@@ -176,6 +176,33 @@ The visor can also follow the phone: where a browser reports motion sensors, a s
 view by as much as the phone has turned since it was switched on. It is not a compass: Mars has
 no global magnetic field. It was tested with simulated sensor readings, not on a real phone.
 
+## The link between the ship and the astronaut
+
+| Assumption | Value | Kind |
+|---|---|---|
+| Antenna at the base | 5 m above the ground, on a mast | Assumption |
+| Antenna on the suit | 2 m above the ground | Assumption |
+
+During a walk the console works out whether the base sees the astronaut: the straight line from
+one antenna to the other, checked against the heights of the elevation model along the way
+(`src/mission/line-of-sight.ts`), with the curve of Mars. Over flat ground those two antennas
+lose each other at about 9.5 km. The model near the base gives one height for a cell tens of
+metres across, so a boulder or a low bank does not show: a real link can drop where the app says
+it is clear. Mars has next to no air to bend the signal, so none is assumed, and nothing is said
+about the radio itself (power, frequency, reflections).
+
+No delay is simulated. Between a ship and an astronaut a few kilometres away a signal takes
+microseconds. The delay people know from Mars is to the Earth, which this app does not model.
+
+A message from the ship is shown in the visor until it is acknowledged. While there is no line of
+sight it waits. The walk log is worked out from the plan (start, waypoints, alerts, the link),
+looked at every half minute of walk time, so an alert or a loss of link is stamped to within
+that; only the messages are recorded as they happen. The record of the last walk at a site is
+kept on the device and can be exported as text.
+
+Still one astronaut: the app follows one crew member. A walk on Mars would be made in pairs,
+and each person would need their own position, consumables and link; that is not built.
+
 ## Measured data
 
 | What | Value | Source |

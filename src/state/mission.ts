@@ -14,6 +14,26 @@ import {
   type WalkClock,
 } from '@/mission/clock';
 import type { LatLon } from '@/mission/geo';
+import {
+  withAcknowledged,
+  withMessage,
+  withShown,
+  type ShipMessage,
+} from '@/mission/messages';
+import type { LogEntry } from '@/mission/walk-log';
+
+/** Whether the base and the crew member can reach each other, as the ship works it out. */
+export type LinkState = 'clear' | 'blocked';
+
+/** The record of the last walk at a site, kept after it ends so it can be read and exported. */
+export type SavedLog = {
+  /** When the walk started and ended, on the wall clock, in milliseconds since the epoch. */
+  startedMs: number | null;
+  endedMs: number;
+  /** How many waypoints the route had. */
+  stops: number;
+  entries: LogEntry[];
+};
 
 type MissionState = {
   /** The waypoints of the planned walk at each site, in walking order. */
@@ -40,7 +60,29 @@ type MissionState = {
   pauseWalk: (siteId: string) => void;
   resumeWalk: (siteId: string) => void;
   setWalkRate: (siteId: string, rate: number) => void;
-  endWalk: (siteId: string) => void;
+  /**
+   * Ends the walk. The ship passes the log of the walk as it stands, which is kept as the
+   * record of the last walk at the site.
+   */
+  endWalk: (siteId: string, entries?: LogEntry[], stops?: number) => void;
+  /** When the walk in progress at each site started, on the wall clock. */
+  started: Record<string, number>;
+  /**
+   * The messages of the walk in progress at each site. The ship sends them; the visor marks
+   * them shown and acknowledged, which is the one thing it writes.
+   */
+  messages: Record<string, readonly ShipMessage[]>;
+  sendMessage: (siteId: string, text: string, atHours: number) => void;
+  showMessages: (siteId: string, atHours: number) => void;
+  acknowledgeMessage: (siteId: string, id: string, atHours: number) => void;
+  /**
+   * The radio link at each site, as the ship console works it out from the terrain. A site
+   * where it cannot be told has no entry.
+   */
+  links: Record<string, LinkState>;
+  setLink: (siteId: string, link: LinkState | null) => void;
+  /** The record of the last walk that ended at each site. */
+  logs: Record<string, SavedLog>;
 };
 
 /** An overlay comes on see-through enough to keep the ground visible under it. */
@@ -50,6 +92,13 @@ export const DEFAULT_OVERLAY_OPACITY = 0.5;
 export const MAX_WAYPOINTS = 24;
 
 const NO_WAYPOINTS: readonly LatLon[] = [];
+const NO_MESSAGES: readonly ShipMessage[] = [];
+
+/** A record without one of its keys. */
+function without<Value>(record: Record<string, Value>, key: string): Record<string, Value> {
+  const { [key]: _gone, ...others } = record;
+  return others;
+}
 
 export const useMission = create<MissionState>()(
   persist(
@@ -77,7 +126,13 @@ export const useMission = create<MissionState>()(
         set((state) =>
           (state.routes[siteId] ?? []).length === 0
             ? state
-            : { clocks: { ...state.clocks, [siteId]: startClock(Date.now()) } },
+            : {
+                clocks: { ...state.clocks, [siteId]: startClock(Date.now()) },
+                started: { ...state.started, [siteId]: Date.now() },
+                // A new walk starts with nothing said and nothing known about the link.
+                messages: without(state.messages, siteId),
+                links: without(state.links, siteId),
+              },
         ),
       pauseWalk: (siteId) =>
         set((state) => {
@@ -100,11 +155,58 @@ export const useMission = create<MissionState>()(
             ? { clocks: { ...state.clocks, [siteId]: withRate(clock, rate, Date.now()) } }
             : state;
         }),
-      endWalk: (siteId) =>
+      endWalk: (siteId, entries, stops) =>
         set((state) => {
-          const { [siteId]: _ended, ...others } = state.clocks;
-          return { clocks: others };
+          if (!state.clocks[siteId]) return state;
+          return {
+            clocks: without(state.clocks, siteId),
+            started: without(state.started, siteId),
+            links: without(state.links, siteId),
+            logs: entries
+              ? {
+                  ...state.logs,
+                  [siteId]: {
+                    startedMs: state.started[siteId] ?? null,
+                    endedMs: Date.now(),
+                    stops: stops ?? (state.routes[siteId] ?? []).length,
+                    entries,
+                  },
+                }
+              : state.logs,
+          };
         }),
+      started: {},
+      messages: {},
+      sendMessage: (siteId, text, atHours) =>
+        set((state) => {
+          // Only a walk in progress has anyone to talk to.
+          if (!state.clocks[siteId]) return state;
+          const list = state.messages[siteId] ?? NO_MESSAGES;
+          const id = `${Date.now().toString(36)}-${list.length}`;
+          const next = withMessage(list, id, text, atHours);
+          return next === list ? state : { messages: { ...state.messages, [siteId]: next } };
+        }),
+      showMessages: (siteId, atHours) =>
+        set((state) => {
+          const list = state.messages[siteId] ?? NO_MESSAGES;
+          const next = withShown(list, atHours);
+          return next === list ? state : { messages: { ...state.messages, [siteId]: next } };
+        }),
+      acknowledgeMessage: (siteId, id, atHours) =>
+        set((state) => {
+          const list = state.messages[siteId] ?? NO_MESSAGES;
+          const next = withAcknowledged(list, id, atHours);
+          return next === list ? state : { messages: { ...state.messages, [siteId]: next } };
+        }),
+      links: {},
+      setLink: (siteId, link) =>
+        set((state) => {
+          if ((state.links[siteId] ?? null) === link) return state;
+          return {
+            links: link ? { ...state.links, [siteId]: link } : without(state.links, siteId),
+          };
+        }),
+      logs: {},
       overlays: {},
       toggleOverlay: (layerId) =>
         set((state) => {
@@ -134,6 +236,10 @@ export const useMission = create<MissionState>()(
         overlays: state.overlays,
         hiddenPoints: state.hiddenPoints,
         clocks: state.clocks,
+        started: state.started,
+        messages: state.messages,
+        links: state.links,
+        logs: state.logs,
       }),
       // The saved plan is read after the first render, in the root layout, so the page that was
       // rendered ahead of time and the first render in the browser are the same.
@@ -149,6 +255,11 @@ export const MISSION_STORAGE_KEY = 'armstrong-maps.mission';
  * waiting to start the walk. The value is the site and the moment, so that it changes every time.
  */
 export const VISOR_READY_KEY = 'armstrong-maps.visor-ready';
+
+/** The messages of the walk at one site. The empty list is always the same object. */
+export function useMessages(siteId: string): readonly ShipMessage[] {
+  return useMission((state) => state.messages[siteId] ?? NO_MESSAGES);
+}
 
 /** The waypoints of one site. The empty list is always the same object, so nothing re-renders. */
 export function useRoute(siteId: string): readonly LatLon[] {

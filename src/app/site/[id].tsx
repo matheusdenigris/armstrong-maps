@@ -1,6 +1,6 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
 import {
   Platform,
   Pressable,
@@ -38,7 +38,10 @@ import {
   type MapPreview,
   type MapRing,
 } from '@/components/surface-map';
+import { ShipLink } from '@/components/ship-link';
 import { WalkControls } from '@/components/walk-controls';
+import { WalkLog } from '@/components/walk-log';
+import { logFilename, logText } from '@/components/walk-log-text';
 import {
   RouteActions,
   VerdictReasons,
@@ -83,10 +86,12 @@ import { distance } from '@/mission/geo';
 import { walkHoursPlayed, walkProgress } from '@/mission/progress';
 import { TILE_PIXELS, tileSpan } from '@/mission/tiles';
 import { WALK_ASSUMPTIONS, evaluateWalk, severityOf, type WalkEvaluation } from '@/mission/walk';
-import { MAX_WAYPOINTS, useMission, useRoute } from '@/state/mission';
+import { MAX_WAYPOINTS, useMessages, useMission, useRoute } from '@/state/mission';
+import { saveText } from '@/state/save-text';
 import { useFeed } from '@/state/use-feed';
 import { useGroundReading } from '@/state/use-ground-reading';
 import { useTerrain } from '@/state/use-terrain';
+import { useWalkRecord } from '@/state/use-walk-record';
 import { routeCrosses, routeSlope, slopeAt } from '@/mission/terrain';
 import { useNow } from '@/state/use-now';
 import { mars24Sun, nextSunCrossing, tableSun, walkDaylight } from '@/mission/mars-time';
@@ -329,6 +334,31 @@ function SiteMap({ site }: { site: Site }) {
   // The ground: slope from NASA elevation models near the base and around it, and dune fields.
   // Both enter the verdict, so they are asked for at once.
   const terrain = useTerrain(site);
+
+  // The link with the astronaut: whether the base sees them over the ground, the messages
+  // sent, and the log of the walk. The ship works these out and the visor follows.
+  const messages = useMessages(site.id);
+  const sendMessage = useMission((state) => state.sendMessage);
+  const setLink = useMission((state) => state.setLink);
+  const walkStarted = useMission((state) => state.started[site.id]) ?? null;
+  const lastLog = useMission((state) => state.logs[site.id]) ?? null;
+  const record = useWalkRecord({
+    site,
+    route,
+    walking: clock !== null,
+    elapsedHours: progress.elapsedHours,
+    position: astronaut,
+    messages,
+    terrain,
+  });
+  const walking = clock !== null;
+  const link =
+    record.sight.status === 'ready' ? (record.sight.line.clear ? 'clear' : 'blocked') : null;
+  useEffect(() => {
+    // Published for the visor, which has no elevation model of its own to check with.
+    if (walking) setLink(site.id, link);
+  }, [walking, link, setLink, site.id]);
+  const walkOver = progress.totalHours > 0 && progress.elapsedHours >= progress.totalHours;
   const dunesCache = useMemo(
     () => ({ key: `dunes-${site.id}`, freshForHours: DUNES_CACHE_HOURS }),
     [site.id],
@@ -680,8 +710,36 @@ function SiteMap({ site }: { site: Site }) {
         onStart={() => startWalk(site.id)}
         onPause={() => pauseWalk(site.id)}
         onResume={() => resumeWalk(site.id)}
-        onEnd={() => endWalk(site.id)}
+        // The log of the walk is kept as it stands when the walk ends.
+        onEnd={() => endWalk(site.id, record.closing(!walkOver), route.length)}
         onRate={(rate) => setWalkRate(site.id, rate)}
+      />
+      {walking ? (
+        <ShipLink
+          sight={record.sight}
+          messages={messages}
+          onSend={(text) => sendMessage(site.id, text, progress.elapsedHours)}
+        />
+      ) : null}
+      <WalkLog
+        live={walking}
+        entries={walking ? record.entries : (lastLog?.entries ?? [])}
+        onExport={() => {
+          const entries = walking ? record.closing(false) : (lastLog?.entries ?? []);
+          const endedMs = walking ? null : (lastLog?.endedMs ?? null);
+          void saveText(
+            logFilename(site.id, endedMs ?? Date.now()),
+            logText(
+              {
+                site: site.name,
+                startedMs: walking ? walkStarted : (lastLog?.startedMs ?? null),
+                endedMs,
+                stops: walking ? route.length : (lastLog?.stops ?? 0),
+              },
+              entries,
+            ),
+          );
+        }}
       />
       <SafetyCheck
         walk={walk}

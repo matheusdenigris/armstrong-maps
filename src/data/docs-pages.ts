@@ -948,6 +948,18 @@ const GUIDE: DocPage[] = [
             kind: 'text',
             text: 'The mission is saved on the device, and the two tabs follow each other through the saved state and the storage event of the browser. That is why both have to be in the same browser: a link between two devices is not built yet.',
           },
+          {
+            kind: 'text',
+            text: 'During a walk the console shows whether the base sees the astronaut: the line from a mast at the base to the antenna on the suit, over the NASA elevation model and the curve of the planet. Where the ground is in the way the visor says the link is lost. Over a few kilometres the signal takes microseconds, so no delay is shown.',
+          },
+          {
+            kind: 'text',
+            text: 'The ship can send a short message. The visor shows it until the astronaut acknowledges it, and the console says when it was shown and when it was acknowledged. A message sent with no line of sight waits until the link is back.',
+          },
+          {
+            kind: 'text',
+            text: 'The walk log lists the start, each waypoint, the alerts, the link dropping and coming back, the messages and the end, each with the time of the walk. It stays after the walk ends and can be exported as a text file.',
+          },
         ],
       },
       {

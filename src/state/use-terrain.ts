@@ -4,7 +4,13 @@ import { Colors } from '@/constants/theme';
 import { elevationUrl, parseElevation, terrainAreas, type TerrainArea } from '@/data/terrain';
 import type { Site } from '@/data/sites';
 import { encodeIndexedPng, pngDataUri, type PaletteColor } from '@/mission/png';
-import { classifySlope, slopeGrid, type SlopeGrid, type SlopeLimits } from '@/mission/terrain';
+import {
+  classifySlope,
+  slopeGrid,
+  type ElevationGrid,
+  type SlopeGrid,
+  type SlopeLimits,
+} from '@/mission/terrain';
 import { WALK_ASSUMPTIONS } from '@/mission/walk';
 
 import type { Feed } from './use-feed';
@@ -12,6 +18,8 @@ import type { Feed } from './use-feed';
 /** The slope of one area of a site, and the picture that marks its dangerous ground. */
 export type TerrainLayer = {
   area: TerrainArea;
+  /** The heights the slopes were worked out from: the line of sight of the link reads them. */
+  heights: ElevationGrid;
   slopes: SlopeGrid;
   /** A PNG over `area.bounds`: clear where the ground is walkable, coloured where it is not. */
   image: string;
@@ -40,7 +48,8 @@ const PALETTE: PaletteColor[] = [
 ];
 
 function buildLayer(area: TerrainArea, buffer: ArrayBuffer): TerrainLayer {
-  const slopes = slopeGrid(parseElevation(buffer, area));
+  const heights = parseElevation(buffer, area);
+  const slopes = slopeGrid(heights);
   const indices = new Uint8Array(slopes.degrees.length);
   let caution = 0;
   let noGo = 0;
@@ -62,6 +71,7 @@ function buildLayer(area: TerrainArea, buffer: ArrayBuffer): TerrainLayer {
   const png = encodeIndexedPng(slopes.width, slopes.height, indices, PALETTE);
   return {
     area,
+    heights,
     slopes,
     image: pngDataUri(png),
     cautionShare: measured ? (caution + noGo) / measured : 0,
