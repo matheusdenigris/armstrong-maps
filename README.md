@@ -38,7 +38,8 @@ The app has three views:
   inertia, dust cover and glass and clay (TES), each with a switch and an opacity.
 - **Walk planning**: tap to add waypoints; the app draws the route and the walk-back limit and
   gives distance, time outside, life support used, radiation dose and a go, caution or no-go
-  verdict with its reasons. The plan is saved on the device.
+  verdict with its reasons. The plan is saved on the device, so a reload keeps it; opening a
+  site from the home page starts it from nothing.
 - **Live data**: the real traverse and latest position of Curiosity at Gale and of Perseverance
   at Jezero, and the latest sol of weather from Curiosity's REMS station, each with its source.
   A feed that does not answer is shown as a gap.

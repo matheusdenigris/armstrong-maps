@@ -20,6 +20,7 @@ import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { SITES, type Site } from '@/data/sites';
 import { formatLatLon } from '@/mission/format';
 import { RELIEF_EXAGGERATION } from '@/mission/relief';
+import { useMission } from '@/state/mission';
 
 /** From this width the headline sits beside the globe instead of over its top. */
 const WIDE_LAYOUT = 900;
@@ -97,13 +98,23 @@ export default function HomeScreen() {
   const titleSize = wide ? Math.min(64, Math.max(40, Math.round(width * 0.042))) : short ? 24 : 34;
   const picked = SITES.find((site) => site.id === pickedSite);
 
-  const open = (site: Site) => router.push({ pathname: '/site/[id]', params: { id: site.id } });
+  // A site opened from here starts from nothing: no route left from another visit and no
+  // walk that already ended. Going back to the console from its visor keeps the walk.
+  const startFresh = useMission((state) => state.startFresh);
+  const open = (site: Site) => {
+    startFresh(site.id);
+    router.push({ pathname: '/site/[id]', params: { id: site.id } });
+  };
 
   /** With a globe on screen, a site first flies there and the map opens on arrival. */
   const choose: SitePress = (site, event) => {
     setPickedSite(site.id);
     setBriefed(site);
-    if (!globe.current) return;
+    if (!globe.current) {
+      // Without a globe the link opens the site by itself.
+      startFresh(site.id);
+      return;
+    }
     event.preventDefault();
     globe.current.flyTo(site);
   };

@@ -107,6 +107,11 @@ type MissionState = {
   setLink: (siteId: string, link: LinkState | null) => void;
   /** The record of the last walk that ended at each site. */
   logs: Record<string, SavedLog>;
+  /**
+   * A site as nobody has been there: no route, no walk in progress or turned for the base, no
+   * messages and no record of a last walk. The layers that were switched on are a preference, and stay.
+   */
+  startFresh: (siteId: string) => void;
 };
 
 /** What can be changed about the work at a stop. An empty task takes the task away. */
@@ -305,6 +310,29 @@ export const useMission = create<MissionState>()(
           };
         }),
       logs: {},
+      startFresh: (siteId) =>
+        set((state) => {
+          const kept = [
+            state.routes,
+            state.clocks,
+            state.started,
+            state.messages,
+            state.links,
+            state.logs,
+            state.returning,
+          ];
+          // Nothing saved for this site: nothing to write.
+          if (kept.every((record) => !(siteId in record))) return state;
+          return {
+            routes: without(state.routes, siteId),
+            clocks: without(state.clocks, siteId),
+            started: without(state.started, siteId),
+            messages: without(state.messages, siteId),
+            links: without(state.links, siteId),
+            logs: without(state.logs, siteId),
+            returning: without(state.returning, siteId),
+          };
+        }),
       overlays: {},
       toggleOverlay: (layerId) =>
         set((state) => {

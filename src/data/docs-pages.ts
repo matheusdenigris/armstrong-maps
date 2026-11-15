@@ -950,7 +950,7 @@ const GUIDE: DocPage[] = [
           },
           {
             kind: 'text',
-            text: 'The mission is saved on the device, and the two tabs follow each other through the saved state and the storage event of the browser. That is why both have to be in the same browser: a link between two devices is not built yet.',
+            text: 'The mission is saved on the device, so a reload keeps it; a site opened from the home page starts from nothing, with no route and no walk left from another visit. The two tabs follow each other through the saved state and the storage event of the browser. That is why both have to be in the same browser: a link between two devices is not built yet.',
           },
           {
             kind: 'text',
