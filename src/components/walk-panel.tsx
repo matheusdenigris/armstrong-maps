@@ -22,6 +22,11 @@ type WalkSummaryProps = {
   collapsible: boolean;
   expanded: boolean;
   onToggle: () => void;
+  /**
+   * Starts the walk, when it can start. The chip reads GO, and people press it to go: with a go
+   * verdict it does what the button of the walk does.
+   */
+  onStart?: () => void;
 };
 
 type WalkDetailsProps = {
@@ -108,21 +113,40 @@ function explain(reason: WalkReason, a: WalkAssumptions, startTime?: string): st
 }
 
 /** The verdict and the two numbers that matter most, on one line. */
-export function WalkSummary({ walk, stops, collapsible, expanded, onToggle }: WalkSummaryProps) {
+export function WalkSummary({
+  walk,
+  stops,
+  collapsible,
+  expanded,
+  onToggle,
+  onStart,
+}: WalkSummaryProps) {
   const verdict = VERDICT[walk.verdict];
   const empty = stops === 0;
+  const starts = onStart !== undefined && walk.verdict === 'go' && !empty;
 
   return (
     <View style={styles.summary}>
-      <View
-        style={[styles.chip, { borderColor: verdict.color, borderLeftColor: verdict.color }]}
+      <Pressable
+        onPress={onStart}
+        disabled={!starts}
         accessible
-        accessibilityLabel={`Verdict: ${verdict.label}. ${verdict.meaning}`}>
+        accessibilityRole={starts ? 'button' : undefined}
+        accessibilityLabel={
+          starts
+            ? `Start the walk. Verdict: ${verdict.label}. ${verdict.meaning}`
+            : `Verdict: ${verdict.label}. ${verdict.meaning}`
+        }
+        style={({ pressed }) => [
+          styles.chip,
+          { borderColor: verdict.color, borderLeftColor: verdict.color },
+          pressed && starts && styles.chipPressed,
+        ]}>
         <View style={[styles.chipDot, { backgroundColor: verdict.color }]} />
         <View>
           <Text style={[styles.chipText, { color: verdict.color }]}>{verdict.label}</Text>
         </View>
-      </View>
+      </Pressable>
       <Text style={styles.headline} numberOfLines={2}>
         {empty
           ? 'Tap the map to add a waypoint.'
@@ -370,6 +394,9 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     borderWidth: 1,
     backgroundColor: Colors.glassLight,
+  },
+  chipPressed: {
+    opacity: 0.8,
   },
   chipDot: {
     width: 8,
