@@ -79,3 +79,23 @@ export function pathLength(points: readonly LatLon[]): number {
   }
   return total;
 }
+
+/**
+ * The point `metres` along a path through the given points. Before the start it is the first
+ * point and past the end the last. Null for a path with no points.
+ */
+export function pointAlong(points: readonly LatLon[], metres: number): LatLon | null {
+  if (points.length === 0) return null;
+  if (metres <= 0) return points[0];
+  let left = metres;
+  for (let i = 1; i < points.length; i += 1) {
+    const leg = distance(points[i - 1], points[i]);
+    if (left <= leg) {
+      return leg === 0
+        ? points[i]
+        : destination(points[i - 1], bearing(points[i - 1], points[i]), left);
+    }
+    left -= leg;
+  }
+  return points[points.length - 1];
+}

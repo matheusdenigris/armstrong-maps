@@ -16,6 +16,7 @@ import { WALK_ASSUMPTIONS } from '@/mission/walk';
 import { COVERAGE, COVERAGE_READ_ON } from './coverage';
 import { GLOBAL_LAYERS, type LayerKind } from './layers';
 import { PANORAMAS, SCENE_EVERY_M, SCENE_MIN_SECONDS } from './panoramas';
+import { PLACE_WITHIN_M } from './place-views';
 import { SURFACE_RADIATION } from './radiation';
 import { SITES } from './sites';
 import { MARS_WIND } from './sounds';
@@ -616,14 +617,21 @@ const GUIDE: DocPage[] = [
             text: `Each photograph is a mosaic taken from one fixed spot. To give the sense of ground being covered, the visor goes through the photographs of the site in order, from the one taken nearest to the landing point outwards, and changes scene every ${SCENE_EVERY_M} m walked. Played fast, a scene still stays at least ${SCENE_MIN_SECONDS} seconds. Elysium borrows the photographs of Gale, and the visor says so: NASA publishes no full-circle photograph from InSight.`,
           },
           {
+            kind: 'text',
+            text: `At Jezero the visor can do better than a photograph of the site. Perseverance stops after every drive, and at many stops its navigation camera looks all the way round. NASA publishes where each stop is, which frames were taken there and which way the camera pointed for each. When the walk passes within ${PLACE_WITHIN_M} m of such a stop, the visor puts each frame back where the camera pointed: what the astronaut sees is the ground of that very place, and north in the view is north on the ground, so the heading, the next waypoint and the way back to base line up with the picture. The visor says how far away the stop is. Away from such a stop the scenery goes back to the photographs of the site.`,
+          },
+          {
             kind: 'callout',
             tone: 'warning',
             title: 'Real pictures, illustrative framing',
-            text: 'The photographs are real and from that site, but they were not taken on the planned route, and only two are lined up with the compass. The move into the picture and the dust between two scenes are drawn. The visor says how far from the simulated position each photograph was taken.',
+            text: 'The photographs are real and from that site, but they were not taken on the planned route, and only two are lined up with the compass. The move into the picture and the dust between two scenes are drawn. The visor says how far from the simulated position each photograph was taken. In a view from a stop of the rover, the frames and their directions are measured; the sky above the frames, the soft joins between them and the evening out of their exposure are drawn.',
           },
           {
             kind: 'cards',
-            items: [{ icon: 'image', title: 'Visor panoramas', text: 'The catalogue of photographs and where each one comes from.', page: 'visor-photographs', nasa: true }],
+            items: [
+              { icon: 'image', title: 'Visor panoramas', text: 'The catalogue of photographs and where each one comes from.', page: 'visor-photographs', nasa: true },
+              { icon: 'camera', title: 'Views from the stops of Perseverance', text: 'The frames, the stop and the pointing that put a view back in place.', page: 'visor-place-frames', nasa: true },
+            ],
           },
         ],
       },
@@ -822,6 +830,7 @@ const GUIDE: DocPage[] = [
               'The change of scene is a gust of dust that rises over the view and clears on the next photograph. The dust is drawn.',
               'The picture does not rise and fall with the steps. When the device asks for reduced motion, it does not move into the photograph either.',
               'Two photographs have a caption that says where north is. The others are not lined up with the compass, and the visor says which case it is.',
+              'A view from a stop of Perseverance is lined up with the compass, but the stop can be some way from the simulated position, and the visor says how far. Its sky above the frames is drawn in the colour the frames have at their top edge, the joins between two frames are softened, and each frame is brightened by how dark the camera made its own sky, so that neighbours match.',
               'Where a photograph has no ground to show in one direction (the mosaic has no frame there, or the rover stands in the way), the view is held a little higher so the gap stays under the rim of the helmet. Ground is never drawn in.',
               'Where a mosaic has no frame for a patch of sky, the visor draws the sky in the colours beside it. The ground is never filled in: a gap in it stays black.',
               'The wind was recorded at Jezero and plays at every site, louder than published.',
@@ -1227,6 +1236,7 @@ const SOURCE_ICONS: Record<string, IconName> = {
   'raw-images': 'camera',
   'image-library': 'image',
   'visor-photographs': 'helmet',
+  'visor-place-frames': 'camera',
   'mars-wind-sound': 'sound',
   'rems-weather': 'thermometer',
   'rad-average': 'radiation',

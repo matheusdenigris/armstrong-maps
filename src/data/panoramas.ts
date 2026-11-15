@@ -445,14 +445,25 @@ export type ViewReach = {
 };
 
 /**
- * The lowest the view may tilt while it faces `heading`, so that a stretch with no ground stays
- * under the rim of the helmet. Null when the picture has no such stretch near the view. The tilt
- * comes in gradually as a stretch nears the edge of the view, so turning does not jolt it.
+ * A stretch of a view with nothing to show from some way below the horizon: its two ends as
+ * fractions of the full circle, and how far below the horizon it starts, in degrees. A stretch
+ * may run through the join of the circle, its left end then being the larger number.
  */
-export function lowestPitch(panorama: Panorama, heading: number, reach: ViewReach): number | null {
-  const centre = headingToFraction(panorama, heading);
+export type ViewGap = { left: number; right: number; depression: number };
+
+/**
+ * The lowest the view may tilt while its centre is at `centre` (a fraction of the full circle),
+ * so that a stretch with nothing to show stays under the rim of the helmet. Null when no such
+ * stretch is near the view. The tilt comes in gradually as a stretch nears the edge of the view,
+ * so turning does not jolt it.
+ */
+export function lowestPitchOver(
+  gaps: readonly ViewGap[],
+  centre: number,
+  reach: ViewReach,
+): number | null {
   let floor = reach.lowest;
-  for (const gap of panorama.groundGaps ?? []) {
+  for (const gap of gaps) {
     // How far the stretch is from the centre of the view, the short way round, in degrees.
     const inside =
       gap.left <= gap.right
@@ -469,10 +480,27 @@ export function lowestPitch(panorama: Panorama, heading: number, reach: ViewReac
         : Math.max(0, 1 - (distance - reach.sideDeg) / GAP_EASE_DEG);
     if (weight === 0) continue;
     // At this tilt the row where the gap starts sits on the lower edge of the view.
-    const needed = reach.downDeg - depressionOf(panorama, gap.top);
+    const needed = reach.downDeg - gap.depression;
     // Smooth at both ends of the ramp.
     const eased = weight * weight * (3 - 2 * weight);
     floor = Math.max(floor, reach.lowest + (needed - reach.lowest) * eased);
   }
   return floor > reach.lowest ? floor : null;
+}
+
+/**
+ * The lowest the view may tilt while it faces `heading`, so that a stretch of the photograph
+ * with no ground stays under the rim of the helmet. Null when the picture has no such stretch
+ * near the view.
+ */
+export function lowestPitch(panorama: Panorama, heading: number, reach: ViewReach): number | null {
+  return lowestPitchOver(
+    (panorama.groundGaps ?? []).map((gap) => ({
+      left: gap.left,
+      right: gap.right,
+      depression: depressionOf(panorama, gap.top),
+    })),
+    headingToFraction(panorama, heading),
+    reach,
+  );
 }

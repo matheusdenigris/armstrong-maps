@@ -8,6 +8,7 @@ import {
   distance,
   normalizeLon,
   pathLength,
+  pointAlong,
   toEast360,
 } from './geo';
 
@@ -102,5 +103,30 @@ describe('longitude conventions', () => {
   it('shows 0..360 east', () => {
     expect(toEast360(-90)).toBe(270);
     expect(toEast360(137.4417)).toBeCloseTo(137.4417, 9);
+  });
+});
+
+describe('pointAlong', () => {
+  const start = { lat: 18.4446, lon: 77.4509 };
+  const corner = destination(start, 90, 100);
+  const end = destination(corner, 0, 50);
+  const path = [start, corner, end];
+
+  it('is on the leg the distance falls in', () => {
+    const first = pointAlong(path, 40)!;
+    expect(distance(start, first)).toBeCloseTo(40, 3);
+    expect(distance(first, corner)).toBeCloseTo(60, 3);
+    const second = pointAlong(path, 120)!;
+    expect(distance(corner, second)).toBeCloseTo(20, 3);
+  });
+
+  it('stays at the ends beyond them', () => {
+    expect(pointAlong(path, -5)).toEqual(start);
+    expect(pointAlong(path, 10_000)).toEqual(end);
+  });
+
+  it('is none for a path with no points', () => {
+    expect(pointAlong([], 10)).toBeNull();
+    expect(pointAlong([start], 10)).toEqual(start);
   });
 });

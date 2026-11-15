@@ -57,6 +57,19 @@ describe('parseRoverTrack', () => {
     expect(track.latest?.sol).toBe(999);
   });
 
+  it('keeps the site and drive counters that name a stop', () => {
+    const named = {
+      features: [
+        { properties: { sol: 20, lat: 18.44514836, lon: 77.45185605, site: 3, drive: 770 } },
+        { properties: { sol: 23, lat: 18.44520229, lon: 77.45177711 } },
+      ],
+    };
+    expect(parseRoverTrack(named).stops).toEqual([
+      { sol: 20, point: { lat: 18.44514836, lon: 77.45185605 }, site: 3, drive: 770 },
+      { sol: 23, point: { lat: 18.44520229, lon: 77.45177711 }, site: null, drive: null },
+    ]);
+  });
+
   it('skips waypoints without coordinates', () => {
     const broken = {
       features: [
