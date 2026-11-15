@@ -584,6 +584,8 @@ const GUIDE: DocPage[] = [
               ['Mission clock', 'Time outside against the time planned, and the waypoints done.'],
               ['Dose', 'The radiation picked up so far and the rate it is counted at.'],
               ['Weather', 'Air temperature and pressure, only where there is a station: Gale Crater.'],
+              ['Alert tone', 'With the sound on, a short tone and, where the phone allows it, a vibration when an alert appears. Once for each time it appears.'],
+              ['Phone look', 'On a phone with motion sensors, the view can follow the phone. It turns by as much as the phone turned; it is not a compass.'],
             ],
           },
           {

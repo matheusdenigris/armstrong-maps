@@ -49,9 +49,11 @@ import {
 import { walkSafety, type SafetyAlert, type SafetyLevel, type WalkSafety } from '@/mission/safety';
 import { WALK_ASSUMPTIONS } from '@/mission/walk';
 import { VISOR_READY_KEY, useMission, useRoute } from '@/state/mission';
+import { useAlertSignal } from '@/state/use-alert-signal';
 import { AMBIENT_SOUND_AVAILABLE, useAmbientSound } from '@/state/use-ambient-sound';
 import { useFeed } from '@/state/use-feed';
 import { useNow } from '@/state/use-now';
+import { usePhoneLook } from '@/state/use-phone-look';
 import { useReducedMotion } from '@/state/use-reduced-motion';
 
 /** One page per site in the static web export. */
@@ -127,6 +129,15 @@ function Visor({ site }: { site: Site }) {
   const drag = useRef<{ x: number; y: number; look: Look } | null>(null);
   // Real wind, recorded on Mars. It starts only when the astronaut asks for it.
   const sound = useAmbientSound(MARS_WIND.url);
+  // The head can follow the phone instead of a finger. It turns by as much as the phone turned
+  // since this was switched on, from where the head was then: it is not a compass.
+  const lookAtStart = useRef<Look>(AHEAD);
+  const phone = usePhoneLook((change) =>
+    setLook({
+      yaw: lookAtStart.current.yaw + change.yaw,
+      pitch: clampPitch(lookAtStart.current.pitch + change.pitch),
+    }),
+  );
   // The only weather station is at Gale; elsewhere there is no reading to put on the display.
   const weather = useFeed(site.id === 'gale' ? REMS_FEED : null, parseWeather);
 
@@ -184,6 +195,8 @@ function Visor({ site }: { site: Site }) {
     : 0;
   const progress = walkProgress(site.landing, route, elapsedHours, SURFACE_RADIATION.msvPerDay);
   const safety = walkSafety(progress);
+  // A new alert is heard as well as shown, once, while the sound is on.
+  const alertSignal = useAlertSignal(safety.alerts, sound.playing);
   const heading = (((progress.heading + look.yaw) % 360) + 360) % 360;
 
   const over = clock !== null && progress.totalHours > 0 && elapsedHours >= progress.totalHours;
@@ -373,7 +386,8 @@ function Visor({ site }: { site: Site }) {
       onMoveShouldSetResponder={() => true}
       onResponderTerminationRequest={() => false}
       onResponderGrant={(event) => {
-        drag.current = { ...pointer(event), look };
+        // While the head follows the phone, a finger does not turn it too.
+        drag.current = phone.on ? null : { ...pointer(event), look };
       }}
       onResponderMove={(event) => {
         const start = drag.current;
@@ -455,10 +469,14 @@ function Visor({ site }: { site: Site }) {
           </View>
           {AMBIENT_SOUND_AVAILABLE ? (
             <Toggle
-              label="Sound of the wind on Mars, recorded by Perseverance"
+              label="Sound of the wind on Mars, recorded by Perseverance, and a tone when an alert appears"
               text={sound.failed ? 'No sound' : sound.playing ? 'Sound on' : 'Sound off'}
               on={sound.playing}
-              onPress={() => void sound.toggle()}
+              onPress={() => {
+                // The same press lets the alert tone play: a browser starts sound only from one.
+                alertSignal.arm();
+                void sound.toggle();
+              }}
             />
           ) : null}
         </View>
@@ -537,10 +555,33 @@ function Visor({ site }: { site: Site }) {
           </>
         )}
         <View style={styles.foot} pointerEvents="box-none">
-          <Text style={styles.tag} numberOfLines={1} pointerEvents="none">
+          {/* On a phone the buttons leave it no room on their line, so it has its own. */}
+          <Text
+            style={[styles.tag, !wide && styles.tagOwnLine]}
+            numberOfLines={1}
+            pointerEvents="none">
             Simulated mission · real photo {scene.index + 1}/{scene.count} and sound of Mars
           </Text>
-          {turned ? (
+          {phone.available ? (
+            <Toggle
+              label="Turn the view by turning the phone. It follows the phone, not a compass."
+              text={
+                phone.on
+                  ? 'Phone look on'
+                  : phone.failed === 'blocked'
+                    ? 'Motion blocked'
+                    : phone.failed === 'no-sensor'
+                      ? 'No motion sensor'
+                      : 'Phone look'
+              }
+              on={phone.on}
+              onPress={() => {
+                lookAtStart.current = look;
+                void phone.toggle();
+              }}
+            />
+          ) : null}
+          {turned && !phone.on ? (
             <Toggle
               label="Look the way I am walking again"
               text="Face ahead"
@@ -590,8 +631,15 @@ function Visor({ site }: { site: Site }) {
             Sound: real wind recorded by the SuperCam microphone of Perseverance at Jezero Crater on{' '}
             {MARS_WIND.when}, on a loop and played louder than published
             {site.id === MARS_WIND.site ? '' : '; it was not recorded at this site'}.{' '}
-            {MARS_WIND.credit}.
+            {MARS_WIND.credit}. With the sound on, a short tone marks each alert when it appears,
+            with a vibration where the phone allows it. The tone is drawn, not recorded.
           </Text>
+          {phone.available ? (
+            <Text style={styles.sourcesText}>
+              Phone look: the view turns by as much as the phone has turned since it was switched
+              on. It is not a compass reading: Mars has no global magnetic field to take one from.
+            </Text>
+          ) : null}
           <Text style={styles.sourcesText}>
             Dose rate: {SURFACE_RADIATION.source}, a published average.{' '}
             {site.id === 'gale'
@@ -1031,12 +1079,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: Spacing.two,
+    flexWrap: 'wrap',
+    rowGap: Spacing.one,
   },
   tag: {
     flex: 1,
     color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 12,
+  },
+  tagOwnLine: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: '100%',
   },
   toggle: {
     minHeight: 36,
