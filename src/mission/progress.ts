@@ -5,7 +5,7 @@
  * The position is simulated. It follows the plan exactly, at the assumed walking speed.
  */
 import { bearing, destination, distance, type LatLon } from './geo';
-import { WALK_ASSUMPTIONS, type WalkAssumptions } from './walk';
+import { WALK_ASSUMPTIONS, stopMinutes, type WalkAssumptions, type WalkStop } from './walk';
 
 /**
  * How much faster than the walking the work at a stop is played back. The plan keeps the whole
@@ -20,14 +20,12 @@ export const WORK_PLAYBACK = 15;
  */
 export function walkHoursPlayed(
   base: LatLon,
-  waypoints: readonly LatLon[],
+  waypoints: readonly WalkStop[],
   playedHours: number,
   assumptions: WalkAssumptions = WALK_ASSUMPTIONS,
   workPlayback: number = WORK_PLAYBACK,
 ): number {
   const speed = assumptions.walkingSpeedKmh * 1000; // metres per hour
-  const stopHours = assumptions.minutesPerStop / 60;
-  const playedStopHours = stopHours / workPlayback;
   const points = [base, ...waypoints, base];
   let left = Math.max(0, playedHours);
   let walk = 0;
@@ -38,6 +36,8 @@ export function walkHoursPlayed(
     walk += legHours;
     // Every point but the base at the end is a waypoint, with a stop.
     if (index < points.length - 1) {
+      const stopHours = stopMinutes(waypoints[index - 1], assumptions) / 60;
+      const playedStopHours = stopHours / workPlayback;
       if (left <= playedStopHours) return walk + left * workPlayback;
       left -= playedStopHours;
       walk += stopHours;
@@ -88,13 +88,14 @@ export type WalkProgress = {
  */
 export function walkProgress(
   base: LatLon,
-  waypoints: readonly LatLon[],
+  waypoints: readonly WalkStop[],
   elapsedHours: number,
   doseRateMsvPerDay: number,
   assumptions: WalkAssumptions = WALK_ASSUMPTIONS,
 ): WalkProgress {
   const speed = assumptions.walkingSpeedKmh * 1000; // metres per hour
-  const stopHours = assumptions.minutesPerStop / 60;
+  /** The work at each waypoint, in hours. */
+  const work = waypoints.map((point) => stopMinutes(point, assumptions) / 60);
   const points = [base, ...waypoints, base];
   const legs = points.slice(1).map((to, index) => {
     const from = points[index];
@@ -104,7 +105,7 @@ export function walkProgress(
   const totalHours =
     waypoints.length === 0
       ? 0
-      : legs.reduce((sum, leg) => sum + leg.hours, 0) + waypoints.length * stopHours;
+      : legs.reduce((sum, leg) => sum + leg.hours, 0) + work.reduce((sum, hours) => sum + hours, 0);
   const counted = Math.min(Math.max(0, elapsedHours), totalHours);
 
   const report = (
@@ -164,6 +165,7 @@ export function walkProgress(
     }
     clock += leg.hours;
     walkedM += leg.lengthM;
+    const stopHours = lastLeg ? 0 : work[index];
     if (!lastLeg && counted < clock + stopHours) {
       const next = legs[index + 1];
       // Working at waypoint `index`; the next thing to walk to is the end of the next leg.
@@ -178,9 +180,46 @@ export function walkProgress(
         index,
       );
     }
-    clock += lastLeg ? 0 : stopHours;
+    clock += stopHours;
   }
 
   // Not reached: the loop returns before the total time. Kept for the type checker.
   return report('at-base', base, 0, null, base, walkedM, 0, waypoints.length);
 }
+
+/**
+ * The plan that replaces the rest of a walk with the shortest way back from where the astronaut
+ * is: the stops already done stay as they were, and the walk turns for the base from here.
+ *
+ * Everything before this moment is unchanged, so the clock of the walk keeps its time: the new
+ * plan puts the astronaut at the same place at `elapsedHours`.
+ *
+ * - On the way to a waypoint, the route ends at a turn-back point where the astronaut stands,
+ *   with no work there.
+ * - At a stop, the work ends now: the stop keeps the time already spent on it.
+ * - On the way back, or at the base, the plan is already the way back and is returned as it is.
+ */
+export function returnPlan(
+  base: LatLon,
+  waypoints: readonly WalkStop[],
+  elapsedHours: number,
+  assumptions: WalkAssumptions = WALK_ASSUMPTIONS,
+): WalkStop[] {
+  const progress = walkProgress(base, waypoints, elapsedHours, 0, assumptions);
+  if (progress.phase === 'returning' || progress.phase === 'at-base' || progress.stop === null) {
+    return [...waypoints];
+  }
+  const done = waypoints.slice(0, progress.stop);
+  if (progress.phase === 'working') {
+    const stop = waypoints[progress.stop];
+    const spentHours = stopMinutes(stop, assumptions) / 60 - progress.phaseHoursLeft;
+    return [...done, { ...stop, minutes: Math.max(0, spentHours * 60) }];
+  }
+  return [
+    ...done,
+    { lat: progress.position.lat, lon: progress.position.lon, minutes: 0, name: TURN_BACK_NAME },
+  ];
+}
+
+/** What the point where a walk turned for the base is called in the plan. */
+export const TURN_BACK_NAME = 'Turn-back point';

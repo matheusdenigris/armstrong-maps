@@ -1,6 +1,14 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ComponentRef,
+  type ReactNode,
+} from 'react';
 import {
   Platform,
   Pressable,
@@ -21,6 +29,12 @@ import { LayerPanel, type PointSetRow } from '@/components/layer-panel';
 import { MarsClockPanel } from '@/components/mars-clock-panel';
 import { MapLegend } from '@/components/map-legend';
 import { POINT_COLORS, PointCard, PointsKey } from '@/components/mission-points';
+import {
+  ElevationProfile,
+  PlanTools,
+  RouteStops,
+  SharedPlanOffer,
+} from '@/components/route-plan';
 import { SafetyCheck, type StartPlan } from '@/components/safety-check';
 import { WeatherChart } from '@/components/weather-chart';
 import { PhotosPanel } from '@/components/photos-panel';
@@ -65,6 +79,7 @@ import {
 } from '@/data/mission-points';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { ROVERS, parseRoverTrack } from '@/data/rover';
+import { galeTargetPoints, stopAt } from '@/data/science-targets';
 import { RAW_IMAGE_FEEDS, parseRawImages, rawImagesUrl } from '@/data/rover-images';
 import { pageMetadata } from '@/constants/share';
 import { SITES, findSite, type Site } from '@/data/sites';
@@ -79,15 +94,23 @@ import { INSIGHT_SITE, insightWeatherUrl, parseInsightWind } from '@/data/wind';
 import type { MapView } from '@/mission/camera';
 import { elapsedSeconds } from '@/mission/clock';
 import { formatDistance, formatDuration, formatHeight, formatLatLon } from '@/mission/format';
-import { distance } from '@/mission/geo';
+import { distance, pathLength, type LatLon } from '@/mission/geo';
+import { decodePlan, encodePlan, samePlan } from '@/mission/plan-link';
 import { walkHoursPlayed, walkProgress } from '@/mission/progress';
+import { rerouteWalk } from '@/mission/reroute';
 import { TILE_PIXELS, tileSpan } from '@/mission/tiles';
-import { WALK_ASSUMPTIONS, evaluateWalk, severityOf, type WalkEvaluation } from '@/mission/walk';
+import {
+  WALK_ASSUMPTIONS,
+  evaluateWalk,
+  severityOf,
+  type WalkEvaluation,
+  type WalkStop,
+} from '@/mission/walk';
 import { MAX_WAYPOINTS, useMission, useRoute } from '@/state/mission';
 import { useFeed } from '@/state/use-feed';
 import { useGroundReading } from '@/state/use-ground-reading';
 import { useTerrain } from '@/state/use-terrain';
-import { routeCrosses, routeSlope, slopeAt } from '@/mission/terrain';
+import { routeCrosses, routeProfile, routeSlope, slopeAt } from '@/mission/terrain';
 import { useNow } from '@/state/use-now';
 import { mars24Sun, nextSunCrossing, tableSun, walkDaylight } from '@/mission/mars-time';
 import { horizonsSunUrl, parseHorizonsSun } from '@/data/horizons';
@@ -132,6 +155,10 @@ const PANEL_LAYOUT_TRANSITION = LinearTransition.duration(240)
 
 /** Layers that go over the optical base: everything planet-wide except the base itself. */
 const OVERLAYS = GLOBAL_LAYERS.filter((layer) => layer !== VIKING_GLOBAL);
+
+/** The start of the id of a waypoint's marker; its number in the walk follows. */
+const WAYPOINT_ID = 'waypoint-';
+const NO_MARKERS: readonly string[] = [];
 
 /** A site NASA publishes no mission points for. The same list every time. */
 const NO_POINT_SETS: readonly PointSetId[] = [];
@@ -197,12 +224,38 @@ function useHydrated() {
 }
 
 export default function SiteScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, plan } = useLocalSearchParams<{ id: string; plan?: string }>();
   const site = findSite(id);
-  return site ? <SiteMap key={site.id} site={site} /> : <UnknownSite />;
+  return site ? (
+    <SiteMap key={site.id} site={site} sharedPlan={typeof plan === 'string' ? plan : null} />
+  ) : (
+    <UnknownSite />
+  );
 }
 
-function SiteMap({ site }: { site: Site }) {
+/** The saved route with the waypoint in hand, if there is one, where it is held. */
+function useRouteInHand(
+  saved: readonly WalkStop[],
+  held: { index: number; point: LatLon } | null,
+): readonly WalkStop[] {
+  return useMemo(
+    () =>
+      held && saved[held.index]
+        ? saved.map((stop, index) =>
+            index === held.index ? { ...stop, lat: held.point.lat, lon: held.point.lon } : stop,
+          )
+        : saved,
+    [saved, held],
+  );
+}
+
+type SiteMapProps = {
+  site: Site;
+  /** A walk plan that came in the address of the page, as text. */
+  sharedPlan: string | null;
+};
+
+function SiteMap({ site, sharedPlan }: SiteMapProps) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const hydrated = useHydrated();
@@ -211,10 +264,20 @@ function SiteMap({ site }: { site: Site }) {
   // The page rendered ahead of time has no window, so it must not carry a size computed from one.
   const sheetLimit = hydrated ? Math.round(height * 0.64) : undefined;
 
-  const route = useRoute(site.id);
+  const savedRoute = useRoute(site.id);
+  // A waypoint in hand on the map: it is drawn, and the walk is judged, where it is held. The
+  // plan itself changes when it is let go.
+  const [dragged, setDragged] = useState<{ index: number; point: LatLon } | null>(null);
+  const route = useRouteInHand(savedRoute, dragged);
   const addWaypoint = useMission((state) => state.addWaypoint);
   const removeLastWaypoint = useMission((state) => state.removeLastWaypoint);
+  const removeWaypoint = useMission((state) => state.removeWaypoint);
+  const moveWaypoint = useMission((state) => state.moveWaypoint);
+  const updateWaypoint = useMission((state) => state.updateWaypoint);
+  const setRoute = useMission((state) => state.setRoute);
   const clearRoute = useMission((state) => state.clearRoute);
+  const returnToBase = useMission((state) => state.returnToBase);
+  const turnedBack = useMission((state) => state.returning[site.id]) ?? false;
   const overlays = useMission((state) => state.overlays);
   const toggleOverlay = useMission((state) => state.toggleOverlay);
   const setOverlayOpacity = useMission((state) => state.setOverlayOpacity);
@@ -273,19 +336,22 @@ function SiteMap({ site }: { site: Site }) {
     for (const id of pointSetIds) {
       const on = !hiddenPoints[id];
       const feed = id === 'samples' ? sampleSites : id === 'flights' ? flights : null;
-      // The depot is in the code; the other two are read from NASA.
-      const ready = id === 'depot' || feed?.status === 'ready';
+      // The science targets of Gale are placed by the rover's location feed, which the map has
+      // already asked for.
+      const targets =
+        id === 'targets' && track.status === 'ready' ? galeTargetPoints(track.data) : null;
+      const feedStatus = id === 'targets' ? track.status : feed?.status;
+      // The depot is in the code; the others are read from NASA.
+      const ready = id === 'depot' || feedStatus === 'ready';
       const places = !on
         ? []
         : id === 'depot'
           ? SAMPLE_DEPOT
-          : feed?.status === 'ready'
-            ? feed.data
-            : [];
+          : (targets ?? (feed?.status === 'ready' ? feed.data : []));
       rows.push({
         set: POINT_SETS[id],
         on,
-        status: !on ? 'off' : ready ? 'ready' : feed?.status === 'failed' ? 'failed' : 'loading',
+        status: !on ? 'off' : ready ? 'ready' : feedStatus === 'failed' ? 'failed' : 'loading',
         count: places.length,
       });
       // The first set of the site is drawn last, on top of the others.
@@ -304,7 +370,7 @@ function SiteMap({ site }: { site: Site }) {
         }),
       ),
     };
-  }, [pointSetIds, hiddenPoints, sampleSites, flights]);
+  }, [pointSetIds, hiddenPoints, sampleSites, flights, track]);
   const chosenPoint = missionPoints.find((place) => place.id === chosenPointId) ?? null;
   const showSite = desktopConsole ? panelTab === 'site' : tab === 'site';
   const weather = useFeed(showSite ? REMS_FEED : null, parseWeather);
@@ -456,7 +522,7 @@ function SiteMap({ site }: { site: Site }) {
       ...route.map((point, index) => ({
         id: `waypoint-${index}`,
         point,
-        label: String(index + 1),
+        label: point.name ? `${index + 1} · ${point.name}` : String(index + 1),
         color: Colors.nav,
       })),
     ];
@@ -552,7 +618,8 @@ function SiteMap({ site }: { site: Site }) {
             onAdd={
               canAddPoint
                 ? () => {
-                    addWaypoint(site.id, chosenPoint.point);
+                    // The stop keeps the name of the place, its suggested task and its source.
+                    addWaypoint(site.id, stopAt(chosenPoint, POINT_SETS[chosenPoint.set]));
                     setChosenPointId(null);
                   }
                 : undefined
@@ -613,6 +680,93 @@ function SiteMap({ site }: { site: Site }) {
     return [...markers, { id: 'ground', point, label, color: Colors.cyan }];
   }, [ground.reading, markers]);
 
+  // The height of the ground along the walk, out and back, from the same models as the slope.
+  const { profile, profilePending, stopsAtM, profileModels } = useMemo(() => {
+    const ready = [terrain.near, terrain.around].flatMap((feed) =>
+      feed.status === 'ready' ? [feed.data] : [],
+    );
+    const loop = [site.landing, ...route, site.landing];
+    return {
+      profile:
+        route.length > 0 && ready.length > 0
+          ? routeProfile(
+              loop,
+              ready.map((layer) => layer.heights),
+            )
+          : null,
+      profilePending:
+        ready.length === 0 &&
+        (terrain.near.status === 'loading' || terrain.around.status === 'loading'),
+      stopsAtM: route.map((_, index) => pathLength(loop.slice(0, index + 2))),
+      profileModels: [...new Set(ready.map((layer) => layer.area.model.name))].join(' and '),
+    };
+  }, [route, site, terrain.near, terrain.around]);
+
+  // A link that carries the plan. The address of the page is known only in the browser.
+  const planLink = useMemo(() => {
+    if (!hydrated || savedRoute.length === 0) return null;
+    const origin = Platform.OS === 'web' ? window.location.origin : 'https://www.armstrongmaps.us';
+    return `${origin}/site/${site.id}?plan=${encodePlan(savedRoute)}`;
+  }, [hydrated, savedRoute, site.id]);
+
+  // A plan that came in the address. It is loaded by itself only onto a device with no plan for
+  // this site; otherwise the panel asks, because loading it replaces the plan that is here.
+  const shared = useMemo(() => decodePlan(sharedPlan), [sharedPlan]);
+  const [sharedDismissed, setSharedDismissed] = useState(false);
+  const [saveRead, setSaveRead] = useState(false);
+  useEffect(() => {
+    const ready = () => setSaveRead(true);
+    if (useMission.persist.hasHydrated()) queueMicrotask(ready);
+    return useMission.persist.onFinishHydration(ready);
+  }, []);
+  const sharedLoaded = useRef(false);
+  useEffect(() => {
+    if (!shared || !saveRead || sharedLoaded.current) return;
+    sharedLoaded.current = true;
+    if (savedRoute.length === 0 && clock === null) setRoute(site.id, shared);
+  }, [shared, saveRead, savedRoute, clock, setRoute, site.id]);
+  const offerShared =
+    shared !== null && saveRead && !sharedDismissed && !samePlan(savedRoute, shared);
+
+  // A way round steep ground, where the elevation model shows one. What the search found is
+  // said under the button, for the plan it was found for.
+  const [rerouteNote, setRerouteNote] = useState<{ plan: string; text: string } | null>(null);
+  const steepUnderRoute = walk.reasons.some(
+    (reason) => reason === 'too-steep' || reason === 'steep-ground',
+  );
+  const reroute = () => {
+    const grids = [terrain.near, terrain.around].flatMap((feed) =>
+      feed.status === 'ready' ? [feed.data.slopes] : [],
+    );
+    const found = rerouteWalk(
+      site.landing,
+      savedRoute,
+      grids,
+      { cautionDeg: WALK_ASSUMPTIONS.cautionSlopeDeg, noGoDeg: WALK_ASSUMPTIONS.noGoSlopeDeg },
+      MAX_WAYPOINTS,
+    );
+    const legs = (count: number) => `${count} ${count === 1 ? 'leg' : 'legs'}`;
+    const parts = [
+      found.added > 0
+        ? `Added ${found.added} via ${found.added === 1 ? 'point' : 'points'} to go round steep ground.`
+        : 'No way round was added.',
+      found.blocked > 0
+        ? `${legs(found.blocked)} still ${found.blocked === 1 ? 'crosses' : 'cross'} steep ground: the model shows no better way.`
+        : '',
+      found.full > 0
+        ? `${legs(found.full)} left as ${found.full === 1 ? 'it was' : 'they were'}: a plan holds ${MAX_WAYPOINTS} points.`
+        : '',
+      'A way is clear at the scale of the elevation model only: look at the ground on the map.',
+    ];
+    if (found.added > 0) setRoute(site.id, found.stops);
+    setRerouteNote({
+      plan: encodePlan(found.added > 0 ? found.stops : savedRoute),
+      text: parts.filter(Boolean).join(' '),
+    });
+  };
+  const rerouted =
+    rerouteNote && rerouteNote.plan === encodePlan(savedRoute) ? rerouteNote.text : null;
+
   const roverSol =
     rover && track.status === 'ready' && track.data.latest
       ? String(track.data.latest.sol)
@@ -648,6 +802,15 @@ function SiteMap({ site }: { site: Site }) {
 
   const walkContent = (
     <>
+      {offerShared && shared ? (
+        <SharedPlanOffer
+          stops={shared.length}
+          distanceM={evaluateWalk(site.landing, shared, SURFACE_RADIATION.msvPerDay).totalM}
+          locked={clock !== null}
+          onLoad={() => setRoute(site.id, shared)}
+          onDismiss={() => setSharedDismissed(true)}
+        />
+      ) : null}
       <WalkSummary
         walk={walk}
         stops={route.length}
@@ -672,6 +835,19 @@ function SiteMap({ site }: { site: Site }) {
         onUndo={() => removeLastWaypoint(site.id)}
         onClear={() => clearRoute(site.id)}
       />
+      <RouteStops
+        stops={route}
+        locked={clock !== null}
+        current={clock !== null ? progress.stop : null}
+        onMinutes={(index, minutes) => updateWaypoint(site.id, index, { minutes })}
+        onTask={(index, task) => updateWaypoint(site.id, index, { task })}
+        onRemove={(index) => removeWaypoint(site.id, index)}
+      />
+      <PlanTools
+        link={planLink}
+        onReroute={clock === null && steepUnderRoute ? reroute : undefined}
+        rerouted={rerouted}
+      />
       <WalkControls
         siteId={site.id}
         stops={route.length}
@@ -682,6 +858,9 @@ function SiteMap({ site }: { site: Site }) {
         onResume={() => resumeWalk(site.id)}
         onEnd={() => endWalk(site.id)}
         onRate={(rate) => setWalkRate(site.id, rate)}
+        plan={route}
+        turnedBack={turnedBack}
+        onReturn={() => returnToBase(site.id, site.landing)}
       />
       <SafetyCheck
         walk={walk}
@@ -697,6 +876,14 @@ function SiteMap({ site }: { site: Site }) {
         dunes={dunes.status === 'ready' ? (crossesDunes ? 'crossed' : 'clear') : 'unknown'}
         sunSource={sunSource}
       />
+      {route.length > 0 ? (
+        <ElevationProfile
+          profile={profile}
+          pending={profilePending}
+          stopsAtM={stopsAtM}
+          models={profileModels}
+        />
+      ) : null}
       <WalkDetails walk={walk} stops={route.length} />
     </>
   );
@@ -741,6 +928,11 @@ function SiteMap({ site }: { site: Site }) {
     />
   );
 
+  const waypointIds = useMemo(
+    () => savedRoute.map((_, index) => `${WAYPOINT_ID}${index}`),
+    [savedRoute],
+  );
+
   const map = (
     <MapStage
       site={site}
@@ -779,6 +971,18 @@ function SiteMap({ site }: { site: Site }) {
         }
       }}
       preview={preview}
+      // A waypoint can be dragged while the route can change and a press is not reading the ground.
+      draggable={clock === null && !probing ? waypointIds : NO_MARKERS}
+      onMarkerDrag={(markerId, point, done) => {
+        const index = Number(markerId.slice(WAYPOINT_ID.length));
+        if (!Number.isInteger(index)) return;
+        if (done) {
+          moveWaypoint(site.id, index, point);
+          setDragged(null);
+        } else {
+          setDragged({ index, point });
+        }
+      }}
       probing={probing}
       onToggleProbe={() => {
         // Leaving the reading puts the last one away with it.
@@ -1032,6 +1236,8 @@ type MapStageProps = {
   onViewChange: (view: MapView) => void;
   onPress: (point: { lat: number; lon: number }) => void;
   preview: MapPreview | null;
+  draggable: readonly string[];
+  onMarkerDrag: (id: string, point: LatLon, done: boolean) => void;
   /** The ground is being read: a press reads a point instead of marking one. */
   probing: boolean;
   onToggleProbe: () => void;
@@ -1071,6 +1277,8 @@ function MapStage({
   onViewChange,
   onPress,
   preview,
+  draggable,
+  onMarkerDrag,
   probing,
   onToggleProbe,
   coach,
@@ -1105,11 +1313,13 @@ function MapStage({
         onViewChange={onViewChange}
         onPress={onPress}
         preview={preview}
+        draggable={draggable}
+        onMarkerDrag={onMarkerDrag}
         probe={{ on: probing, onToggle: onToggleProbe }}
         // The zoom buttons stand clear of what is at the foot of the map, which is taller while
         // the first step is spelled out.
         controlsBottom={showFoot ? (coach ? 176 : desktop ? 112 : 116) : Spacing.three}
-        accessibilityLabel={`Map of ${site.name}. Drag to move, pinch or use the buttons to zoom, tap to add a waypoint.`}>
+        accessibilityLabel={`Map of ${site.name}. Drag to move, pinch or use the buttons to zoom, tap to add a waypoint, drag a waypoint to move it.`}>
         <MapHud
           view={view}
           walk={walk}

@@ -9,7 +9,7 @@
 import { formatDistance } from '@/mission/format';
 import type { LatLon } from '@/mission/geo';
 
-export type PointSetId = 'samples' | 'depot' | 'flights';
+export type PointSetId = 'targets' | 'samples' | 'depot' | 'flights';
 
 export type MissionPoint = {
   id: string;
@@ -18,6 +18,10 @@ export type MissionPoint = {
   name: string;
   /** The published facts about the place, one short line each. */
   lines: readonly string[];
+  /** Where its facts were published, when that is not the source of the whole set. */
+  source?: string;
+  /** What the crew could do there: a suggestion of this project, not a NASA plan. */
+  task?: string;
 };
 
 export type PointSet = {
@@ -46,6 +50,13 @@ export const SAMPLE_DOSSIER =
   'https://pds-geosciences.wustl.edu/m2020/urn-nasa-pds-mars2020_sample_dossier/initial_reports/initial_reports_volume4.pdf';
 
 export const POINT_SETS: Readonly<Record<PointSetId, PointSet>> = {
+  targets: {
+    id: 'targets',
+    name: 'Science targets',
+    reads:
+      'Places where Curiosity stopped to do science. Each mark is where NASA says the rover stood on that sol.',
+    source: 'NASA/JPL-Caltech, Curiosity location feed',
+  },
   samples: {
     id: 'samples',
     name: 'Sample sites',
@@ -71,6 +82,7 @@ export const POINT_SETS: Readonly<Record<PointSetId, PointSet>> = {
 
 /** The sets each site has. A site that is not listed has none: NASA publishes none for it. */
 export const SITE_POINT_SETS: Readonly<Record<string, readonly PointSetId[]>> = {
+  gale: ['targets'],
   jezero: ['samples', 'depot', 'flights'],
 };
 

@@ -22,6 +22,7 @@ import { PANORAMAS } from './panoramas';
 import { RAW_IMAGE_FEEDS } from './rover-images';
 import { MARS_WIND } from './sounds';
 import { ROVERS } from './rover';
+import { GALE_TARGETS } from './science-targets';
 import { DONKI_BASE } from './space-weather';
 import { MEDA_CREDIT, MEDA_FEED, REMS_FEED, SKY_WORD_CHECK } from './weather';
 import { AIR_DENSITY_SOURCE, INSIGHT_CREDIT } from './wind';
@@ -173,13 +174,29 @@ export const SOURCES: readonly DataSource[] = [
     reference: 'https://ssd-api.jpl.nasa.gov/doc/horizons.html',
   },
   {
+    id: 'gale-science-targets',
+    name: 'Science targets at Gale',
+    publisher: 'NASA/JPL-Caltech: Curiosity sampling sites (PIA20845), the Windjana drill hole, the poster of the journey to Mount Sharp',
+    nasa: true,
+    kind: 'catalogue',
+    gives: `The ${GALE_TARGETS.length} named places where Curiosity stopped to do science within reach of the base, each with the sol and what the rover did there: ${GALE_TARGETS.map((target) => target.name).join(', ')}.`,
+    usedIn: 'The Science targets marks on the Gale map and the stops of a walk planned through them (src/data/science-targets.ts).',
+    endpoint: GALE_TARGETS.map((target) => target.reference)
+      .filter((reference, index, all) => all.indexOf(reference) === index)
+      .join('\n'),
+    key: 'None',
+    notes:
+      'The names, sols and what was done are copied from the NASA pages, read on 2026-11-15. The positions are not: each is where the location feed puts the rover on that sol. The task suggested at each place is this project\'s, not NASA\'s.',
+    reference: 'https://www.jpl.nasa.gov/images/pia20845-curiositys-first-16-rock-or-soil-sampling-sites-on-mars/',
+  },
+  {
     id: 'rover-waypoints',
     name: 'Rover traverses',
     publisher: 'NASA/JPL-Caltech, mars.nasa.gov',
     nasa: true,
     kind: 'live',
     gives: 'The path each rover has driven since landing, and its latest position, sol and distance.',
-    usedIn: 'The white line on the Gale and Jezero maps, and the Rover card in the Site tab.',
+    usedIn: 'The white line on the Gale and Jezero maps, the Rover card in the Site tab, and the position of each science target at Gale (where the rover stood on the sol it worked there).',
     endpoint: `${ROVERS.curiosity.feed}\n${ROVERS.perseverance.feed}`,
     key: 'None',
     notes: 'Updated after drives are localised, usually within days.',

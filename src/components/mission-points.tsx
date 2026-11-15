@@ -2,10 +2,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import type { MissionPoint, PointSet, PointSetId } from '@/data/mission-points';
+import { suggestedTask } from '@/data/science-targets';
 import { formatLatLon } from '@/mission/format';
 
 /** The colour of each set of mission points, on the map and wherever the set is named. */
 export const POINT_COLORS: Readonly<Record<PointSetId, string>> = {
+  targets: Colors.cyan,
   samples: Colors.cyan,
   depot: Colors.spectral,
   flights: Colors.thermal,
@@ -47,6 +49,7 @@ type PointCardProps = {
 
 /** What NASA published about one mission point, shown beside its mark on the map. */
 export function PointCard({ point, set, onAdd, onClose }: PointCardProps) {
+  const task = suggestedTask(point);
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
@@ -70,7 +73,13 @@ export function PointCard({ point, set, onAdd, onClose }: PointCardProps) {
         </Text>
       ))}
       <Text style={styles.cardPlace}>{formatLatLon(point.point, 5)}</Text>
-      <Text style={styles.cardSource}>{set.source}</Text>
+      <Text style={styles.cardSource}>{point.source ?? set.source}</Text>
+      {task ? (
+        <Text style={styles.cardTask}>
+          <Text style={styles.cardTaskLabel}>Suggested task · </Text>
+          {task}
+        </Text>
+      ) : null}
       {onAdd ? (
         <Pressable
           onPress={onAdd}
@@ -175,6 +184,16 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.sans,
     fontSize: 10,
     lineHeight: 14,
+  },
+  cardTask: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    lineHeight: 17,
+    paddingTop: Spacing.one,
+  },
+  cardTaskLabel: {
+    color: Colors.textSoft,
   },
   add: {
     alignSelf: 'flex-start',

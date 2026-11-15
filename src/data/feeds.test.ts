@@ -70,7 +70,7 @@ describe('parseRoverTrack', () => {
 
   it('is empty for anything that is not the feed', () => {
     for (const raw of [null, undefined, 'error', {}, { features: 'none' }, { features: [] }]) {
-      expect(parseRoverTrack(raw)).toEqual({ path: [], latest: null });
+      expect(parseRoverTrack(raw)).toEqual({ path: [], latest: null, stops: [] });
     }
   });
 

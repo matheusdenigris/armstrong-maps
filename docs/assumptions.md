@@ -12,7 +12,7 @@ every number follows.
 | Value | In the app | Kind |
 |---|---|---|
 | Walking speed in a suit over rough ground | 2.5 km/h | Assumption |
-| Time working at each waypoint | 20 min | Assumption |
+| Time working at each waypoint | 20 min, unless the plan sets another for the stop (0 to 240 min) | Assumption |
 | Life support of the suit | 8 h | Assumption |
 | Share of life support that must be left on return | 20% | Assumption |
 | Walk-back limit: the farthest a waypoint may be from the base | 5 km | Assumption |
@@ -25,6 +25,24 @@ every number follows.
 | "Next morning" starts the walk when the Sun is | 15° up, on its way up | Assumption |
 | Return leg | A straight line from the last waypoint to the base | Simplification |
 | Terrain | Slopes do not slow the walk; they only change the verdict | Simplification |
+| Climb | The elevation profile gives the climb of the route; it does not slow the walk or use more life support | Simplification |
+| A way round steep ground | Found over the cells of the elevation model (about 60 m near the base, 200 m around it), preferring ground under the caution slope and never crossing the no-go slope or ground with no data. Clear at that scale only | Simplification |
+| Return to base | A straight line from where the astronaut is, like the return leg of the plan; it is not checked against steep ground again | Simplification |
+
+### Science targets and tasks
+
+- **Where the science is, is published.** At Jezero the targets are the places NASA publishes
+  with coordinates: the sample sites, the Three Forks depot and the helicopter's airfields. At
+  Gale they are named places of the Curiosity mission (Rocknest, John Klein at Yellowknife Bay,
+  Darwin, Cooperstown, Windjana at The Kimberley), each with the sol and what the rover did
+  there, from a NASA page named on its card. A Gale target is not placed by hand: it is where
+  NASA's location feed puts the rover on that sol.
+- **What the crew does there is a suggestion of this project.** The card and the plan label it
+  "Suggested task"; it can be rewritten for each stop. It is not a NASA plan.
+- A waypoint dragged off a target keeps its time and its task and loses the name and the source,
+  which belonged to the place.
+- A shared link carries the plan itself in the address (positions to six decimals, times, names,
+  tasks, sources). Nothing is stored on a server.
 
 ## The verdict
 

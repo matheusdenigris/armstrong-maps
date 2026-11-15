@@ -40,7 +40,7 @@ import {
   type WalkProgress,
 } from '@/mission/progress';
 import { walkSafety, type SafetyAlert, type SafetyLevel, type WalkSafety } from '@/mission/safety';
-import { WALK_ASSUMPTIONS } from '@/mission/walk';
+import { WALK_ASSUMPTIONS, stopMinutes, type WalkStop } from '@/mission/walk';
 import { VISOR_READY_KEY, useMission, useRoute } from '@/state/mission';
 import { AMBIENT_SOUND_AVAILABLE, useAmbientSound } from '@/state/use-ambient-sound';
 import { useFeed } from '@/state/use-feed';
@@ -108,6 +108,8 @@ function Visor({ site }: { site: Site }) {
   const insets = useSafeAreaInsets();
   const route = useRoute(site.id);
   const clock = useMission((state) => state.clocks[site.id]) ?? null;
+  // The ship turned the walk for the base before its plan was done.
+  const turnedBack = useMission((state) => state.returning[site.id]) ?? false;
   // Asked for less movement, the picture holds still and a change of scene is a plain fade.
   const calm = useReducedMotion();
   // Fast enough for the move into the photograph to be smooth.
@@ -194,10 +196,12 @@ function Visor({ site }: { site: Site }) {
         : !clock.running
           ? 'On hold · paused by the ship'
           : progress.phase === 'working'
-            ? `Working at waypoint ${(progress.stop ?? 0) + 1}`
+            ? `Working at ${placeName(route, progress.stop)}`
             : progress.phase === 'returning'
-              ? 'Returning to the base'
-              : `Walking to waypoint ${(progress.stop ?? 0) + 1}`;
+              ? turnedBack
+                ? 'Turned back by the ship · returning to the base'
+                : 'Returning to the base'
+              : `Walking to ${placeName(route, progress.stop)}`;
   const link =
     clock === null
       ? 'Ship link · waiting for the ship to start the walk'
@@ -469,7 +473,7 @@ function Visor({ site }: { site: Site }) {
               progress={progress}
               offTarget={offTarget}
               etaHours={etaHours}
-              stops={route.length}
+              plan={route}
             />
           </View>
         ) : null}
@@ -620,23 +624,35 @@ type TargetProps = {
   progress: WalkProgress;
   offTarget: number;
   etaHours: number;
-  /** How many waypoints the route has. */
-  stops: number;
+  /** The stops of the walk: what each is called, how long the work there is and what it is. */
+  plan: readonly WalkStop[];
 };
+
+/** What a stop is called inside a sentence: its name, or its place in the walk. */
+const placeName = (plan: readonly WalkStop[], index: number | null) =>
+  index === null || !plan[index] ? 'the base' : (plan[index].name ?? `waypoint ${index + 1}`);
 
 /**
  * The next point to reach: how far, which way, and when. At a stop it is the work in hand
  * instead: how long is left of it, and where the walk goes afterwards.
  */
-function Target({ progress, offTarget, etaHours, stops }: TargetProps) {
+function Target({ progress, offTarget, etaHours, plan }: TargetProps) {
   if (progress.phase === 'working') {
     const stop = progress.stop ?? 0;
-    const stopHours = WALK_ASSUMPTIONS.minutesPerStop / 60;
-    const done = Math.min(1, Math.max(0, 1 - progress.phaseHoursLeft / stopHours));
-    const next = stop + 1 < stops ? `waypoint ${stop + 2}` : 'the base';
+    const here = plan[stop];
+    const stopHours = here ? stopMinutes(here) / 60 : WALK_ASSUMPTIONS.minutesPerStop / 60;
+    const done =
+      stopHours > 0 ? Math.min(1, Math.max(0, 1 - progress.phaseHoursLeft / stopHours)) : 1;
+    const next = placeName(plan, stop + 1 < plan.length ? stop + 1 : null);
     return (
       <View style={[styles.target, GLASS]}>
-        <Text style={styles.targetLabel}>{`Working at waypoint ${stop + 1}`}</Text>
+        <Text style={styles.targetLabel}>{`Working at ${placeName(plan, stop)}`}</Text>
+        {/* What the stop is for: the task the ship planned for it. */}
+        {here?.task ? (
+          <Text style={styles.targetTask} numberOfLines={3}>
+            {here.task}
+          </Text>
+        ) : null}
         <Text style={styles.targetValue}>{formatClock(progress.phaseHoursLeft)}</Text>
         <View
           style={styles.work}
@@ -652,10 +668,18 @@ function Target({ progress, offTarget, etaHours, stops }: TargetProps) {
   }
   return (
     <View style={[styles.target, GLASS]}>
-      <Text style={styles.targetLabel}>
-        {progress.stop === null ? 'Base' : `Waypoint ${progress.stop + 1}`}
+      <Text style={styles.targetLabel} numberOfLines={2}>
+        {progress.stop === null
+          ? 'Base'
+          : (plan[progress.stop]?.name ?? `Waypoint ${progress.stop + 1}`)}
       </Text>
       <Text style={styles.targetValue}>{formatDistance(progress.distanceToTargetM)}</Text>
+      {/* What is to be done on arrival, so the astronaut knows why they are walking there. */}
+      {progress.stop !== null && plan[progress.stop]?.task ? (
+        <Text style={styles.targetTask} numberOfLines={2}>
+          {`There: ${plan[progress.stop].task}`}
+        </Text>
+      ) : null}
       <Text style={styles.targetHint}>
         {Math.abs(offTarget) < 8
           ? `Ahead · ${bearingText(progress.bearingToTarget)} · ${formatDuration(etaHours)}`
@@ -896,6 +920,12 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.mono,
     fontSize: 26,
     lineHeight: 32,
+  },
+  targetTask: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
   },
   targetHint: {
     color: Colors.textSoft,
