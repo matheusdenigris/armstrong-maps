@@ -61,6 +61,13 @@ export const Colors = {
   textFaint: 'rgba(238, 242, 247, 0.42)',
   /** A named white keeps controls free of ad-hoc colour literals. */
   white: '#FFFFFF',
+  /** Dune fields on the map: loose sand. */
+  duneFill: 'rgba(251, 191, 36, 0.18)',
+  duneStroke: '#FBBF24',
+  /** Wind arrows on the map and in the wind panel. */
+  wind: '#8FD6FF',
+  /** Soft fill behind an active item. */
+  navTint: 'rgba(47, 107, 255, 0.14)',
 } as const;
 
 export type ColorName = keyof typeof Colors;
