@@ -2,9 +2,12 @@ import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
 
 import { headingToFraction, panoramaUrl, type Panorama } from '@/data/panoramas';
+import type { PlaceView } from '@/data/place-views';
 
 export type PanoramaViewProps = {
   panorama: Panorama;
+  /** The view from the very place the astronaut is at. Only the web view draws it. */
+  place?: PlaceView | null;
   /** The compass heading the astronaut is looking at, in degrees. */
   heading: number;
   /** How far up (positive) or down the astronaut is looking, in degrees. */

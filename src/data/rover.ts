@@ -18,6 +18,19 @@ export const ROVERS: Record<Rover, { name: string; feed: string }> = {
   },
 };
 
+/**
+ * A place where the rover stopped. The site and drive counters are how NASA names the stop: the
+ * raw images taken there carry the same pair, which is what ties a picture to a place.
+ */
+export type RoverStop = {
+  /** The sol of the mission on which the rover reached it. */
+  sol: number;
+  point: LatLon;
+  /** The site and drive counters of the stop, or null where the feed does not give them. */
+  site: number | null;
+  drive: number | null;
+};
+
 export type RoverTrack = {
   /** The traverse from the landing point to the latest waypoint, thinned for drawing. */
   path: LatLon[];
@@ -30,7 +43,7 @@ export type RoverTrack = {
     drivenKm: number | null;
   } | null;
   /** Every waypoint that has a sol, in the order of the drive: where the rover stopped, and when. */
-  stops: { sol: number; point: LatLon }[];
+  stops: RoverStop[];
 };
 
 /**
@@ -59,7 +72,13 @@ export function parseRoverTrack(raw: unknown, maxPoints = 600): RoverTrack {
   const features = (raw as { features?: unknown } | null)?.features;
   if (!Array.isArray(features)) return { path: [], latest: null, stops: [] };
 
-  const waypoints: { point: LatLon; sol: number | null; drivenKm: number | null }[] = [];
+  const waypoints: {
+    point: LatLon;
+    sol: number | null;
+    drivenKm: number | null;
+    site: number | null;
+    drive: number | null;
+  }[] = [];
   for (const feature of features) {
     const properties = (feature as { properties?: Record<string, unknown> } | null)?.properties;
     const lat = finite(properties?.lat);
@@ -69,6 +88,8 @@ export function parseRoverTrack(raw: unknown, maxPoints = 600): RoverTrack {
       point: { lat, lon },
       sol: finite(properties?.sol),
       drivenKm: finite(properties?.dist_km),
+      site: finite(properties?.site),
+      drive: finite(properties?.drive),
     });
   }
   if (waypoints.length === 0) return { path: [], latest: null, stops: [] };
@@ -84,7 +105,9 @@ export function parseRoverTrack(raw: unknown, maxPoints = 600): RoverTrack {
     latest: last.sol === null ? null : { point: last.point, sol: last.sol, drivenKm: last.drivenKm },
     stops: waypoints
       .flatMap((waypoint) =>
-        waypoint.sol === null ? [] : [{ sol: waypoint.sol, point: waypoint.point }],
+        waypoint.sol === null
+          ? []
+          : [{ sol: waypoint.sol, point: waypoint.point, site: waypoint.site, drive: waypoint.drive }],
       )
       .sort((one, other) => one.sol - other.sol),
   };

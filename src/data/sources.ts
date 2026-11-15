@@ -19,6 +19,7 @@ import {
 } from './mission-points';
 import { SURFACE_RADIATION } from './radiation';
 import { PANORAMAS } from './panoramas';
+import { PLACE_WITHIN_M, placeFramesUrl } from './place-views';
 import { RAW_IMAGE_FEEDS } from './rover-images';
 import { MARS_WIND } from './sounds';
 import { ROVERS } from './rover';
@@ -313,6 +314,19 @@ export const SOURCES: readonly DataSource[] = [
     key: 'None',
     notes: 'Each was taken from one fixed spot, so the view does not move forward between two photographs. Listed in src/data/panoramas.ts.',
     reference: 'https://images.nasa.gov',
+  },
+  {
+    id: 'visor-place-frames',
+    name: 'Views from the stops of Perseverance',
+    publisher: 'NASA/JPL-Caltech, Mars 2020 raw images',
+    nasa: true,
+    kind: 'live',
+    gives: 'The navigation camera frames Perseverance took at a stop of its traverse, each with the stop it was taken at, the camera model and the orientation of the rover: enough to put every frame back where the camera pointed.',
+    usedIn: `The astronaut visor at Jezero Crater. Within ${PLACE_WITHIN_M} m of a stop where the rover looked all the way round, the scenery is the view from that stop, lined up with the compass.`,
+    endpoint: (placeFramesUrl('perseverance', 20) ?? '').replace('sol=20', 'sol={sol of the stop}'),
+    key: 'None',
+    notes: 'Only stops whose frames go all the way round are used; most of them are within about 130 m of the landing point. The feed of Curiosity leaves the stop of a frame empty, so Gale Crater has no such views. The frames allow no reading of their pixels from another site, so the sky above them and what evens out their exposure are drawn by copying colours from the frames, never by measuring them. Where the rover shows in its own frames was set by eye. Code in src/data/place-views.ts and src/mission/cahvore.ts.',
+    reference: 'https://mars.nasa.gov/mars2020/multimedia/raw-images/',
   },
   {
     id: 'mars-wind-sound',

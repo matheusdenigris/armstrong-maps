@@ -19,7 +19,8 @@ type WalkControlsProps = {
   /** The clock of the walk, or null before it starts. */
   clock: WalkClock | null;
   progress: WalkProgress;
-  onStart: () => void;
+  /** How the walk is started, shared with the verdict pills that start it too. */
+  start: WalkStart;
   onPause: () => void;
   onResume: () => void;
   onEnd: () => void;
@@ -56,41 +57,33 @@ function describe(
 
 const rateLabel = (rate: number) => (rate === 1 ? 'Real time' : `${rate}x`);
 
-/**
- * Starts and runs the simulated walk. The ship owns the walk: it starts, pauses and ends it, and
- * the astronaut's visor, in another tab or on another screen, follows.
- */
-export function WalkControls({
-  siteId,
-  stops,
-  clock,
-  progress,
-  onStart,
-  onPause,
-  onResume,
-  onEnd,
-  onRate,
-  plan,
-  turnedBack = false,
-  onReturn,
-}: WalkControlsProps) {
-  const over = clock !== null && progress.totalHours > 0 && progress.elapsedHours >= progress.totalHours;
-  const share = progress.totalHours > 0 ? progress.elapsedHours / progress.totalHours : 0;
-  // What the stop in hand is called inside a sentence: its name, or its place in the walk.
-  const at = progress.stop;
-  const place = at === null || !plan[at] ? 'the base' : (plan[at].name ?? `waypoint ${at + 1}`);
+export type WalkStart = {
+  /** The visor tab was asked for and the walk waits for it to load. */
+  waiting: boolean;
+  /** Opens the visor and starts the walk when it has loaded. */
+  begin: () => void;
+  /** Starts the walk at once, without waiting for the visor. */
+  beginNow: () => void;
+};
 
-  // Starting the walk also opens the visor, in its own tab: it is the other half of the walk, and
-  // easy to miss as a link. The walk itself begins when that tab has loaded and said so, so that
-  // nobody misses the first steps. A browser may refuse the tab: then the walk starts here at
-  // once, and the link below stays as the way in.
+/**
+ * Starting the walk also opens the visor, in its own tab: it is the other half of the walk, and
+ * easy to miss as a link. The walk itself begins when that tab has loaded and said so, so that
+ * nobody misses the first steps. A browser may refuse the tab: then the walk starts here at
+ * once, and the link in the walk panel stays as the way in.
+ *
+ * One start serves every control that starts the walk: the button of the walk panel and the
+ * verdict pills, which read GO and are pressed as if they were the button.
+ */
+export function useWalkStart(siteId: string, onStart: () => void): WalkStart {
   const [waiting, setWaiting] = useState(false);
-  const begin = useRef(onStart);
+  const start = useRef(onStart);
   useEffect(() => {
-    begin.current = onStart;
+    start.current = onStart;
   }, [onStart]);
 
-  const start = () => {
+  const begin = () => {
+    if (waiting) return;
     if (Platform.OS !== 'web') {
       onStart();
       return;
@@ -99,7 +92,7 @@ export function WalkControls({
     if (visor) setWaiting(true);
     else onStart();
   };
-  const startNow = () => {
+  const beginNow = () => {
     setWaiting(false);
     onStart();
   };
@@ -108,7 +101,7 @@ export function WalkControls({
     if (!waiting) return;
     const go = () => {
       setWaiting(false);
-      begin.current();
+      start.current();
     };
     const onStorage = (event: StorageEvent) => {
       if (event.key !== VISOR_READY_KEY || !event.newValue) return;
@@ -126,6 +119,35 @@ export function WalkControls({
       clearTimeout(timer);
     };
   }, [waiting, siteId]);
+
+  return { waiting, begin, beginNow };
+}
+
+/**
+ * Starts and runs the simulated walk. The ship owns the walk: it starts, pauses and ends it, and
+ * the astronaut's visor, in another tab or on another screen, follows.
+ */
+export function WalkControls({
+  siteId,
+  stops,
+  clock,
+  progress,
+  start,
+  onPause,
+  onResume,
+  onEnd,
+  onRate,
+  plan,
+  turnedBack = false,
+  onReturn,
+}: WalkControlsProps) {
+  const over = clock !== null && progress.totalHours > 0 && progress.elapsedHours >= progress.totalHours;
+  const share = progress.totalHours > 0 ? progress.elapsedHours / progress.totalHours : 0;
+  // What the stop in hand is called inside a sentence: its name, or its place in the walk.
+  const at = progress.stop;
+  const place = at === null || !plan[at] ? 'the base' : (plan[at].name ?? `waypoint ${at + 1}`);
+
+  const { waiting, begin, beginNow } = start;
 
   return (
     <View style={styles.block}>
@@ -162,14 +184,14 @@ export function WalkControls({
               <Text style={styles.note}>
                 The walk starts as soon as the visor has loaded in its tab.
               </Text>
-              <Button label="Start the walk without waiting" text="Start now" onPress={startNow} />
+              <Button label="Start the walk without waiting" text="Start now" onPress={beginNow} />
             </>
           ) : (
             <Button
               label="Start the walk"
               text="Start the walk"
               primary
-              onPress={start}
+              onPress={begin}
               disabled={stops === 0}
             />
           )}

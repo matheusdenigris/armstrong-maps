@@ -1,6 +1,6 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Platform,
   Pressable,
@@ -25,11 +25,13 @@ import {
   depressionOf,
   eyeDistance,
   lowestPitch,
+  lowestPitchOver,
   panoramaUrl,
   sceneForWalk,
   sceneStretch,
   scenesOf,
 } from '@/data/panoramas';
+import { PLACE_FEEDS, PLACE_FLOOR_DEG, PLACE_GALLERY, placeGaps } from '@/data/place-views';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { SITES, findSite, type Site } from '@/data/sites';
 import { MARS_WIND } from '@/data/sounds';
@@ -44,7 +46,7 @@ import {
   formatDuration,
   formatShare,
 } from '@/mission/format';
-import { bearing } from '@/mission/geo';
+import { bearing, distance, pointAlong } from '@/mission/geo';
 import {
   WORK_PLAYBACK,
   walkHoursPlayed,
@@ -59,6 +61,7 @@ import { AMBIENT_SOUND_AVAILABLE, useAmbientSound } from '@/state/use-ambient-so
 import { useFeed } from '@/state/use-feed';
 import { useNow } from '@/state/use-now';
 import { usePhoneLook } from '@/state/use-phone-look';
+import { usePlaceView } from '@/state/use-place-view';
 import { useReducedMotion } from '@/state/use-reduced-motion';
 
 /** One page per site in the static web export. */
@@ -152,35 +155,6 @@ function Visor({ site }: { site: Site }) {
   // The only weather station is at Gale; elsewhere there is no reading to put on the display.
   const weather = useFeed(site.id === 'gale' ? REMS_FEED : null, parseWeather);
 
-  // The ship console holds the start of a walk until this tab has something to show: say so
-  // once the first photograph is in, or after a while if it does not come.
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    let told = false;
-    const tell = () => {
-      if (told) return;
-      told = true;
-      try {
-        window.localStorage.setItem(
-          VISOR_READY_KEY,
-          JSON.stringify({ site: site.id, at: Date.now() }),
-        );
-      } catch {
-        // No storage here: the console starts the walk by itself after a few seconds.
-      }
-    };
-    const opening = scenesOf(site.id, site.landing).scenes[0];
-    const timer = setTimeout(tell, 6000);
-    if (opening) {
-      const first = new Image();
-      first.src = panoramaUrl(opening, false);
-      first.decode().then(tell, tell);
-    } else {
-      tell();
-    }
-    return () => clearTimeout(timer);
-  }, [site]);
-
   // The arrow keys turn the head too, for whoever is not using a pointer.
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -269,6 +243,70 @@ function Visor({ site }: { site: Site }) {
     stretch,
   );
   const { panorama, awayM, borrowed } = scene;
+  // Where a rover stopped near the walk and looked all the way round, the scenery is the view
+  // from that very place: its frames, each where the camera pointed. It is looked for once a
+  // stretch, about the middle of the ground the stretch covers, so it changes when the
+  // photographs do and not in between.
+  const atBase = progress.phase === 'at-base';
+  const stretchIndex = atBase ? 0 : Math.floor(Math.max(0, progress.walkedM) / stretch);
+  const walkPath = [site.landing, ...route, site.landing];
+  const stretchMiddle = (stretchIndex + 0.5) * stretch;
+  const lookFor = atBase ? site.landing : pointAlong(walkPath, stretchMiddle);
+  // Which way the astronaut walks over that ground, to the nearest ten degrees: a stop where
+  // the rover stands in that direction is passed over for one where the way ahead is clear.
+  const onward = atBase ? null : pointAlong(walkPath, stretchMiddle + 5);
+  const walkingTo =
+    lookFor && onward && distance(lookFor, onward) > 0.5
+      ? Math.round(bearing(lookFor, onward) / 10) * 10
+      : Math.round(progress.heading / 10) * 10;
+  const { view: place, settled: placeSettled } = usePlaceView(site, lookFor, walkingTo);
+  const placeAwayM = place ? distance(progress.position, place.stop.point) : null;
+  const placeGapsNow = useMemo(
+    () =>
+      place
+        ? placeGaps(place).map((gap) => ({
+            left: gap.from / 360,
+            right: gap.to / 360,
+            depression: -gap.top,
+          }))
+        : null,
+    [place],
+  );
+  const hasPlace = place !== null;
+
+  // The ship console holds the start of a walk until this tab has something to show: say so
+  // once the first photograph is in, or after a while if it does not come.
+  const told = useRef(false);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || told.current) return;
+    const tell = () => {
+      if (told.current) return;
+      told.current = true;
+      try {
+        window.localStorage.setItem(
+          VISOR_READY_KEY,
+          JSON.stringify({ site: site.id, at: Date.now() }),
+        );
+      } catch {
+        // No storage here: the console starts the walk by itself after a few seconds.
+      }
+    };
+    const opening = scenesOf(site.id, site.landing).scenes[0];
+    const timer = setTimeout(tell, 6000);
+    if (!placeSettled) {
+      // Still asking whether a rover photographed this very place; the timer covers a slow answer.
+    } else if (hasPlace) {
+      // Its frames are in the browser already.
+      tell();
+    } else if (opening) {
+      const first = new Image();
+      first.src = panoramaUrl(opening, false);
+      first.decode().then(tell, tell);
+    } else {
+      tell();
+    }
+    return () => clearTimeout(timer);
+  }, [site, placeSettled, hasPlace]);
   // How far through this scene's stretch the astronaut is: the view moves that far into it.
   // That slow move is the only movement of the picture. It does not rise and fall with the
   // steps: at the speeds a walk is played, that reads as shaking.
@@ -287,14 +325,20 @@ function Visor({ site }: { site: Site }) {
   // the way), the view is held a little higher, so that what is missing stays under the rim.
   const RAD = Math.PI / 180;
   const eye = size ? eyeDistance(size) : null;
-  const floor =
+  const reach =
     size && eye
-      ? lowestPitch(panorama, heading, {
+      ? {
           downDeg: Math.atan((size.height / 2 - rim) / eye) / RAD,
           sideDeg: Math.atan(size.width / 2 / eye) / RAD,
           lowest: PITCH_DOWN,
-        })
+        }
       : null;
+  // In the frames of a place it is the rover itself that stands in the way, behind the mast.
+  const floor = !reach
+    ? null
+    : placeGapsNow
+      ? lowestPitchOver(placeGapsNow, heading / 360, reach)
+      : lowestPitch(panorama, heading, reach);
   const pitch = floor === null ? look.pitch : Math.max(look.pitch, Math.min(PITCH_UP, floor));
 
   const onLayout = (event: LayoutChangeEvent) => {
@@ -442,9 +486,10 @@ function Visor({ site }: { site: Site }) {
         <meta name="description" content={`Astronaut visor for a walk at ${site.name} on Mars.`} />
       </Head>
 
-      {size ? (
+      {size && placeSettled ? (
         <PanoramaView
           panorama={panorama}
+          place={place}
           heading={heading}
           pitch={pitch}
           size={size}
@@ -460,7 +505,10 @@ function Visor({ site }: { site: Site }) {
           size={size}
           eye={eye}
           pitch={pitch}
-          groundEndsDeg={depressionOf(panorama, panorama.band.bottom)}
+          // The frames of a place are shown down to the same row all the way round.
+          groundEndsDeg={
+            place ? -PLACE_FLOOR_DEG : depressionOf(panorama, panorama.band.bottom)
+          }
           rim={rim}
         />
       ) : null}
@@ -643,8 +691,11 @@ function Visor({ site }: { site: Site }) {
             style={[styles.tag, !wide && styles.tagOwnLine]}
             numberOfLines={1}
             pointerEvents="none">
-            Simulated mission · real photo {scene.index + 1}/{scene.count} · drawn suit · sound of
-            Mars
+            {place && placeAwayM !== null
+              ? wide
+                ? `Simulated mission · real view from the rover stop nearest to here, ${formatDistance(placeAwayM)} away · drawn suit · sound of Mars`
+                : `Simulated mission · real view, rover stop ${formatDistance(placeAwayM)} away · drawn suit`
+              : `Simulated mission · real photo ${scene.index + 1}/${scene.count} · drawn suit · sound of Mars`}
           </Text>
           {phone.available ? (
             <Toggle
@@ -692,25 +743,43 @@ function Visor({ site }: { site: Site }) {
             {WALK_ASSUMPTIONS.walkingSpeedKmh} km/h on foot, a {WALK_ASSUMPTIONS.walkBackLimitKm} km
             walk-back limit.
           </Text>
-          <Text style={styles.sourcesText}>
-            Photo: {panorama.caption}. {panorama.credit}, images.nasa.gov/details/
-            {panorama.nasaId}. A real 360-degree mosaic taken by the rover;{' '}
-            {borrowed
-              ? `there is none from ${site.name}, so this one is from Gale Crater. `
-              : awayM === null
-                ? 'where exactly is not in the data. '
-                : `taken ${formatDistance(awayM)} from the simulated position. `}
-            {panorama.north === null
-              ? 'It is not lined up with the compass.'
-              : 'It is lined up with the compass.'}{' '}
-            Black areas are where the camera took no frame; the sky above the frames, and any gap in it, is filled in.
-            {panorama.groundGaps
-              ? ' Where this photograph has no ground to show, the view is held a little higher: ground is never drawn in.'
-              : ''}
-            {scene.count > 1
-              ? ` The scenery changes every ${formatDistance(stretch)} walked, through the ${scene.count} photographs of this site, to give the sense of ground being covered. Within a scene the view moves slowly into the still photograph. No camera filmed the way between two of them, and the dust in the cut from one to the next is drawn.`
-              : ''}
-          </Text>
+          {place && placeAwayM !== null ? (
+            <Text style={styles.sourcesText}>
+              Photo: {place.frames.length} frames of the navigation camera of{' '}
+              {PLACE_FEEDS[place.rover]?.name ?? 'the rover'}, taken on sol {place.stop.sol} from
+              the stop of its traverse nearest to the walk, {formatDistance(placeAwayM)} from the
+              simulated position.{' '}
+              {place.credit}, {PLACE_GALLERY}. The stop and its coordinates are in the traverse
+              NASA publishes, and each frame comes with the direction the camera pointed, so each
+              is placed where it was taken: the view is lined up with the compass. Drawn, not
+              photographed: the sky above the frames, in the colour they have at their top edge,
+              and the soft joins between two frames. The camera set its exposure frame by frame,
+              so each frame is brightened by how dark it made its own sky, which evens them out. The rover shows in its own frames, behind
+              its mast: facing that way, the view is held a little higher, and ground is never
+              drawn in. Away from a stop like this one the scenery is a photograph of the
+              site, changed every {formatDistance(stretch)} walked; the dust in the cut is drawn.
+            </Text>
+          ) : (
+            <Text style={styles.sourcesText}>
+              Photo: {panorama.caption}. {panorama.credit}, images.nasa.gov/details/
+              {panorama.nasaId}. A real 360-degree mosaic taken by the rover;{' '}
+              {borrowed
+                ? `there is none from ${site.name}, so this one is from Gale Crater. `
+                : awayM === null
+                  ? 'where exactly is not in the data. '
+                  : `taken ${formatDistance(awayM)} from the simulated position. `}
+              {panorama.north === null
+                ? 'It is not lined up with the compass.'
+                : 'It is lined up with the compass.'}{' '}
+              Black areas are where the camera took no frame; the sky above the frames, and any gap in it, is filled in.
+              {panorama.groundGaps
+                ? ' Where this photograph has no ground to show, the view is held a little higher: ground is never drawn in.'
+                : ''}
+              {scene.count > 1
+                ? ` The scenery changes every ${formatDistance(stretch)} walked, through the ${scene.count} photographs of this site, to give the sense of ground being covered. Within a scene the view moves slowly into the still photograph. No camera filmed the way between two of them, and the dust in the cut from one to the next is drawn.`
+                : ''}
+            </Text>
+          )}
           <Text style={styles.sourcesText}>
             Sound: real wind recorded by the SuperCam microphone of Perseverance at Jezero Crater on{' '}
             {MARS_WIND.when}, on a loop and played louder than published

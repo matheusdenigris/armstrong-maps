@@ -53,7 +53,7 @@ import {
   type MapRing,
 } from '@/components/surface-map';
 import { ShipLink, ShipLinkIdle } from '@/components/ship-link';
-import { WalkControls } from '@/components/walk-controls';
+import { useWalkStart, WalkControls } from '@/components/walk-controls';
 import { WalkLog } from '@/components/walk-log';
 import { logFilename, logText } from '@/components/walk-log-text';
 import {
@@ -427,6 +427,10 @@ function SiteMap({ site, sharedPlan }: SiteMapProps) {
     if (walking) setLink(site.id, link);
   }, [walking, link, setLink, site.id]);
   const walkOver = progress.totalHours > 0 && progress.elapsedHours >= progress.totalHours;
+  // One way to start the walk, for the button of the walk panel and for the verdict pills.
+  const walkStart = useWalkStart(site.id, () => startWalk(site.id));
+  const startFromVerdict =
+    !walking && route.length > 0 && !walkStart.waiting ? walkStart.begin : undefined;
   const dunesCache = useMemo(
     () => ({ key: `dunes-${site.id}`, freshForHours: DUNES_CACHE_HOURS }),
     [site.id],
@@ -901,6 +905,7 @@ function SiteMap({ site, sharedPlan }: SiteMapProps) {
         collapsible={false}
         expanded
         onToggle={() => undefined}
+        onStart={startFromVerdict}
       />
       {/* Why it is not a go comes right under the verdict, not at the foot of the panel. */}
       <VerdictReasons
@@ -937,7 +942,7 @@ function SiteMap({ site, sharedPlan }: SiteMapProps) {
         stops={route.length}
         clock={clock}
         progress={progress}
-        onStart={() => startWalk(site.id)}
+        start={walkStart}
         onPause={() => pauseWalk(site.id)}
         onResume={() => resumeWalk(site.id)}
         // The log of the walk is kept as it stands when the walk ends.
@@ -1101,6 +1106,7 @@ function SiteMap({ site, sharedPlan }: SiteMapProps) {
       scaleAfterToggle={desktopConsole && !layersVisible}
       showFoot={desktopConsole || tab === 'map'}
       onOpenWalk={desktopConsole ? undefined : () => setTab('walk')}
+      onStart={startFromVerdict}
     />
   );
 
@@ -1361,6 +1367,8 @@ type MapStageProps = {
   scaleAfterToggle: boolean;
   showFoot: boolean;
   onOpenWalk?: () => void;
+  /** Starts the walk from the verdict pill, while the walk can start. */
+  onStart?: () => void;
 };
 
 function MapStage({
@@ -1399,6 +1407,7 @@ function MapStage({
   scaleAfterToggle,
   showFoot,
   onOpenWalk,
+  onStart,
 }: MapStageProps) {
   return (
     <View style={styles.mapArea}>
@@ -1442,6 +1451,7 @@ function MapStage({
           scaleAfterToggle={scaleAfterToggle}
           showFoot={showFoot}
           onOpenWalk={onOpenWalk}
+          onStart={onStart}
         />
       </SurfaceMap>
     </View>
@@ -1465,6 +1475,8 @@ type MapHudProps = {
   scaleAfterToggle: boolean;
   showFoot: boolean;
   onOpenWalk?: () => void;
+  /** Starts the walk from the verdict pill, while the walk can start. */
+  onStart?: () => void;
 };
 
 /** Readouts sit on the map without competing with its gesture surface. */
@@ -1483,6 +1495,7 @@ function MapHud({
   desktop,
   showFoot,
   onOpenWalk,
+  onStart,
 }: MapHudProps) {
   const verdict = walkLabel(walk.verdict);
   const routeSummary = `${formatDistance(walk.totalM)} · ${formatDuration(walk.durationHours)}`;
@@ -1492,6 +1505,10 @@ function MapHud({
   const why = deciding
     ? `${reasonLabel(deciding)}${others > 0 ? ` +${others}` : ''}`
     : null;
+  // The pill reads GO, and people press it to go: then it starts the walk, like the button of
+  // the walk panel. With any other verdict it opens the plan, where the reasons are.
+  const starts = onStart !== undefined && walk.verdict === 'go';
+  const onPill = starts ? onStart : onOpenWalk;
 
   return (
     // It fills the map: without a size of its own, what is pinned to its bottom lands above it.
@@ -1514,14 +1531,14 @@ function MapHud({
         <View pointerEvents="box-none" style={[styles.mapFoot, desktop && styles.mapFootDesktop]}>
           {stops > 0 ? (
             <Pressable
-              onPress={onOpenWalk}
-              disabled={!onOpenWalk}
+              onPress={onPill}
+              disabled={!onPill}
               accessibilityRole="button"
-              accessibilityLabel={`Open walk plan. ${verdict}${why ? `, ${why}` : ''}. ${routeSummary}`}
+              accessibilityLabel={`${starts ? 'Start the walk' : 'Open walk plan'}. ${verdict}${why ? `, ${why}` : ''}. ${routeSummary}`}
               style={({ pressed }) => [
                 styles.routeStatus,
                 { borderColor: walkColor(walk) },
-                pressed && onOpenWalk && styles.routeStatusPressed,
+                pressed && onPill && styles.routeStatusPressed,
               ]}>
               <Text style={[styles.routeVerdict, { color: walkColor(walk) }]}>{verdict}</Text>
               {why ? <Text style={styles.routeWhy}>{why}</Text> : null}
