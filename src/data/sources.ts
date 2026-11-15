@@ -23,7 +23,7 @@ import { RAW_IMAGE_FEEDS } from './rover-images';
 import { MARS_WIND } from './sounds';
 import { ROVERS } from './rover';
 import { DONKI_BASE } from './space-weather';
-import { REMS_FEED } from './weather';
+import { MEDA_CREDIT, MEDA_FEED, REMS_FEED, SKY_WORD_CHECK } from './weather';
 import { AIR_DENSITY_SOURCE, INSIGHT_CREDIT } from './wind';
 import { COVERAGE, COVERAGE_READ_ON } from './coverage';
 import { RELIEF_EXAGGERATION, RELIEF_HEIGHT, RELIEF_WIDTH } from '@/mission/relief';
@@ -316,13 +316,27 @@ export const SOURCES: readonly DataSource[] = [
     publisher: 'Centro de Astrobiologia (CSIC-INTA), served by NASA/JPL on mars.nasa.gov',
     nasa: true,
     kind: 'live',
-    gives: 'Air and ground temperature, pressure, sky, ultraviolet, sunrise and sunset of the latest sol.',
+    gives: 'Air and ground temperature, pressure, ultraviolet, sunrise and sunset of the latest sol, and a word for the sky.',
     usedIn: 'The weather card in the Site tab.',
     endpoint: REMS_FEED,
     key: 'None',
     notes:
-      'Measured at Gale only; elsewhere it is a reference. An outreach feed that can be weeks behind today.',
+      `Measured at Gale only; elsewhere it is a reference. An outreach feed that can be weeks behind today. Its sky word is not a dust measurement: counted on ${SKY_WORD_CHECK.checkedOn}, it said "Sunny" on ${SKY_WORD_CHECK.sunny} of ${SKY_WORD_CHECK.sols} sols, the global dust storm of 2018 included.`,
     reference: 'https://mars.nasa.gov/msl/weather/',
+  },
+  {
+    id: 'meda-weather',
+    name: 'Perseverance MEDA weather',
+    publisher: MEDA_CREDIT,
+    nasa: true,
+    kind: 'live',
+    gives: 'Air temperature, pressure, sunrise and sunset at Jezero, on the last sol the feed has a reading for.',
+    usedIn: 'The card of weather measured at Jezero in the Site tab, above the Gale reference.',
+    endpoint: MEDA_FEED,
+    key: 'None',
+    notes:
+      'Read on 2026-11-14 the feed held seven sols, 1127 to 1133 (April 2024), three of them without a temperature, and had not moved since. It has no ground temperature, ultraviolet, wind or sky. The calibrated MEDA data is in the PDS as instrument files, an archive and not a feed.',
+    reference: 'https://mars.nasa.gov/mars2020/weather/',
   },
   {
     id: 'rad-average',
@@ -351,6 +365,19 @@ export const SOURCES: readonly DataSource[] = [
     key: 'None',
     notes: 'Mapped between 65° S and 65° N from THEMIS and MOC images. USGS data, served by NASA/JPL Mars Trek.',
     reference: 'https://pubs.usgs.gov/of/2007/1158/',
+  },
+  {
+    id: 'dust-season',
+    name: 'Dust storm season',
+    publisher: 'Kass et al. 2016, from the Mars Climate Sounder of NASA\'s Mars Reconnaissance Orbiter',
+    nasa: false,
+    kind: 'published',
+    gives: 'The half of the Mars year in which regional and global dust storms happen: solar longitude 180° to 360°.',
+    usedIn: 'The dust card of the Site tab, with the solar longitude of this moment.',
+    endpoint: 'Kass et al. 2016, Geophysical Research Letters 43, 6111',
+    key: 'None',
+    notes: 'A season, not a forecast, and it does not change the verdict. No feed of atmospheric opacity is published for any site.',
+    reference: 'https://doi.org/10.1002/2016GL068978',
   },
   {
     id: 'mars-radius',

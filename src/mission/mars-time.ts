@@ -207,3 +207,20 @@ export function formatMarsClock(hours: number): string {
   const total = Math.floor(mod(hours, 24) * 60);
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
+
+/**
+ * The dust storm season: the half of the Mars year, southern spring and summer, in which the
+ * regional and global dust storms happen (Kass et al. 2016, Geophysical Research Letters 43,
+ * doi:10.1002/2016GL068978, from the Mars Climate Sounder of MRO). A season, not a forecast: most
+ * of its sols have no storm over a given site, and a local storm can happen outside it.
+ */
+export const DUST_SEASON_LS = { from: 180, to: 360 } as const;
+
+export const DUST_SEASON_SOURCE =
+  'Kass et al. 2016, Geophysical Research Letters 43 (MRO Mars Climate Sounder)';
+
+/** Whether a solar longitude falls in the dust storm season. */
+export function inDustSeason(ls: number): boolean {
+  const wrapped = mod(ls, 360);
+  return wrapped >= DUST_SEASON_LS.from && wrapped < DUST_SEASON_LS.to;
+}

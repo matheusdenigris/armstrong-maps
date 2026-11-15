@@ -73,7 +73,7 @@ import {
   parseMarsArrivals,
   parseSepEvents,
 } from '@/data/space-weather';
-import { REMS_FEED, parseWeather } from '@/data/weather';
+import { MEDA_FEED, REMS_FEED, parseMedaWeather, parseWeather } from '@/data/weather';
 import { INSIGHT_SITE, insightWeatherUrl, parseInsightWind } from '@/data/wind';
 import type { MapView } from '@/mission/camera';
 import { elapsedSeconds } from '@/mission/clock';
@@ -303,6 +303,9 @@ function SiteMap({ site }: { site: Site }) {
   const chosenPoint = missionPoints.find((place) => place.id === chosenPointId) ?? null;
   const showSite = desktopConsole ? panelTab === 'site' : tab === 'site';
   const weather = useFeed(showSite ? REMS_FEED : null, parseWeather);
+  // Jezero has a station of its own, on Perseverance; its public feed stopped in 2024.
+  const hasOwnStation = site.rover === 'perseverance';
+  const ownWeather = useFeed(showSite && hasOwnStation ? MEDA_FEED : null, parseMedaWeather);
   // Space weather changes the verdict, so the CME forecast is asked for at once. The addresses
   // only change once a day, and each is asked for once per visit.
   const [visitStart] = useState(() => new Date());
@@ -647,6 +650,7 @@ function SiteMap({ site }: { site: Site }) {
         siteName={site.name}
         distanceFromGaleM={distance(site.landing, GALE)}
         weather={weather}
+        ownStation={hasOwnStation ? ownWeather : null}
         rover={rover ? { name: rover.name, track } : null}
         space={{ arrivals, sep, now: visitStart }}
       />
