@@ -531,6 +531,7 @@ function SiteMap({ site }: { site: Site }) {
       onCloseCoach={() => setCoachClosed(true)}
       walk={walk}
       stops={route.length}
+      locked={clock !== null}
       sources={sources}
       legends={coloured}
       desktop={desktopConsole}
@@ -774,6 +775,8 @@ type MapStageProps = {
   onCloseCoach: () => void;
   walk: WalkEvaluation;
   stops: number;
+  /** A walk is running, so the route cannot change. */
+  locked: boolean;
   sources: string;
   legends: readonly MapLayer[];
   desktop: boolean;
@@ -804,6 +807,7 @@ function MapStage({
   onCloseCoach,
   walk,
   stops,
+  locked,
   sources,
   legends,
   desktop,
@@ -836,6 +840,7 @@ function MapStage({
           view={view}
           walk={walk}
           stops={stops}
+          locked={locked}
           sources={sources}
           legends={legends}
           pointKeys={pointKeys}
@@ -855,6 +860,8 @@ type MapHudProps = {
   view: MapView;
   walk: WalkEvaluation;
   stops: number;
+  /** A walk is running, so the route cannot change. */
+  locked: boolean;
   sources: string;
   /** The layers that are on over the base: each gets its colour key on the map. */
   legends: readonly MapLayer[];
@@ -872,6 +879,7 @@ function MapHud({
   view,
   walk,
   stops,
+  locked,
   sources,
   legends,
   pointKeys,
@@ -942,7 +950,9 @@ function MapHud({
               <Text style={styles.mapHintText} numberOfLines={desktop ? 1 : 2}>
                 {stops === 0
                   ? 'Click or tap the map to mark a waypoint'
-                  : `${stops} ${stops === 1 ? 'waypoint' : 'waypoints'} · click or tap the map to add another`}
+                  : `${stops} ${stops === 1 ? 'waypoint' : 'waypoints'} · ${
+                      locked ? 'locked while the walk runs' : 'click or tap the map to add another'
+                    }`}
               </Text>
             )}
             <Text style={styles.mapCredit} numberOfLines={1}>
@@ -1612,7 +1622,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     overflow: 'hidden',
-    backgroundColor: Colors.glassStrong,
+    // Solid: the key and the labels of the map under it would show through the text.
+    backgroundColor: Colors.background,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.glassBorder,
     borderTopLeftRadius: Radius.pane,
