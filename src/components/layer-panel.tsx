@@ -1,5 +1,5 @@
 import Slider from '@react-native-community/slider';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -40,6 +40,8 @@ type LayerPanelProps = {
   /** The sets of published places of the site. A site without any leaves the group out. */
   points?: readonly PointSetRow[];
   onTogglePoints?: (id: PointSetId) => void;
+  /** A group that comes first, under the title: the hazards of the ground. */
+  lead?: ReactNode;
 };
 
 /** What the map has of a set that is on, in words. A gap is said, never filled. */
@@ -70,10 +72,12 @@ export function LayerPanel({
   onOpacity,
   points = [],
   onTogglePoints,
+  lead,
 }: LayerPanelProps) {
   return (
     <View style={styles.panel}>
       <PanelHeading title="Map layers" />
+      {lead}
       <CategoryHeading title="OPTICAL · ALWAYS ON" color={Colors.nav} />
       {base.map((layer) => (
         <View key={layer.id} style={styles.layer}>

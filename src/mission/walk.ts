@@ -76,6 +76,9 @@ const SEVERITY: Record<WalkReason, Verdict> = {
   'low-sun': 'caution',
 };
 
+/** How bad one reason is on its own: the verdict is the worst of them. */
+export const severityOf = (reason: WalkReason): Verdict => SEVERITY[reason];
+
 /** What is happening around the walk, from live sources. Unknown is left out. */
 export type WalkConditions = {
   /**

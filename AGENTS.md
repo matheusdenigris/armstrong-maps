@@ -65,7 +65,7 @@ screen needs a source or a "simulated" or "assumption" label.
   `src/constants/theme.ts`. Dark only.
   - Surfaces are glass: a faint fill (`glassLight`) with no outline or a hairline one
     (`glassBorder`). Cards have `Radius.card`, panels `Radius.pane`, buttons and chips
-    `Radius.pill`. No boxes with a coloured left edge, no corner brackets, no numbered headings.
+    `Radius.pill`. No boxes with a coloured left edge or a coloured outline (a card that is on gets a lighter fill, `glassHover`), no corner brackets, no numbered headings.
   - Type: Space Grotesk for text, in sentence case; JetBrains Mono only for numbers and
     coordinates; Michroma only for the ARMSTRONG MAPS wordmark. Secondary text is `textSoft`,
     captions `textFaint`.

@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { SectionHeading } from '@/components/console-parts';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { DUNE_CREDIT, type DuneField } from '@/data/dunes';
 import { TERRAIN_CREDIT } from '@/data/terrain';
@@ -24,7 +25,11 @@ type HazardPanelProps = {
 const percent = (share: number) =>
   share === 0 ? '0%' : share < 0.001 ? 'under 0.1%' : `${(share * 100).toFixed(1)}%`;
 
-/** Dangerous ground on the map: slopes too steep to walk, and fields of loose sand. */
+/**
+ * Dangerous ground on the map: slopes too steep to walk, and fields of loose sand. It is one
+ * group of the layers panel and is drawn like the others: a card is told apart by its switch and
+ * a lighter fill, never by a border.
+ */
 export function HazardPanel({
   slopeOn,
   dunesOn,
@@ -38,9 +43,7 @@ export function HazardPanel({
   const a = WALK_ASSUMPTIONS;
   return (
     <View style={styles.panel}>
-      <Text style={styles.kind} accessibilityRole="header">
-        HAZARDS
-      </Text>
+      <SectionHeading title="HAZARDS" color={Colors.caution} />
 
       <View style={[styles.card, slopeOn && styles.cardOn]}>
         <Switch
@@ -64,7 +67,7 @@ export function HazardPanel({
         ) : (
           <Text style={styles.note}>Add waypoints and the route is checked against this slope.</Text>
         )}
-        <Text style={styles.source}>
+        <Text style={styles.credit}>
           {TERRAIN_CREDIT}. A model gives the mean slope of each cell: a ledge or a boulder smaller
           than a cell does not show, so real ground can be steeper. The {a.cautionSlopeDeg}° and{' '}
           {a.noGoSlopeDeg}° limits are assumptions of this project, not NASA rules.
@@ -85,9 +88,9 @@ export function HazardPanel({
               : `${dunes.data.length} dune ${dunes.data.length === 1 ? 'field' : 'fields'} in this region, outlined on the map. Arrows point the way the wind that built them blew.`
             : dunes.status === 'failed'
               ? 'The dune database did not answer. No fields to show.'
-              : 'Asking the dune database.'}
+              : 'Fetching the dune database.'}
         </Text>
-        <Text style={styles.source}>
+        <Text style={styles.credit}>
           {DUNE_CREDIT}. Fields mapped from orbit between 65° S and 65° N; small patches of sand are
           not in it. A route into a field earns a caution.
         </Text>
@@ -129,7 +132,7 @@ function Switch({ on, onPress, title, subtitle }: SwitchProps) {
       accessibilityRole="switch"
       accessibilityState={{ checked: on }}
       accessibilityLabel={`${title}, ${subtitle}`}
-      style={styles.toggle}>
+      style={({ pressed }) => [styles.toggle, pressed && styles.togglePressed]}>
       <View style={[styles.switch, on && styles.switchOn]}>
         <View style={[styles.knob, on && styles.knobOn]} />
       </View>
@@ -144,25 +147,15 @@ function Switch({ on, onPress, title, subtitle }: SwitchProps) {
 const styles = StyleSheet.create({
   panel: {
     gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    paddingBottom: Spacing.two,
-  },
-  kind: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    letterSpacing: 1.5,
   },
   card: {
     gap: Spacing.two,
-    padding: Spacing.two + Spacing.one,
-    borderRadius: Radius.medium,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceRaised,
+    padding: Spacing.three,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
   },
   cardOn: {
-    borderColor: Colors.caution,
+    backgroundColor: Colors.glassHover,
   },
   toggle: {
     flexDirection: 'row',
@@ -170,24 +163,26 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     minHeight: 44,
   },
+  togglePressed: {
+    opacity: 0.76,
+  },
   switch: {
     width: 44,
     height: 26,
     borderRadius: 13,
-    padding: 3,
-    backgroundColor: Colors.border,
+    padding: Spacing.half,
+    backgroundColor: Colors.glassBorder,
   },
   switchOn: {
     backgroundColor: Colors.caution,
   },
   knob: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: Colors.textMuted,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.white,
   },
   knobOn: {
-    backgroundColor: Colors.background,
     marginLeft: 18,
   },
   text: {
@@ -198,17 +193,18 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontFamily: Fonts.sans,
     fontSize: 15,
-    fontWeight: '600',
+    lineHeight: 20,
   },
   subtitle: {
-    color: Colors.textMuted,
+    color: Colors.caution,
     fontFamily: Fonts.sans,
     fontSize: 12,
   },
   key: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.three,
+    columnGap: Spacing.three,
+    rowGap: Spacing.one,
   },
   swatch: {
     flexDirection: 'row',
@@ -216,27 +212,26 @@ const styles = StyleSheet.create({
     gap: Spacing.one + Spacing.half,
   },
   swatchColor: {
-    width: 14,
-    height: 14,
-    borderRadius: 3,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   swatchText: {
-    color: Colors.text,
-    fontFamily: Fonts.mono,
-    fontSize: 11,
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
   },
   area: {
     gap: Spacing.half,
   },
   areaTitle: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
   },
   areaText: {
-    color: Colors.text,
+    color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 13,
     lineHeight: 18,
@@ -245,19 +240,18 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontFamily: Fonts.sans,
     fontSize: 13,
-    fontWeight: '600',
     lineHeight: 18,
   },
   note: {
-    color: Colors.textMuted,
+    color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 13,
     lineHeight: 18,
   },
-  source: {
-    color: Colors.textMuted,
+  credit: {
+    color: Colors.textFaint,
     fontFamily: Fonts.sans,
     fontSize: 11,
-    lineHeight: 15,
+    lineHeight: 16,
   },
 });

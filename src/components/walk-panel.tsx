@@ -4,8 +4,10 @@ import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { CME_WINDOW, DONKI_CREDIT } from '@/data/space-weather';
 import { formatDistance, formatDose, formatDuration, formatShare } from '@/mission/format';
+import { formatMarsClock, localTrueSolarTime, marsTime } from '@/mission/mars-time';
 import {
   WALK_ASSUMPTIONS,
+  severityOf,
   type Verdict,
   type WalkAssumptions,
   type WalkEvaluation,
@@ -27,6 +29,17 @@ type WalkDetailsProps = {
   stops: number;
 };
 
+type VerdictReasonsProps = {
+  walk: WalkEvaluation;
+  stops: number;
+  /** The planned start, on Earth's clock, and the longitude of the base. */
+  start: Date;
+  lonEast: number;
+  /** The start can still move to the next morning: it is set to now and no walk is running. */
+  canDelay: boolean;
+  onDelay: () => void;
+};
+
 type RouteActionsProps = {
   stops: number;
   /** A walk is in progress: the route cannot be changed. */
@@ -41,8 +54,28 @@ const VERDICT: Record<Verdict, { label: string; color: string; meaning: string }
   'no-go': { label: 'NO-GO', color: Colors.noGo, meaning: 'The walk breaks a limit.' },
 };
 
-/** The sentence for each reason code. The numbers come from the assumptions in use. */
-function explain(reason: WalkReason, a: WalkAssumptions): string {
+/** Each reason in a few words, for a title and for the line on the map. */
+const REASON_LABEL: Record<WalkReason, string> = {
+  'life-support-exceeded': 'Longer than the life support',
+  'into-reserve': 'Into the life-support reserve',
+  'beyond-walk-back-limit': 'Too far from the base',
+  'near-walk-back-limit': 'Near the walk-back limit',
+  'cme-at-mars': 'Solar storm forecast',
+  'too-steep': 'Ground too steep',
+  'steep-ground': 'Steep ground',
+  'dune-field': 'Loose sand',
+  'starts-in-dark': 'Night at the base',
+  'into-night': 'Ends after sunset',
+  'low-sun': 'Low Sun',
+};
+
+export const reasonLabel = (reason: WalkReason): string => REASON_LABEL[reason];
+
+/**
+ * The sentence for each reason code. The numbers come from the assumptions in use; the local
+ * time of the start is said where the reason is the time and not the route.
+ */
+function explain(reason: WalkReason, a: WalkAssumptions, startTime?: string): string {
   switch (reason) {
     case 'life-support-exceeded':
       return `The walk takes longer than the ${a.lifeSupportHours} h of life support.`;
@@ -61,7 +94,9 @@ function explain(reason: WalkReason, a: WalkAssumptions): string {
     case 'dune-field':
       return `The route enters a mapped dune field: loose sand, where Spirit was trapped in 2009. Mars Global Digital Dune Database (USGS).`;
     case 'starts-in-dark':
-      return 'The Sun is below the horizon at the planned start. Plan the walk for the morning.';
+      return `The Sun is below the horizon at the planned start${
+        startTime ? ` (${startTime} local solar time at the base)` : ''
+      }. A walk in the dark is a no-go whatever the route: plan it for the morning.`;
     case 'into-night':
       return 'The walk would still be out when the Sun sets. Start earlier or shorten the route.';
     case 'low-sun':
@@ -97,6 +132,57 @@ export function WalkSummary({ walk, stops, collapsible, expanded, onToggle }: Wa
           onPress={onToggle}
         />
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * Why the verdict is not a go, right under it: one card a reason, in plain words. A walk refused
+ * for the dark offers the way out, which is to plan it for the morning.
+ */
+export function VerdictReasons({
+  walk,
+  stops,
+  start,
+  lonEast,
+  canDelay,
+  onDelay,
+}: VerdictReasonsProps) {
+  if (stops === 0 || walk.reasons.length === 0) return null;
+  const a = WALK_ASSUMPTIONS;
+  const startTime = formatMarsClock(localTrueSolarTime(marsTime(start), lonEast));
+
+  return (
+    <View style={styles.reasons}>
+      {walk.reasons.map((reason) => {
+        const dark = reason === 'starts-in-dark' || reason === 'into-night';
+        const sentence = explain(reason, a, startTime);
+        return (
+          <View key={reason} style={styles.reasonCard}>
+            <View
+              style={styles.reasonBody}
+              accessible
+              accessibilityLabel={`${VERDICT[severityOf(reason)].label}: ${REASON_LABEL[reason]}. ${sentence}`}>
+              <View style={styles.reasonHead}>
+                <View
+                  style={[styles.verdictDot, { backgroundColor: VERDICT[severityOf(reason)].color }]}
+                />
+                <Text style={styles.reasonTitle}>{REASON_LABEL[reason]}</Text>
+              </View>
+              <Text style={styles.reason}>{sentence}</Text>
+            </View>
+            {dark && canDelay ? (
+              <Pressable
+                onPress={onDelay}
+                accessibilityRole="button"
+                accessibilityLabel="Plan the walk for the next morning"
+                style={({ pressed }) => [styles.delay, pressed && styles.delayPressed]}>
+                <Text style={styles.delayText}>Plan for next morning</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -146,12 +232,6 @@ export function WalkDetails({ walk, stops }: WalkDetailsProps) {
         </View>
         <Text style={styles.verdictMeaning}>{verdict.meaning}</Text>
       </View>
-
-      {walk.reasons.map((reason) => (
-        <View key={reason} style={[styles.reasonCard, { borderLeftColor: verdict.color }]}>
-          <Text style={styles.reason}>{explain(reason, a)}</Text>
-        </View>
-      ))}
 
       <View style={styles.stats}>
         <Stat label="Out and back" value={formatDistance(walk.totalM)} />
@@ -330,14 +410,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  reasons: {
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingBottom: Spacing.two,
+  },
   reasonCard: {
+    gap: Spacing.two,
     paddingVertical: Spacing.two + Spacing.one,
     paddingHorizontal: Spacing.three,
     borderRadius: Radius.card,
     backgroundColor: Colors.glassLight,
   },
-  reason: {
+  reasonBody: {
+    gap: Spacing.one,
+  },
+  reasonHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  reasonTitle: {
+    flex: 1,
     color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  delay: {
+    alignSelf: 'flex-start',
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.glassHover,
+  },
+  delayPressed: {
+    opacity: 0.76,
+  },
+  delayText: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+  },
+  reason: {
+    color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 13,
     lineHeight: 19,
