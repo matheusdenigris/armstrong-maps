@@ -59,6 +59,7 @@ import {
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { ROVERS, parseRoverTrack } from '@/data/rover';
 import { RAW_IMAGE_FEEDS, parseRawImages, rawImagesUrl } from '@/data/rover-images';
+import { pageMetadata } from '@/constants/share';
 import { SITES, findSite, type Site } from '@/data/sites';
 import {
   donkiUrls,
@@ -87,6 +88,17 @@ import { useReducedMotion } from '@/state/use-reduced-motion';
 /** One page per site in the static web export. */
 export function generateStaticParams() {
   return SITES.map((site) => ({ id: site.id }));
+}
+
+/** The title, description and share cards written into the static HTML of each site's page. */
+export function generateMetadata(_request: unknown, params: Record<string, string | string[]>) {
+  const site = findSite(String(params.id));
+  if (!site) return null;
+  return pageMetadata(
+    `${site.name} | Armstrong Maps`,
+    `Map of ${site.name} on Mars. ${site.science}`,
+    `/site/${site.id}`,
+  );
 }
 
 /**
