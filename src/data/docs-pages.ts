@@ -10,8 +10,10 @@ import { formatLatLon } from '@/mission/format';
 import { MARS_RADIUS_M } from '@/mission/geo';
 import { WORK_PLAYBACK } from '@/mission/progress';
 import { LOW_MARGIN_HOURS } from '@/mission/safety';
+import { RELIEF_EXAGGERATION, RELIEF_HEIGHT, RELIEF_WIDTH } from '@/mission/relief';
 import { WALK_ASSUMPTIONS } from '@/mission/walk';
 
+import { COVERAGE, COVERAGE_READ_ON } from './coverage';
 import { GLOBAL_LAYERS, type LayerKind } from './layers';
 import { PANORAMAS, SCENE_EVERY_M, SCENE_MIN_SECONDS } from './panoramas';
 import { SURFACE_RADIATION } from './radiation';
@@ -102,6 +104,8 @@ const LAYER_TAGS: Record<LayerKind, string> = {
 
 const closeUps = SITES.reduce((count, site) => count + site.layers.length, 0);
 const liveSources = SOURCES.filter((source) => source.kind === 'live').length;
+/** The width of one cell of the relief grid at the equator, in whole kilometres. */
+const reliefCellKm = Math.round((2 * Math.PI * MARS_RADIUS_M) / RELIEF_WIDTH / 1000);
 const keyedSources = SOURCES.filter((source) => source.key !== 'None').length;
 const siteNames = SITES.map((site) => site.name.split(' ')[0]);
 const siteList = `${siteNames.slice(0, -1).join(', ')} or ${siteNames[siteNames.length - 1]}`;
@@ -163,7 +167,7 @@ const GUIDE: DocPage[] = [
           {
             kind: 'cards',
             items: [
-              { icon: 'globe', title: 'Globe', text: 'Mars from orbit, with the landing sites and the outline of their close-up imagery. Choose a site and fly down to it.', page: 'globe' },
+              { icon: 'globe', title: 'Globe', text: 'Mars from orbit, in the daylight it has now, with its relief, the landing sites and a pale patch on every area with close-up imagery. Choose a site and fly down to it.', page: 'globe' },
               { icon: 'map', title: 'Ship console', text: 'The map of a site with its layers, the route, the verdict and the live data.', page: 'console' },
               { icon: 'helmet', title: 'Astronaut visor', text: 'First person: life support, the way back, the next waypoint and alerts over a real rover panorama.', page: 'visor' },
               { icon: 'satellite', title: 'NASA data', text: 'Every map, rover, weather and space weather source, with the address the app calls.', page: 'data-overview' },
@@ -337,7 +341,27 @@ const GUIDE: DocPage[] = [
           },
           {
             kind: 'text',
-            text: 'The planet is textured with the Viking colour mosaic, the same imagery that is the base of every map. The marks of the landing sites lie on the ground, and each carries the outline of the area that has close-up imagery.',
+            text: 'The planet is textured with the Viking colour mosaic, the same imagery that is the base of every map. The marks of the landing sites lie on the ground.',
+          },
+        ],
+      },
+      {
+        id: 'shows',
+        title: 'What it shows',
+        blocks: [
+          {
+            kind: 'table',
+            rows: [
+              ['Day and night', 'The lit side is where it is day on Mars at this moment. The place where the Sun is overhead comes from the Mars24 algorithm of NASA GISS, the same one behind the Mars clock of a site, and it is worked out again every minute.'],
+              ['Relief', `The surface is raised with the MOLA and HRSC blended elevation model, on a grid of ${RELIEF_WIDTH} by ${RELIEF_HEIGHT} heights (about ${reliefCellKm} km a cell at the equator). It is drawn ${RELIEF_EXAGGERATION} times taller than it is: at true scale Olympus Mons would be a pixel or two.`],
+              ['Pale patches', `Each soft, pale patch on the ground is an area where Mars Trek publishes a regional image mosaic: ${COVERAGE.length} of them, from CTX, HiRISE and HRSC, read from the Mars Trek catalogue on ${COVERAGE_READ_ON} by a script. The five landing sites are among them. A patch fades towards its edge, and an area under 1.6° across is drawn that wide so it can be seen.`],
+            ],
+          },
+          {
+            kind: 'callout',
+            tone: 'note',
+            title: 'If the heights do not arrive',
+            text: 'The globe stays a smooth sphere, and the line under it no longer names the relief.',
           },
         ],
       },
@@ -349,7 +373,8 @@ const GUIDE: DocPage[] = [
             kind: 'list',
             items: [
               'The stars behind the globe are not a star catalogue.',
-              'The light on the globe travels with the camera; it is not the real position of the Sun.',
+              'The night side of the globe is lit faintly so the ground and the sites can be read; a real night on Mars is dark.',
+              'The glow round the planet is a hint of its thin atmosphere, not a measurement.',
             ],
           },
           {
@@ -800,7 +825,8 @@ const GUIDE: DocPage[] = [
             kind: 'list',
             items: [
               'The stars behind the globe are not a star catalogue.',
-              'The light on the globe travels with the camera; it is not the real position of the Sun.',
+              'The night side of the globe is lit faintly so the ground and the sites can be read; a real night on Mars is dark.',
+              'The glow round the planet is a hint of its thin atmosphere, not a measurement.',
             ],
           },
         ],

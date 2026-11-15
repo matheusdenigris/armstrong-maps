@@ -25,6 +25,8 @@ import { ROVERS } from './rover';
 import { DONKI_BASE } from './space-weather';
 import { REMS_FEED } from './weather';
 import { AIR_DENSITY_SOURCE, INSIGHT_CREDIT } from './wind';
+import { COVERAGE, COVERAGE_READ_ON } from './coverage';
+import { RELIEF_EXAGGERATION, RELIEF_HEIGHT, RELIEF_WIDTH } from '@/mission/relief';
 
 export type SourceKind =
   /** Read by the app every time it runs. */
@@ -80,11 +82,52 @@ export const SOURCES: readonly DataSource[] = [
     nasa: true,
     kind: 'catalogue',
     gives: 'The id, image format, deepest level and coverage of every layer.',
-    usedIn: 'The layer list in src/data/layers.ts and the site outlines on the globe.',
+    usedIn: 'The layer list in src/data/layers.ts.',
     endpoint: 'https://trek.nasa.gov/tiles/Mars/EQ/{layer}/1.0.0/WMTSCapabilities.xml',
     key: 'None',
     notes: 'Checked on 2026-11-14. A new layer is checked here before it is added.',
     reference: 'https://trek.nasa.gov/mars/',
+  },
+  {
+    id: 'mars-trek-catalogue',
+    name: 'Mars Trek catalogue: where regional mosaics exist',
+    publisher: 'NASA/JPL, Solar System Treks',
+    nasa: true,
+    kind: 'catalogue',
+    gives: `The area of every regional image mosaic Mars Trek publishes: ${COVERAGE.length} areas from CTX, HiRISE and HRSC.`,
+    usedIn: 'The pale patches on the globe (src/data/coverage.ts).',
+    endpoint:
+      'https://trek.nasa.gov/mars/TrekServices/ws/index/eq/searchItems?proj=urn:ogc:def:crs:EPSG::104905&start=0&rows=1000&facetKeys=itemType&facetValues=product',
+    key: 'None',
+    notes: `Read on ${COVERAGE_READ_ON} by scripts/build-coverage.mjs, which keeps the products in the category Imagery, Mosaic that cover a part of the planet. Not drawn by hand: run the script again to follow the catalogue.`,
+    reference: 'https://trek.nasa.gov/mars/',
+  },
+  {
+    id: 'globe-relief',
+    name: 'Relief of the globe',
+    publisher: 'NASA/JPL Mars Trek image services; MGS MOLA and Mars Express HRSC (NASA, ESA, DLR, FU Berlin), Fergason et al. 2018',
+    nasa: true,
+    kind: 'catalogue',
+    gives: `The height of the whole planet on a grid of ${RELIEF_WIDTH} by ${RELIEF_HEIGHT} cells, in metres above the MOLA areoid.`,
+    usedIn: 'The shape and the shading of the globe.',
+    endpoint:
+      'https://trek.nasa.gov/mars/trekarcgis/rest/services/Mars_MOLA_blend200ppx_HRSC_DEM_clon0dd_200mpp_lzw/ImageServer/exportImage?bbox=-180,-90,180,90&size=512,256&format=bsq&pixelType=S16&f=image',
+    key: 'None',
+    notes: `Read once by scripts/build-globe-relief.mjs and kept as public/globe/relief.bin, because the service takes about a minute to resample the planet. The globe draws it ${RELIEF_EXAGGERATION} times taller than it is, a project choice.`,
+    reference: 'https://astrogeology.usgs.gov/search/map/mars_mgs_mola_mex_hrsc_blended_dem_global_200m',
+  },
+  {
+    id: 'mars24-sun',
+    name: 'Mars24 algorithm: day and night on the globe',
+    publisher: 'NASA Goddard Institute for Space Studies, Allison and McEwen 2000',
+    nasa: true,
+    kind: 'published',
+    gives: 'The point of Mars that has the Sun overhead at a moment, from which the globe is lit.',
+    usedIn: 'The day and night sides of the globe (src/mission/mars-time.ts), and the Sun of a site when JPL Horizons does not answer.',
+    endpoint: 'Allison and McEwen 2000, Planetary and Space Science 48, 215',
+    key: 'None',
+    notes: 'Computed in the app, with no network. The tests check it against the worked examples NASA GISS publishes.',
+    reference: 'https://www.giss.nasa.gov/tools/mars24/help/algorithm.html',
   },
   {
     id: 'elevation-models',

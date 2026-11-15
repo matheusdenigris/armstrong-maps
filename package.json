@@ -48,6 +48,8 @@
     "lint": "expo lint",
     "test": "vitest run",
     "check:english": "node scripts/check-english.mjs",
+    "data:coverage": "node scripts/build-coverage.mjs",
+    "data:relief": "node scripts/build-globe-relief.mjs",
     "check": "npm run check:english && npm run typecheck && npm run lint && npm test"
   },
   "private": true

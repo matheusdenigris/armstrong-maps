@@ -103,6 +103,23 @@ durations are Earth hours; a sol is 24 h 40 min. Latitudes are used as the app s
 (planetocentric); Mars24 uses planetographic ones, under half a degree apart at the landing sites,
 which moves sunrise and sunset by under a minute.
 
+## The globe
+
+| What | In the app | Kind |
+|---|---|---|
+| Day and night | The lit side is where it is day on Mars at this moment. The point with the Sun overhead comes from the Mars24 algorithm of NASA GISS (`src/mission/mars-time.ts`), worked out again every minute | Computed from a published algorithm |
+| Relief | MOLA and HRSC blended elevation model (Fergason et al. 2018), resampled by the Mars Trek image service to 512 by 256 heights and kept as `public/globe/relief.bin` by `scripts/build-globe-relief.mjs` | Measured, coarse: about 42 km a cell at the equator |
+| How tall the relief is drawn | 6 times taller than it is (`RELIEF_EXAGGERATION` in `src/mission/relief.ts`). At true scale Olympus Mons is 0.6% of the radius of Mars, a pixel or two | Assumption |
+| Pale patches | The area of each regional image mosaic in the Mars Trek catalogue (CTX, HiRISE, HRSC), written to `src/data/coverage.ts` by `scripts/build-coverage.mjs` | Read from the catalogue, not drawn by hand. A patch fades towards its edge, and an area under 1.6° across is drawn that wide so it can be seen |
+
+The line under the globe names each of these. The relief is named only once the heights have
+arrived; if they do not, the globe is a smooth sphere.
+
+The cost of the relief on a phone was weighed before it went in: one file of 256 KB, a sphere of
+about 33,000 points moved once when the file arrives, and one small texture for the shading.
+Nothing is computed per frame. It was looked at in a desktop browser at phone width; it has not
+been timed on a physical phone.
+
 ## Not available yet
 
 - **Dust opacity (#42):** NASA serves no public opacity feed. The REMS feed gives the sky as a
@@ -247,4 +264,6 @@ taken.
 ## Decoration
 
 - The stars behind the globe are not a star catalogue.
-- The light on the globe travels with the camera; it is not the real position of the Sun.
+- The night side of the globe is lit faintly so the ground and the sites can be read; a real night
+  on Mars is dark.
+- The glow round the planet is a hint of its thin atmosphere, not a measurement.

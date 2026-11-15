@@ -18,6 +18,7 @@ import { GLOBE_AVAILABLE, MarsGlobe, type GlobeHandle } from '@/components/mars-
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { SITES, type Site } from '@/data/sites';
 import { formatLatLon } from '@/mission/format';
+import { RELIEF_EXAGGERATION } from '@/mission/relief';
 
 /** From this width the headline sits beside the globe instead of over its top. */
 const WIDE_LAYOUT = 900;
@@ -25,8 +26,25 @@ const WIDE_LAYOUT = 900;
 const SHORT_VIEWPORT = 520;
 
 const TAGLINE = 'A layered map of Mars for planning and following walks on the surface.';
-const CREDIT =
-  'Image: NASA/JPL/USGS, Viking MDIM 2.1 · Hackathon project, not affiliated with NASA';
+const IMAGE_CREDIT = 'Image: NASA/JPL/USGS, Viking MDIM 2.1';
+const PROJECT_CREDIT = 'Hackathon project, not affiliated with NASA';
+const CREDIT = `${IMAGE_CREDIT} · ${PROJECT_CREDIT}`;
+
+/**
+ * What the globe shows and where each part comes from. The relief is named only once the globe
+ * has raised its surface: until the heights arrive, and if they never do, it is a smooth sphere.
+ */
+function globeCredit(relief: boolean): string {
+  return [
+    IMAGE_CREDIT,
+    'Day and night: the Sun over Mars now (Mars24, NASA GISS)',
+    relief ? `Relief: MOLA and HRSC, drawn ${RELIEF_EXAGGERATION}× taller` : null,
+    'Pale patches: regional mosaics on NASA Mars Trek',
+    PROJECT_CREDIT,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
 
 /** A press on the web is a mouse event and on a phone a touch; both can be cancelled. */
 type Cancellable = { preventDefault: () => void };
@@ -63,6 +81,7 @@ export default function HomeScreen() {
   // while it fades out.
   const [hoveredSite, setHoveredSite] = useState<string | null>(null);
   const [briefed, setBriefed] = useState<Site | null>(null);
+  const [relief, setRelief] = useState(false);
   const hover = (site: Site | null) => {
     setHoveredSite(site ? site.id : null);
     if (site) setBriefed(site);
@@ -94,7 +113,13 @@ export default function HomeScreen() {
 
       {showGlobe ? (
         <View style={styles.stage}>
-          <MarsGlobe ref={globe} sites={SITES} onOpen={open} onHover={hover} />
+          <MarsGlobe
+            ref={globe}
+            sites={SITES}
+            onOpen={open}
+            onHover={hover}
+            onRelief={() => setRelief(true)}
+          />
           {/* The edges of the screen fall off into space, so the text reads over the stars. */}
           <View
             pointerEvents="none"
@@ -121,7 +146,7 @@ export default function HomeScreen() {
             )}
             <SiteDock picked={pickedSite} onPress={choose} onHover={hover} wide={wide} />
             <Text pointerEvents="none" style={styles.credit}>
-              {CREDIT}
+              {globeCredit(relief)}
             </Text>
           </View>
         </View>
