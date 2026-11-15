@@ -35,9 +35,12 @@ type VerdictReasonsProps = {
   /** The planned start, on Earth's clock, and the longitude of the base. */
   start: Date;
   lonEast: number;
-  /** The start can still move to the next morning: it is set to now and no walk is running. */
-  canDelay: boolean;
+  /** The walk is simulated in daylight: its start was moved to the next morning. */
+  delayed: boolean;
+  /** A walk is running, so its start cannot move. */
+  locked: boolean;
   onDelay: () => void;
+  onNow: () => void;
 };
 
 type RouteActionsProps = {
@@ -96,9 +99,9 @@ function explain(reason: WalkReason, a: WalkAssumptions, startTime?: string): st
     case 'starts-in-dark':
       return `The Sun is below the horizon at the planned start${
         startTime ? ` (${startTime} local solar time at the base)` : ''
-      }. A walk in the dark is a no-go whatever the route: plan it for the morning.`;
+      }, and a walk in the dark is a no-go whatever the route. Simulate it in daylight to check the route itself.`;
     case 'into-night':
-      return 'The walk would still be out when the Sun sets. Start earlier or shorten the route.';
+      return 'The walk would still be out when the Sun sets. Shorten the route, or simulate it in daylight, from the morning.';
     case 'low-sun':
       return `The Sun gets lower than ${a.lowSunDeg}° during the walk: long shadows hide holes and rocks. The limit is a project assumption.`;
   }
@@ -137,23 +140,44 @@ export function WalkSummary({ walk, stops, collapsible, expanded, onToggle }: Wa
 }
 
 /**
- * Why the verdict is not a go, right under it: one card a reason, in plain words. A walk refused
- * for the dark offers the way out, which is to plan it for the morning.
+ * Why the verdict is not a go, right under it: one card a reason, in plain words. The hour never
+ * stops anyone from trying a route: a walk refused for the dark can be simulated in daylight,
+ * which moves its start to the next morning, and the panel says so while that holds.
  */
 export function VerdictReasons({
   walk,
   stops,
   start,
   lonEast,
-  canDelay,
+  delayed,
+  locked,
   onDelay,
+  onNow,
 }: VerdictReasonsProps) {
-  if (stops === 0 || walk.reasons.length === 0) return null;
+  if (stops === 0 || (walk.reasons.length === 0 && !delayed)) return null;
+  const canDelay = !delayed && !locked;
   const a = WALK_ASSUMPTIONS;
   const startTime = formatMarsClock(localTrueSolarTime(marsTime(start), lonEast));
 
   return (
     <View style={styles.reasons}>
+      {delayed ? (
+        <View style={styles.daylight}>
+          <Text style={styles.daylightText}>
+            Simulated in daylight: the walk starts the next morning, at {startTime} local solar
+            time.
+          </Text>
+          {locked ? null : (
+            <Pressable
+              onPress={onNow}
+              accessibilityRole="button"
+              accessibilityLabel="Use the time now at the base instead"
+              style={({ pressed }) => [styles.delay, pressed && styles.delayPressed]}>
+              <Text style={styles.delayText}>Use the time now</Text>
+            </Pressable>
+          )}
+        </View>
+      ) : null}
       {walk.reasons.map((reason) => {
         const dark = reason === 'starts-in-dark' || reason === 'into-night';
         const sentence = explain(reason, a, startTime);
@@ -175,9 +199,9 @@ export function VerdictReasons({
               <Pressable
                 onPress={onDelay}
                 accessibilityRole="button"
-                accessibilityLabel="Plan the walk for the next morning"
+                accessibilityLabel="Simulate the walk in daylight, starting the next morning"
                 style={({ pressed }) => [styles.delay, pressed && styles.delayPressed]}>
-                <Text style={styles.delayText}>Plan for next morning</Text>
+                <Text style={styles.delayText}>Simulate in daylight</Text>
               </Pressable>
             ) : null}
           </View>
@@ -421,6 +445,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     borderRadius: Radius.card,
     backgroundColor: Colors.glassLight,
+  },
+  daylight: {
+    gap: Spacing.two,
+    paddingVertical: Spacing.two + Spacing.one,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
+  },
+  daylightText: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    lineHeight: 19,
   },
   reasonBody: {
     gap: Spacing.one,

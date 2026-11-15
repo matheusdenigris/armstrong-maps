@@ -593,8 +593,10 @@ function SiteMap({ site }: { site: Site }) {
         stops={route.length}
         start={plannedStart}
         lonEast={site.landing.lon}
-        canDelay={startPlan === 'now' && clock === null}
+        delayed={startPlan === 'morning'}
+        locked={clock !== null}
         onDelay={() => setStartPlan('morning')}
+        onNow={() => setStartPlan('now')}
       />
       <RouteActions
         stops={route.length}
