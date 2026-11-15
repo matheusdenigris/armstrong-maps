@@ -38,7 +38,13 @@ import {
   type MapRing,
 } from '@/components/surface-map';
 import { WalkControls } from '@/components/walk-controls';
-import { RouteActions, WalkDetails, WalkSummary } from '@/components/walk-panel';
+import {
+  RouteActions,
+  VerdictReasons,
+  WalkDetails,
+  WalkSummary,
+  reasonLabel,
+} from '@/components/walk-panel';
 import { WindPanel } from '@/components/wind-panel';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { duneQueryUrl, parseDunes } from '@/data/dunes';
@@ -59,6 +65,7 @@ import {
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { ROVERS, parseRoverTrack } from '@/data/rover';
 import { RAW_IMAGE_FEEDS, parseRawImages, rawImagesUrl } from '@/data/rover-images';
+import { pageMetadata } from '@/constants/share';
 import { SITES, findSite, type Site } from '@/data/sites';
 import {
   donkiUrls,
@@ -74,7 +81,7 @@ import { formatDistance, formatDuration, formatLatLon } from '@/mission/format';
 import { distance } from '@/mission/geo';
 import { walkHoursPlayed, walkProgress } from '@/mission/progress';
 import { TILE_PIXELS, tileSpan } from '@/mission/tiles';
-import { WALK_ASSUMPTIONS, evaluateWalk, type WalkEvaluation } from '@/mission/walk';
+import { WALK_ASSUMPTIONS, evaluateWalk, severityOf, type WalkEvaluation } from '@/mission/walk';
 import { MAX_WAYPOINTS, useMission, useRoute } from '@/state/mission';
 import { useFeed } from '@/state/use-feed';
 import { useTerrain } from '@/state/use-terrain';
@@ -87,6 +94,17 @@ import { useReducedMotion } from '@/state/use-reduced-motion';
 /** One page per site in the static web export. */
 export function generateStaticParams() {
   return SITES.map((site) => ({ id: site.id }));
+}
+
+/** The title, description and share cards written into the static HTML of each site's page. */
+export function generateMetadata(_request: unknown, params: Record<string, string | string[]>) {
+  const site = findSite(String(params.id));
+  if (!site) return null;
+  return pageMetadata(
+    `${site.name} | Armstrong Maps`,
+    `Map of ${site.name} on Mars. ${site.science}`,
+    `/site/${site.id}`,
+  );
 }
 
 /**
@@ -536,17 +554,19 @@ function SiteMap({ site }: { site: Site }) {
 
   const layersContent = (
     <>
-      <HazardPanel
-        slopeOn={hazards.slope}
-        dunesOn={hazards.dunes}
-        onToggleSlope={() => setHazards((value) => ({ ...value, slope: !value.slope }))}
-        onToggleDunes={() => setHazards((value) => ({ ...value, dunes: !value.dunes }))}
-        near={terrain.near}
-        around={terrain.around}
-        dunes={dunes}
-        route={groundSlope}
-      />
       <LayerPanel
+        lead={
+          <HazardPanel
+            slopeOn={hazards.slope}
+            dunesOn={hazards.dunes}
+            onToggleSlope={() => setHazards((value) => ({ ...value, slope: !value.slope }))}
+            onToggleDunes={() => setHazards((value) => ({ ...value, dunes: !value.dunes }))}
+            near={terrain.near}
+            around={terrain.around}
+            dunes={dunes}
+            route={groundSlope}
+          />
+        }
         base={base}
         overlays={OVERLAYS}
         active={overlays}
@@ -566,6 +586,17 @@ function SiteMap({ site }: { site: Site }) {
         collapsible={false}
         expanded
         onToggle={() => undefined}
+      />
+      {/* Why it is not a go comes right under the verdict, not at the foot of the panel. */}
+      <VerdictReasons
+        walk={walk}
+        stops={route.length}
+        start={plannedStart}
+        lonEast={site.landing.lon}
+        delayed={startPlan === 'morning'}
+        locked={clock !== null}
+        onDelay={() => setStartPlan('morning')}
+        onNow={() => setStartPlan('now')}
       />
       <RouteActions
         stops={route.length}
@@ -1043,6 +1074,12 @@ function MapHud({
 }: MapHudProps) {
   const verdict = walkLabel(walk.verdict);
   const routeSummary = `${formatDistance(walk.totalM)} · ${formatDuration(walk.durationHours)}`;
+  // The reason that decides the verdict, in a few words, so the map never says no without why.
+  const deciding = walk.reasons.find((reason) => severityOf(reason) === walk.verdict);
+  const others = walk.reasons.length - 1;
+  const why = deciding
+    ? `${reasonLabel(deciding)}${others > 0 ? ` +${others}` : ''}`
+    : null;
 
   return (
     // It fills the map: without a size of its own, what is pinned to its bottom lands above it.
@@ -1068,13 +1105,14 @@ function MapHud({
               onPress={onOpenWalk}
               disabled={!onOpenWalk}
               accessibilityRole="button"
-              accessibilityLabel={`Open walk plan. ${verdict}. ${routeSummary}`}
+              accessibilityLabel={`Open walk plan. ${verdict}${why ? `, ${why}` : ''}. ${routeSummary}`}
               style={({ pressed }) => [
                 styles.routeStatus,
                 { borderColor: walkColor(walk) },
                 pressed && onOpenWalk && styles.routeStatusPressed,
               ]}>
               <Text style={[styles.routeVerdict, { color: walkColor(walk) }]}>{verdict}</Text>
+              {why ? <Text style={styles.routeWhy}>{why}</Text> : null}
               <Text style={styles.routeSummary}>{routeSummary}</Text>
             </Pressable>
           ) : null}
@@ -1561,8 +1599,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     letterSpacing: 0.6,
   },
-  routeSummary: {
+  routeWhy: {
     color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+  },
+  routeSummary: {
+    color: Colors.textSoft,
     fontFamily: Fonts.mono,
     fontSize: 12,
   },

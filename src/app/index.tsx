@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Logo } from '@/components/logo';
 import { GLOBE_AVAILABLE, MarsGlobe, type GlobeHandle } from '@/components/mars-globe';
+import { pageMetadata, TAGLINE } from '@/constants/share';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { SITES, type Site } from '@/data/sites';
 import { formatLatLon } from '@/mission/format';
@@ -25,7 +26,6 @@ const WIDE_LAYOUT = 900;
 /** A phone on its side: there is room for the globe and the sites, not for the headline's text. */
 const SHORT_VIEWPORT = 520;
 
-const TAGLINE = 'A layered map of Mars for planning and following walks on the surface.';
 const IMAGE_CREDIT = 'Image: NASA/JPL/USGS, Viking MDIM 2.1';
 const PROJECT_CREDIT = 'Hackathon project, not affiliated with NASA';
 const CREDIT = `${IMAGE_CREDIT} · ${PROJECT_CREDIT}`;
@@ -69,6 +69,11 @@ function useHydrated() {
     () => true,
     () => false,
   );
+}
+
+/** The title, description and share cards written into the static HTML of the home page. */
+export function generateMetadata() {
+  return pageMetadata('Armstrong Maps', TAGLINE, '/');
 }
 
 export default function HomeScreen() {

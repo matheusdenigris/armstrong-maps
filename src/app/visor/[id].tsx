@@ -460,19 +460,24 @@ function Visor({ site }: { site: Site }) {
             <Text style={styles.alertText}>{alertText(alert, safety)}</Text>
           </View>
         ))}
+
+        {/* The point to walk to, at the side so it does not cover the way ahead. It follows
+            the state of the mission and any alert, so it never lands on top of them. */}
+        {moving ? (
+          <View style={[styles.side, { marginLeft: insets.left + Spacing.three }]} pointerEvents="none">
+            <Target
+              progress={progress}
+              offTarget={offTarget}
+              etaHours={etaHours}
+              stops={route.length}
+            />
+          </View>
+        ) : null}
       </View>
 
-      {/* Through the glass: the point to walk to. */}
+      {/* Through the glass: where the astronaut looks. The middle of the view stays clear. */}
       <View style={[styles.through, { bottom: rim }]} pointerEvents="none">
         <View style={styles.reticle} />
-        {moving ? (
-          <Target
-            progress={progress}
-            offTarget={offTarget}
-            etaHours={etaHours}
-            stops={route.length}
-          />
-        ) : null}
         {clock === null ? (
           <View style={[styles.waiting, GLASS]}>
             <Text style={styles.waitingText}>
@@ -866,13 +871,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
+  side: {
+    alignSelf: 'flex-start',
+  },
   target: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: Spacing.one,
-    minWidth: 200,
-    paddingHorizontal: Spacing.four,
+    minWidth: 150,
+    maxWidth: 230,
+    paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.three,
-    borderRadius: Radius.large,
+    borderRadius: Radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
     backgroundColor: Colors.glassDark,
@@ -885,14 +894,14 @@ const styles = StyleSheet.create({
   targetValue: {
     color: Colors.text,
     fontFamily: Fonts.mono,
-    fontSize: 30,
-    lineHeight: 36,
+    fontSize: 26,
+    lineHeight: 32,
   },
   targetHint: {
     color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 13,
-    textAlign: 'center',
+    lineHeight: 18,
   },
   work: {
     alignSelf: 'stretch',

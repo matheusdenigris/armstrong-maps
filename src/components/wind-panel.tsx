@@ -43,7 +43,7 @@ export function WindPanel({ siteName, distanceFromInsightM, sols, dunes }: WindP
       ) : null}
       <View style={styles.card}>
         {sols.status === 'idle' || sols.status === 'loading' ? (
-          <Text style={styles.note}>Asking for InSight&apos;s wind.</Text>
+          <Text style={styles.note}>Fetching InSight&apos;s wind.</Text>
         ) : null}
         {sols.status === 'failed' ? (
           <Text style={styles.note}>The InSight feed did not answer. No wind to show.</Text>
@@ -103,7 +103,7 @@ export function WindPanel({ siteName, distanceFromInsightM, sols, dunes }: WindP
           {dunes.status !== 'ready'
             ? dunes.status === 'failed'
               ? 'The dune database did not answer.'
-              : 'Asking the dune database.'
+              : 'Fetching the dune database.'
             : shaped.length === 0
               ? 'No dune field with measured slip faces in this region.'
               : shaped
@@ -127,7 +127,7 @@ function WindRose({ fromDeg }: { fromDeg: number | null }) {
   const size = 72;
   const c = size / 2;
   return (
-    <Svg width={size} height={size} accessible={false}>
+    <Svg width={size} height={size}>
       <Circle cx={c} cy={c} r={c - 2} stroke={Colors.border} strokeWidth={1.5} fill="none" />
       <Line x1={c} y1={4} x2={c} y2={12} stroke={Colors.textMuted} strokeWidth={2} />
       {fromDeg !== null ? (
@@ -153,10 +153,10 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.three,
   },
   heading: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    letterSpacing: 1.5,
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    letterSpacing: 0.6,
     paddingTop: Spacing.two,
   },
   warning: {
@@ -171,10 +171,8 @@ const styles = StyleSheet.create({
   card: {
     gap: Spacing.two,
     padding: Spacing.two + Spacing.one,
-    borderRadius: Radius.medium,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
   },
   top: {
     flexDirection: 'row',

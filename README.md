@@ -64,7 +64,7 @@ The app has three views:
   with the Earth, and the prevailing wind written in the slip faces of the region's dunes.
 - **Mars clock and daylight**: the Sun over each site from NASA/JPL Horizons, and local solar time
   with the Mars24 algorithm of NASA GISS, which also takes over when Horizons does not answer. A walk that starts in the dark or runs into the night is a
-  no-go; plan it for now or for the next morning.
+  no-go, and the panel offers to simulate it in daylight, from the next morning.
 - **Safety check**: every factor of the verdict on one card (life support, walk-back limit,
   daylight, radiation, space weather, steep ground, loose sand), each with its status and source.
   A factor whose source has not answered says so instead of passing.

@@ -108,7 +108,7 @@ function SunDial({ ltst, up }: { ltst: number; up: boolean }) {
   const x = cx + r * Math.cos(angle);
   const y = cy - r * Math.sin(angle);
   return (
-    <Svg width={width} height={height} accessible={false}>
+    <Svg width={width} height={height}>
       <Path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} stroke={Colors.border} strokeWidth={2} fill="none" />
       <Line x1={4} y1={cy} x2={width - 4} y2={cy} stroke={Colors.textMuted} strokeWidth={1} />
       <Circle cx={x} cy={y} r={6} fill={up ? Colors.caution : Colors.surface} stroke={Colors.caution} strokeWidth={1.5} />
@@ -123,18 +123,16 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.two,
   },
   heading: {
-    color: Colors.textMuted,
-    fontFamily: Fonts.mono,
-    fontSize: 10,
-    letterSpacing: 1.5,
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    letterSpacing: 0.6,
   },
   card: {
     gap: Spacing.three,
     padding: Spacing.two + Spacing.one,
-    borderRadius: Radius.medium,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceRaised,
+    borderRadius: Radius.card,
+    backgroundColor: Colors.glassLight,
   },
   top: {
     flexDirection: 'row',
