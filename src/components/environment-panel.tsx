@@ -14,7 +14,6 @@ import {
 import {
   MEDA_CREDIT,
   REMS_CREDIT,
-  SKY_WORD_CHECK,
   STALE_AFTER_DAYS,
   describeAge,
   latestMeasured,
@@ -22,7 +21,6 @@ import {
   type SolWeather,
 } from '@/data/weather';
 import { formatDistance, formatLatLon } from '@/mission/format';
-import { DUST_SEASON_LS, DUST_SEASON_SOURCE, inDustSeason, marsTime } from '@/mission/mars-time';
 import type { Feed } from '@/state/use-feed';
 
 type EnvironmentPanelProps = {
@@ -60,9 +58,6 @@ export function EnvironmentPanel({
   // The feed can stop for months: how old the reading is belongs beside the reading.
   const age = latest ? readingAgeDays(latest.earthDate, space.now) : null;
   const stale = age !== null && age > STALE_AFTER_DAYS;
-  // The season comes from the Mars clock, so it is of this moment even when the feed is old.
-  const ls = marsTime(space.now).ls;
-  const dusty = inDustSeason(ls);
 
   return (
     <View style={styles.panel}>
@@ -123,36 +118,6 @@ export function EnvironmentPanel({
           </Text>
         </View>
       ) : null}
-
-      <SectionHeading title="DUST · NO MEASUREMENT" color={Colors.caution} />
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>No dust reading is published for any site</Text>
-        <Text style={styles.note}>
-          NASA serves no feed of atmospheric opacity. The sky word of the weather feed said
-          &quot;Sunny&quot; on {SKY_WORD_CHECK.sunny.toLocaleString('en-US')} of its{' '}
-          {SKY_WORD_CHECK.sols.toLocaleString('en-US')} sols, the {SKY_WORD_CHECK.stormSols2018}{' '}
-          sols of the global dust storm of 2018 included, so it does not tell dust from clear sky.
-        </Text>
-        <View style={styles.grid}>
-          <View style={[styles.reading, styles.readingWide]}>
-            <Text style={styles.readingLabel}>Season on Mars now</Text>
-            <Text style={styles.readingValue}>
-              Ls {Math.round(ls)}° · {dusty ? 'in' : 'outside'} the dust storm season (Ls{' '}
-              {DUST_SEASON_LS.from}° to {DUST_SEASON_LS.to}°)
-            </Text>
-          </View>
-        </View>
-        <Text style={styles.note}>
-          {dusty
-            ? 'Regional and global dust storms happen in this half of the Mars year. A season is not a forecast: check the latest orbital images before a walk.'
-            : 'The large dust storms happen in the other half of the Mars year. A local storm can still rise at any time.'}{' '}
-          Dust does not change the walk verdict: there is no measurement to judge it with.
-        </Text>
-        <Text style={styles.source}>
-          Season: {DUST_SEASON_SOURCE}; Ls from the Mars24 algorithm (NASA GISS). Sky word counted
-          over the whole feed on {SKY_WORD_CHECK.checkedOn}.
-        </Text>
-      </View>
 
       <SectionHeading title="RADIATION · PUBLISHED AVERAGE" color={Colors.caution} />
       <View style={styles.card}>

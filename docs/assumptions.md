@@ -126,10 +126,9 @@ been timed on a physical phone.
   REMS feed has a word for the sky, and it is not a measurement of dust: counted over the whole
   feed on 2026-11-14, it said "Sunny" on 4,742 of 4,745 sols, the 81 sols of the global dust
   storm of 2018 (10 June to 31 August) included. The Site tab shows it as "Sky, as the feed words
-  it" and says so. What the app can state is the season: the dust card gives the solar longitude
-  of this moment (Mars24 algorithm) and whether it falls in the dust storm season, Ls 180° to
-  360° (Kass et al. 2016, Geophysical Research Letters 43, from the Mars Climate Sounder of MRO).
-  A season is not a forecast, so **dust does not enter the verdict**. Other places opacity exists,
+  it". With no measurement, the app shows nothing about dust and **dust does not enter the
+  verdict**: a card built on the season alone was tried and taken out, because a season is not a
+  reading. Other places opacity exists,
   none of them a feed: the calibrated REMS and MEDA files in the PDS, and the weekly Mars weather
   reports of MSSS from the MARCI camera, which are written text.
 - **Weather at Jezero (#41):** the public MEDA feed of Perseverance held seven sols on 2026-11-14,

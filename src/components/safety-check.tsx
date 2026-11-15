@@ -4,13 +4,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { formatDistance, formatDose, formatDuration, formatShare } from '@/mission/format';
-import {
-  formatMarsClock,
-  inDustSeason,
-  localTrueSolarTime,
-  marsTime,
-  type WalkDaylight,
-} from '@/mission/mars-time';
+import { formatMarsClock, localTrueSolarTime, marsTime, type WalkDaylight } from '@/mission/mars-time';
 import type { RouteSlope } from '@/mission/terrain';
 import { WALK_ASSUMPTIONS, type WalkEvaluation, type WalkReason } from '@/mission/walk';
 
@@ -85,7 +79,6 @@ export function SafetyCheck({
   const a = WALK_ASSUMPTIONS;
   const r = walk.reasons;
   const empty = stops === 0;
-  const ls = marsTime(start).ls;
 
   const rows: { title: string; status: Status; value: string; source: string }[] = [
     {
@@ -136,13 +129,6 @@ export function SafetyCheck({
             ? 'A CME is forecast to hit Mars around the walk.'
             : 'No CME forecast to hit Mars around the walk.',
       source: 'NASA DONKI',
-    },
-    {
-      // No source measures dust, so this factor never passes: it says it was not checked.
-      title: 'Dust',
-      status: 'unknown',
-      value: `No opacity reading is published. Ls ${Math.round(ls)}°: ${inDustSeason(ls) ? 'in' : 'outside'} the dust storm season.`,
-      source: 'No feed; season from Kass et al. 2016',
     },
     {
       title: 'Steep ground',

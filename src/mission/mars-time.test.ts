@@ -8,7 +8,6 @@ import {
   marsTime,
   nextSunCrossing,
   season,
-  inDustSeason,
   sunElevation,
   tableSun,
   walkDaylight,
@@ -105,21 +104,5 @@ describe('the Sun over a site', () => {
   it('formats a Mars clock', () => {
     expect(formatMarsClock(23.6484)).toBe('23:38');
     expect(formatMarsClock(24.5)).toBe('00:30');
-  });
-});
-
-describe('the dust storm season', () => {
-  it('is the second half of the Mars year', () => {
-    expect(inDustSeason(0)).toBe(false);
-    expect(inDustSeason(179.9)).toBe(false);
-    expect(inDustSeason(180)).toBe(true);
-    expect(inDustSeason(341)).toBe(true);
-    expect(inDustSeason(359.9)).toBe(true);
-    expect(inDustSeason(360)).toBe(false);
-  });
-
-  it('held the global dust storm of 2018', () => {
-    // The storm was first seen on 30 May 2018 and covered the planet in June.
-    expect(inDustSeason(marsTime(new Date('2018-06-20T00:00:00Z')).ls)).toBe(true);
   });
 });
