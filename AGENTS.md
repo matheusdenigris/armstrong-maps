@@ -43,6 +43,11 @@ the merge. A real exception (a proper noun) goes in `scripts/english-allowlist.t
 - **The map is equirectangular too.** `src/mission/camera.ts` does the projection; the gestures are
   in `src/components/map-controller.ts`. Tiles are laid out for a settled view and follow a
   gesture with one transform, so do not position tiles from the per-frame view.
+- **A tile that fails is not always missing.** A product's coverage is a rectangle in the
+  catalogue and an irregular footprint in fact, so a 404 inside it is expected. `LayerTiles` asks
+  again twice (`src/mission/tile-health.ts`); if the tile still fails, the map asks whether the
+  service answers for that product at all (`tileServiceAnswers`) and shows a notice only when it
+  does not. The browser cannot read the status of a failed picture, which is why it asks.
 - **A new map layer** is checked against the product's `WMTSCapabilities.xml` on trek.nasa.gov
   (id, image format, deepest level) before it is added to `src/data`. A 404 outside a layer's
   coverage is normal.

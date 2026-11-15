@@ -27,7 +27,7 @@ import {
 import Svg, { Circle, Ellipse, G, Line, Path, Polygon, Polyline } from 'react-native-svg';
 
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
-import { tileUrl, type MapLayer } from '@/data/layers';
+import { tileServiceAnswers, tileUrl, type MapLayer } from '@/data/layers';
 import {
   nearestInReach,
   project,
@@ -40,6 +40,7 @@ import {
   type Size,
 } from '@/mission/camera';
 import { METRES_PER_DEGREE, type LatLon } from '@/mission/geo';
+import { retryDelay, tileVerdict } from '@/mission/tile-health';
 import { tileBounds, tilesFor, type Bounds, type TileAddress } from '@/mission/tiles';
 
 import { MapController, ZOOM_STEP, openingCamera } from './map-controller';
@@ -165,6 +166,8 @@ type SurfaceMapProps = {
 const NO_POINTS: readonly MapPoint[] = [];
 const webOnly = (style: object) => (Platform.OS === 'web' ? (style as ViewStyle) : null);
 const LAYER_REVEAL_MS = 160;
+/** A product is not asked again whether its service answers before this long has passed. */
+const PROBE_EVERY_MS = 8000;
 
 const sameView = (left: MapView, right: MapView) =>
   left.lat === right.lat &&
@@ -205,6 +208,12 @@ export function SurfaceMap({
   const [size, setSize] = useState<Size | null>(null);
   const [camera, setCamera] = useState(() => openingCamera(home, limits));
   const [reduceMotion, setReduceMotion] = useState(false);
+  // The tile service stopped answering: said on the map, with a way to ask again.
+  const [serviceDown, setServiceDown] = useState(false);
+  // Raised to draw every tile afresh, which asks for the missing ones again.
+  const [tileEpoch, setTileEpoch] = useState(0);
+  const probedAt = useRef(new Map<string, number>());
+  const mounted = useRef(true);
 
   const node = useRef<ComponentRef<typeof View>>(null);
   const controller = useRef<MapController | null>(null);
@@ -254,6 +263,37 @@ export function SurfaceMap({
   }, [frameLimits]);
 
   useEffect(() => () => controller.current?.dispose(), []);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  // A tile that failed every try: a hole in the product if the service still answers for it,
+  // and worth telling the person if it does not.
+  const onTileGaveUp = useCallback((layer: MapLayer) => {
+    const last = probedAt.current.get(layer.id) ?? 0;
+    if (Date.now() - last < PROBE_EVERY_MS) return;
+    probedAt.current.set(layer.id, Date.now());
+    void tileServiceAnswers(layer).then((answers) => {
+      if (mounted.current && tileVerdict(answers) === 'service-down') setServiceDown(true);
+    });
+  }, []);
+
+  const retryTiles = useCallback(() => {
+    probedAt.current.clear();
+    setServiceDown(false);
+    setTileEpoch((epoch) => epoch + 1);
+  }, []);
+
+  // Back on the network: ask again without waiting for a press.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !serviceDown) return;
+    window.addEventListener('online', retryTiles);
+    return () => window.removeEventListener('online', retryTiles);
+  }, [serviceDown, retryTiles]);
 
   useEffect(() => {
     let alive = true;
@@ -362,6 +402,8 @@ export function SurfaceMap({
             base={base}
             size={size}
             reduceMotion={reduceMotion}
+            epoch={tileEpoch}
+            onGaveUp={onTileGaveUp}
           />
           {images.map((image) => {
             const topLeft = project(base, size, { lat: image.bounds.north, lon: image.bounds.west });
@@ -509,6 +551,26 @@ export function SurfaceMap({
 
       {children}
 
+      {serviceDown ? (
+        <View style={styles.trouble} pointerEvents="box-none">
+          <View
+            role="alert"
+            onStartShouldSetResponder={() => true}
+            style={[styles.troubleCard, webOnly({ cursor: 'default' })]}>
+            <Text style={styles.troubleText}>
+              The map service is not answering. Parts of the map are missing.
+            </Text>
+            <Pressable
+              onPress={retryTiles}
+              accessibilityRole="button"
+              accessibilityLabel="Ask for the missing parts of the map again"
+              style={({ pressed }) => [styles.troubleButton, pressed && styles.troublePressed]}>
+              <Text style={styles.troubleButtonText}>Try again</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
       <View style={[styles.controls, { bottom: controlsBottom }]}>
         <MapButton
           label="Zoom in"
@@ -542,6 +604,10 @@ type TilePlaneProps = {
   base: MapView;
   size: Size;
   reduceMotion?: boolean;
+  /** Raised to draw every tile afresh, which asks again for the ones that failed. */
+  epoch?: number;
+  /** A tile of this layer failed every try. */
+  onGaveUp?: (layer: MapLayer) => void;
 };
 
 /**
@@ -554,6 +620,8 @@ export const TilePlane = memo(function TilePlane({
   base,
   size,
   reduceMotion = false,
+  epoch = 0,
+  onGaveUp,
 }: TilePlaneProps) {
   // Phones pack two or three device pixels in a point; ask for a deeper level so tiles stay crisp.
   const density = Math.min(PixelRatio.get(), 2);
@@ -595,7 +663,7 @@ export const TilePlane = memo(function TilePlane({
         }).filter((tile) => tile.level < sharpLevel);
         return (
           <LayerTiles
-            key={layer.id}
+            key={`${layer.id}:${epoch}`}
             layer={layer}
             tiles={[...coarse, ...sharp]}
             sharpLevel={sharpLevel}
@@ -603,6 +671,7 @@ export const TilePlane = memo(function TilePlane({
             opacity={opacity?.[layer.id] ?? 1}
             animateIn={opacity?.[layer.id] !== undefined}
             reduceMotion={reduceMotion}
+            onGaveUp={onGaveUp}
           />
         );
       })}
@@ -626,12 +695,16 @@ type LayerTilesProps = {
   place: (tile: TileAddress) => { left: number; top: number; width: number; height: number };
   animateIn: boolean;
   reduceMotion: boolean;
+  onGaveUp?: (layer: MapLayer) => void;
 };
 
 /**
  * The tiles of one layer. When the scale changes, the tiles of the scale before stay underneath
  * until the new sharp ones have arrived: the map goes from one sharpness to the next without
  * falling back to a blur, or to nothing, in between.
+ *
+ * A tile that fails is asked for again, twice, a little later each time. One that still fails
+ * is reported: it is a hole in the product or a service that is down, and the map tells which.
  */
 function LayerTiles({
   layer,
@@ -641,6 +714,7 @@ function LayerTiles({
   place,
   animateIn,
   reduceMotion,
+  onGaveUp,
 }: LayerTilesProps) {
   const signature = tiles.map(keyOf).join(' ');
   const [shown, setShown] = useState({ signature, tiles });
@@ -662,6 +736,27 @@ function LayerTiles({
 
   // Which tiles have been drawn at least once; a tile that stays on screen does not report again.
   const arrived = useRef(new Set<string>());
+  // How many times each tile has been asked for again. A new number draws it afresh.
+  const [tries, setTries] = useState<Readonly<Record<string, number>>>({});
+  const failures = useRef(new Map<string, number>());
+  const retries = useRef(new Set<ReturnType<typeof setTimeout>>());
+  const wanted = useRef(new Set<string>());
+
+  useEffect(() => {
+    // Only the tiles of the view as it is now are worth another try.
+    wanted.current = new Set(tiles.map(keyOf));
+    for (const key of failures.current.keys()) {
+      if (!wanted.current.has(key)) failures.current.delete(key);
+    }
+  }, [tiles]);
+
+  useEffect(() => {
+    const pending = retries.current;
+    return () => {
+      for (const timer of pending) clearTimeout(timer);
+      pending.clear();
+    };
+  }, []);
 
   // Held tiles go in any case after a while: a tile that never answers must not pin them.
   useEffect(() => {
@@ -706,6 +801,24 @@ function LayerTiles({
     }
   };
 
+  const fail = (key: string) => {
+    // The tiles under it are let go either way: a tile that never comes must not pin them.
+    settle(key);
+    if (!wanted.current.has(key)) return;
+    const count = (failures.current.get(key) ?? 0) + 1;
+    failures.current.set(key, count);
+    const wait = retryDelay(count);
+    if (wait === null) {
+      onGaveUp?.(layer);
+      return;
+    }
+    const timer = setTimeout(() => {
+      retries.current.delete(timer);
+      if (wanted.current.has(key)) setTries((previous) => ({ ...previous, [key]: count }));
+    }, wait);
+    retries.current.add(timer);
+  };
+
   // Finer tiles go over coarser ones, whichever view they came from.
   const drawn = [...held, ...tiles].sort((one, other) => one.level - other.level);
 
@@ -716,7 +829,8 @@ function LayerTiles({
         const key = keyOf(tile);
         return (
           <Image
-            key={key}
+            // A new try is a new picture: the one that failed does not ask again by itself.
+            key={`${key}#${tries[key] ?? 0}`}
             source={{ uri: tileUrl(layer, tile) }}
             style={[styles.tile, place(tile)]}
             contentFit="fill"
@@ -724,7 +838,7 @@ function LayerTiles({
             // A new tile comes in over the one under it, without a jump.
             transition={140}
             onLoad={() => settle(key)}
-            onError={() => settle(key)}
+            onError={() => fail(key)}
             accessible={false}
           />
         );
@@ -796,7 +910,7 @@ function PointerPreview({ host, view, size, preview, points }: PointerPreviewPro
       // Not while the map is being dragged, and not over a button that sits on the map.
       if (
         event.buttons !== 0 ||
-        target?.closest('button, a, [role="button"], [role="dialog"]')
+        target?.closest('button, a, [role="button"], [role="dialog"], [role="alert"]')
       ) {
         setAt(null);
         return;
@@ -997,6 +1111,51 @@ const styles = StyleSheet.create({
     color: Colors.textSoft,
     fontFamily: Fonts.mono,
     fontSize: 11,
+  },
+  // Under the scale, which sits in the corner above it.
+  trouble: {
+    position: 'absolute',
+    top: Spacing.three + 56,
+    left: Spacing.three,
+    right: Spacing.three,
+    alignItems: 'center',
+  },
+  troubleCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: Spacing.two,
+    maxWidth: 460,
+    paddingVertical: Spacing.two,
+    paddingLeft: Spacing.three,
+    paddingRight: Spacing.two,
+    borderRadius: Radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.glassStrong,
+  },
+  troubleText: {
+    flexShrink: 1,
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  troubleButton: {
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.glassHover,
+  },
+  troublePressed: {
+    opacity: 0.76,
+  },
+  troubleButtonText: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 13,
   },
   controls: {
     position: 'absolute',

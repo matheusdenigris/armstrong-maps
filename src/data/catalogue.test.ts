@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { WHOLE_PLANET, contains, intersect, type Bounds } from '@/mission/tiles';
 
-import { GLOBAL_LAYERS, VIKING_GLOBAL, tileUrl, type MapLayer } from './layers';
+import { GLOBAL_LAYERS, VIKING_GLOBAL, probeUrl, tileUrl, type MapLayer } from './layers';
 import { SITES, findSite } from './sites';
 
 const siteLayers = SITES.flatMap((site) => site.layers);
@@ -69,5 +69,18 @@ describe('sites', () => {
   it('name the two rovers with a published traverse', () => {
     expect(findSite('gale')?.rover).toBe('curiosity');
     expect(findSite('jezero')?.rover).toBe('perseverance');
+  });
+});
+
+describe('probeUrl', () => {
+  it('asks for the widest tile over the middle of the product, past any copy on the device', () => {
+    const insight = findSite('elysium')!.layers.find((layer) => layer.id.startsWith('ESP_058005'))!;
+    // 135.6 E is in the eastern half of the planet: the second of the two tiles of level 0.
+    expect(probeUrl(insight, 42)).toBe(
+      'https://trek.nasa.gov/tiles/Mars/EQ/ESP_058005_1845_RED_spline_rect/1.0.0/default/default028mm/0/0/1.png?probe=42',
+    );
+    // Meridiani is west of the prime meridian: the first tile.
+    const meridiani = findSite('meridiani')!.layers[0];
+    expect(probeUrl(meridiani, 7)).toContain('/0/0/0.png?probe=7');
   });
 });

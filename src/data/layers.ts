@@ -8,7 +8,7 @@
  *
  * Check a new product the same way before adding it here.
  */
-import { WHOLE_PLANET, type Bounds, type TileAddress } from '@/mission/tiles';
+import { WHOLE_PLANET, tileAt, type Bounds, type TileAddress } from '@/mission/tiles';
 
 export type LayerKind = 'optical' | 'topographic' | 'thermal' | 'spectral';
 
@@ -117,6 +117,29 @@ const TREK = 'https://trek.nasa.gov/tiles/Mars/EQ';
 
 export function tileUrl(layer: MapLayer, { level, row, col }: TileAddress): string {
   return `${TREK}/${layer.id}/1.0.0/default/default028mm/${level}/${row}/${col}.${layer.format}`;
+}
+
+/**
+ * A tile every product has: the one of the widest level over the middle of its coverage. The
+ * stamp keeps a copy held by the device from answering in place of the service.
+ */
+export function probeUrl(layer: MapLayer, stamp: number): string {
+  const { west, south, east, north } = layer.coverage;
+  const middle = { lat: (south + north) / 2, lon: (west + east) / 2 };
+  return `${tileUrl(layer, tileAt(0, middle))}?probe=${stamp}`;
+}
+
+/**
+ * Whether Mars Trek answers for a product right now. A tile that keeps failing while this is
+ * true is a hole in the product; while it is false, the service or the network is down.
+ */
+export async function tileServiceAnswers(layer: MapLayer): Promise<boolean> {
+  try {
+    const response = await fetch(probeUrl(layer, Date.now()), { cache: 'no-store' });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 /** The colour mosaic of the whole planet: the base of every map and the texture of the globe. */
