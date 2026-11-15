@@ -38,7 +38,7 @@ import {
   type MapPreview,
   type MapRing,
 } from '@/components/surface-map';
-import { ShipLink } from '@/components/ship-link';
+import { ShipLink, ShipLinkIdle } from '@/components/ship-link';
 import { WalkControls } from '@/components/walk-controls';
 import { WalkLog } from '@/components/walk-log';
 import { logFilename, logText } from '@/components/walk-log-text';
@@ -185,9 +185,10 @@ const KEYFRAMES = `
 
 type Tab = 'map' | 'layers' | 'walk' | 'site' | 'photos';
 /** What the right-hand panel of the desktop console shows: one subject at a time. */
-type PanelTab = 'walk' | 'site' | 'photos';
+type PanelTab = 'walk' | 'link' | 'site' | 'photos';
 const PANEL_TABS: readonly { id: PanelTab; label: string }[] = [
   { id: 'walk', label: 'Walk' },
+  { id: 'link', label: 'Link' },
   { id: 'site', label: 'Site' },
   { id: 'photos', label: 'Photos' },
 ];
@@ -676,6 +677,42 @@ function SiteMap({ site }: { site: Site }) {
     </>
   );
 
+  // The link with the astronaut and the log of the walk. Beside the map they have a tab of
+  // their own, where they are found without scrolling; on a phone they follow the walk controls.
+  const linkContent = (
+    <>
+      {walking ? (
+        <ShipLink
+          sight={record.sight}
+          messages={messages}
+          onSend={(text) => sendMessage(site.id, text, progress.elapsedHours)}
+        />
+      ) : desktopConsole ? (
+        <ShipLinkIdle />
+      ) : null}
+      <WalkLog
+        live={walking}
+        entries={walking ? record.entries : (lastLog?.entries ?? [])}
+        onExport={() => {
+          const entries = walking ? record.closing(false) : (lastLog?.entries ?? []);
+          const endedMs = walking ? null : (lastLog?.endedMs ?? null);
+          void saveText(
+            logFilename(site.id, endedMs ?? Date.now()),
+            logText(
+              {
+                site: site.name,
+                startedMs: walking ? walkStarted : (lastLog?.startedMs ?? null),
+                endedMs,
+                stops: walking ? route.length : (lastLog?.stops ?? 0),
+              },
+              entries,
+            ),
+          );
+        }}
+      />
+    </>
+  );
+
   const walkContent = (
     <>
       <WalkSummary
@@ -714,33 +751,22 @@ function SiteMap({ site }: { site: Site }) {
         onEnd={() => endWalk(site.id, record.closing(!walkOver), route.length)}
         onRate={(rate) => setWalkRate(site.id, rate)}
       />
-      {walking ? (
-        <ShipLink
-          sight={record.sight}
-          messages={messages}
-          onSend={(text) => sendMessage(site.id, text, progress.elapsedHours)}
-        />
-      ) : null}
-      <WalkLog
-        live={walking}
-        entries={walking ? record.entries : (lastLog?.entries ?? [])}
-        onExport={() => {
-          const entries = walking ? record.closing(false) : (lastLog?.entries ?? []);
-          const endedMs = walking ? null : (lastLog?.endedMs ?? null);
-          void saveText(
-            logFilename(site.id, endedMs ?? Date.now()),
-            logText(
-              {
-                site: site.name,
-                startedMs: walking ? walkStarted : (lastLog?.startedMs ?? null),
-                endedMs,
-                stops: walking ? route.length : (lastLog?.stops ?? 0),
-              },
-              entries,
-            ),
-          );
-        }}
-      />
+      {desktopConsole ? (
+        walking || lastLog ? (
+          <Pressable
+            onPress={() => setPanelTab('link')}
+            accessibilityRole="button"
+            accessibilityLabel="Open the ship link and the walk log"
+            style={({ pressed }) => [styles.linkJump, pressed && styles.linkJumpPressed]}>
+            <Text style={styles.linkJumpText}>
+              {walking ? 'Ship link, messages and walk log' : 'Log of the last walk'}
+            </Text>
+            <Text style={styles.linkJumpArrow}>›</Text>
+          </Pressable>
+        ) : null
+      ) : (
+        linkContent
+      )}
       <SafetyCheck
         walk={walk}
         stops={route.length}
@@ -896,7 +922,13 @@ function SiteMap({ site }: { site: Site }) {
             onToggle={() => setWalkVisible((visible) => !visible)}
             scrollKey={panelTab}
             header={<PanelTabs selected={panelTab} onChange={setPanelTab} />}>
-            {panelTab === 'walk' ? walkContent : panelTab === 'site' ? siteContent : photosContent}
+            {panelTab === 'walk'
+              ? walkContent
+              : panelTab === 'link'
+                ? <View style={styles.linkTab}>{linkContent}</View>
+                : panelTab === 'site'
+                  ? siteContent
+                  : photosContent}
           </DesktopPanel>
         </View>
       ) : (
@@ -1941,6 +1973,33 @@ const styles = StyleSheet.create({
   panelHeaderRight: {
     left: Spacing.two + Spacing.one + 36 + Spacing.two,
     right: Spacing.two + Spacing.one,
+  },
+  linkTab: {
+    paddingTop: Spacing.three,
+  },
+  linkJump: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+    marginHorizontal: Spacing.three,
+    marginBottom: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.glassLight,
+  },
+  linkJumpPressed: {
+    backgroundColor: Colors.glassHover,
+  },
+  linkJumpText: {
+    color: Colors.text,
+    fontFamily: Fonts.sans,
+    fontSize: 14,
+  },
+  linkJumpArrow: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 18,
   },
   panelTabs: {
     flex: 1,

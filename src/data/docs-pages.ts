@@ -950,7 +950,7 @@ const GUIDE: DocPage[] = [
           },
           {
             kind: 'text',
-            text: 'During a walk the console shows whether the base sees the astronaut: the line from a mast at the base to the antenna on the suit, over the NASA elevation model and the curve of the planet. Where the ground is in the way the visor says the link is lost. Over a few kilometres the signal takes microseconds, so no delay is shown.',
+            text: 'During a walk the Link tab of the console (on a phone, the Walk tab) shows whether the base sees the astronaut: the line from a mast at the base to the antenna on the suit, over the NASA elevation model and the curve of the planet. Where the ground is in the way the visor says the link is lost. Over a few kilometres the signal takes microseconds, so no delay is shown.',
           },
           {
             kind: 'text',

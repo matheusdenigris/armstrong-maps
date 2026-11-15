@@ -140,6 +140,30 @@ export function ShipLink({ sight, messages, onSend }: ShipLinkProps) {
   );
 }
 
+/**
+ * The same card before a walk: there is nobody to talk to yet, so it says what the link will
+ * do, where someone looking for it finds it.
+ */
+export function ShipLinkIdle() {
+  return (
+    <View style={styles.block}>
+      <SectionHeading title="SHIP LINK · OPENS WITH THE WALK" color={Colors.textMuted} />
+      <View style={styles.card}>
+        <Text style={styles.status}>
+          Start a walk and this shows whether the base sees the astronaut over the ground, and
+          lets the ship send short messages. The visor shows each one until the astronaut
+          acknowledges it.
+        </Text>
+        <Text style={styles.note}>
+          Line of sight from a {LINK_ASSUMPTIONS.baseAntennaM} m mast at the base to an antenna{' '}
+          {LINK_ASSUMPTIONS.suitAntennaM} m up on the suit, over the NASA elevation model. The
+          antenna heights are assumptions of this project.
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   block: {
     gap: Spacing.two,
