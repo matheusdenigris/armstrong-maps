@@ -11,7 +11,13 @@ import { distance, type LatLon } from './geo';
 import { priorityOf, type MessagePriority, type ShipMessage } from './messages';
 import { walkProgress } from './progress';
 import { walkSafety, type SafetyAlert } from './safety';
-import { WALK_ASSUMPTIONS, stopMinutes, type WalkAssumptions, type WalkStop } from './walk';
+import {
+  WALK_ASSUMPTIONS,
+  legSlow,
+  stopMinutes,
+  type WalkAssumptions,
+  type WalkStop,
+} from './walk';
 
 export type LogEntry = { atHours: number } & (
   | { kind: 'start' }
@@ -62,7 +68,7 @@ function planEntries(
   let clock = 0;
   const points = [base, ...waypoints];
   waypoints.forEach((_, stop) => {
-    clock += distance(points[stop], points[stop + 1]) / metresPerHour;
+    clock += (distance(points[stop], points[stop + 1]) / metresPerHour) * legSlow(waypoints, stop);
     if (clock <= uptoHours) entries.push({ atHours: clock, kind: 'waypoint-reached', stop });
     // Each stop lasts as long as the plan gives it. A point the walk only passes through has no
     // work to finish.

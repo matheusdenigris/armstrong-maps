@@ -59,7 +59,25 @@ export type WalkStop = LatLon & {
   task?: string;
   /** Where the place and what is known about it come from, when it is a published one. */
   source?: string;
+  /**
+   * How many times longer the leg that reaches this stop takes than on flat, firm ground, from
+   * the slope and the sand under it (`pace.ts`). Left out, the leg is timed as flat ground.
+   */
+  slow?: number;
+  /** The same for the way from this stop back to the base. Read on the last stop only. */
+  slowBack?: number;
 };
+
+/**
+ * How many times longer a leg of the walk takes than on flat ground. Leg 0 leaves the base, leg
+ * `waypoints.length` is the way back.
+ */
+export function legSlow(waypoints: readonly WalkStop[], leg: number): number {
+  const last = waypoints[waypoints.length - 1];
+  const own = leg < waypoints.length ? waypoints[leg]?.slow : last?.slowBack;
+  if (typeof own !== 'number' || !Number.isFinite(own)) return 1;
+  return Math.min(10, Math.max(1, own));
+}
 
 /** The longest a single stop may last, in minutes: half the life support of the suit. */
 export const MAX_STOP_MINUTES = 240;
@@ -140,6 +158,8 @@ export type WalkEvaluation = {
   /** The greatest straight-line distance between a waypoint and the base, in metres. */
   farthestM: number;
   walkingHours: number;
+  /** The part of the walking time that the slope and the sand add, over flat ground. In hours. */
+  slowedHours: number;
   stopHours: number;
   durationHours: number;
   /** Share of life support used: 1 is all of it, more than 1 is more than the suit has. */
@@ -166,7 +186,22 @@ export function evaluateWalk(
   const totalM = outboundM + returnM;
   const farthestM = waypoints.reduce((far, point) => Math.max(far, distance(base, point)), 0);
 
-  const walkingHours = totalM / 1000 / assumptions.walkingSpeedKmh;
+  // Each leg at the assumed speed, slowed by the ground under it where the plan knows it.
+  const points = [base, ...waypoints, base];
+  const flatHours = totalM / 1000 / assumptions.walkingSpeedKmh;
+  const walkingHours =
+    waypoints.length === 0
+      ? 0
+      : points
+          .slice(1)
+          .reduce(
+            (sum, to, leg) =>
+              sum +
+              (distance(points[leg], to) / 1000 / assumptions.walkingSpeedKmh) *
+                legSlow(waypoints, leg),
+            0,
+          );
+  const slowedHours = Math.max(0, walkingHours - flatHours);
   const stopHours =
     waypoints.reduce((sum, point) => sum + stopMinutes(point, assumptions), 0) / 60;
   const durationHours = walkingHours + stopHours;
@@ -212,6 +247,7 @@ export function evaluateWalk(
     totalM,
     farthestM,
     walkingHours,
+    slowedHours,
     stopHours,
     durationHours,
     lifeSupportUsed,

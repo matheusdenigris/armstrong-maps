@@ -5,6 +5,7 @@ import { SURFACE_RADIATION } from '@/data/radiation';
 import { CME_WINDOW, DONKI_CREDIT } from '@/data/space-weather';
 import { formatDistance, formatDose, formatDuration, formatShare } from '@/mission/format';
 import { formatMarsClock, localTrueSolarTime, marsTime } from '@/mission/mars-time';
+import { SAND_PACE } from '@/mission/pace';
 import {
   WALK_ASSUMPTIONS,
   severityOf,
@@ -263,7 +264,11 @@ export function WalkDetails({ walk, stops }: WalkDetailsProps) {
         <Stat
           label="Time outside"
           value={formatDuration(walk.durationHours)}
-          note={`${formatDuration(walk.walkingHours)} walking, ${formatDuration(walk.stopHours)} at ${stops} ${stops === 1 ? 'stop' : 'stops'}`}
+          note={`${formatDuration(walk.walkingHours)} walking${
+            walk.slowedHours >= 1 / 60
+              ? ` (${formatDuration(walk.slowedHours)} of it added by slope and sand)`
+              : ''
+          }, ${formatDuration(walk.stopHours)} at ${stops} ${stops === 1 ? 'stop' : 'stops'}`}
         />
         <Stat
           label="Radiation dose"
@@ -293,7 +298,12 @@ export function WalkDetails({ walk, stops }: WalkDetailsProps) {
       <View style={styles.assumptions}>
         <Text style={styles.assumptionsParagraph}>Project assumptions, not NASA rules:</Text>
         <Text style={styles.assumptionsParagraph}>
-          • Walking speed on foot: {a.walkingSpeedKmh} km/h
+          • Walking speed on foot: {a.walkingSpeedKmh} km/h on flat, firm ground
+        </Text>
+        <Text style={styles.assumptionsParagraph}>
+          • Slower on a slope, in the shape of Tobler&apos;s hiking function (measured on Earth,
+          without a suit), and at {Math.round(SAND_PACE * 100)}% of the speed in a mapped dune
+          field
         </Text>
         <Text style={styles.assumptionsParagraph}>• {a.minutesPerStop} min at each stop</Text>
         <Text style={styles.assumptionsParagraph}>
