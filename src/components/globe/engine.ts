@@ -7,6 +7,8 @@ import * as THREE from 'three';
 
 import { VIKING_GLOBAL, tileUrl } from '@/data/layers';
 import type { Site } from '@/data/sites';
+import { marsTime } from '@/mission/mars-time';
+import { parseGlobalRelief } from '@/mission/relief';
 import { columnsAt, rowsAt } from '@/mission/tiles';
 
 import { FIELD_OF_VIEW, createGlobeScene, fitDistance, toVector } from './scene';
@@ -18,6 +20,8 @@ export type GlobeCallbacks = {
   labelOf: (id: string) => HTMLElement | undefined;
   /** The pointer is over the marker of a site, or over none. */
   onHover?: (site: Site | null) => void;
+  /** The grid of heights has arrived and the surface is raised with it. */
+  onRelief?: () => void;
 };
 
 export type GlobeEngine = {
@@ -49,6 +53,24 @@ const LABEL_FADE = 0.3;
 const LABEL_GAP = 18;
 const LABEL_WIDTH = 190;
 const LABEL_HEIGHT = 34;
+/** The grid of heights of the planet, written by `scripts/build-globe-relief.mjs`. */
+const RELIEF_FILE = '/globe/relief.bin';
+/**
+ * The Sun moves a quarter of a degree a minute over Mars: often enough to keep the line between
+ * day and night where it is.
+ */
+const SUN_EVERY_MS = 60_000;
+/**
+ * The globe opens with the Sun this many degrees of longitude to the west of the middle of the
+ * view: most of the disc in daylight, and the line between day and night in sight on the right.
+ */
+const OPENING_PAST_NOON = 55;
+
+/** The point of Mars that has the Sun overhead at this moment (Mars24 algorithm). */
+function sunOverhead() {
+  const time = marsTime(new Date());
+  return { lat: time.declination, lon: time.subsolarLon };
+}
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
@@ -140,11 +162,15 @@ export function startGlobe(
   surface.colorSpace = THREE.SRGBColorSpace;
   surface.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-  const { scene, camera, dispose } = createGlobeScene(sites, surface, renderer.getPixelRatio());
+  const globe = createGlobeScene(sites, surface, renderer.getPixelRatio());
+  const { scene, camera, dispose } = globe;
+  const noon = sunOverhead();
+  globe.setSun(noon);
+  let sunAt = performance.now();
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   // What the camera looks at, and from how far.
-  const view = { lat: 8, lon: 110, distance: 4 };
+  const view = { lat: 8, lon: noon.lon + OPENING_PAST_NOON, distance: 4 };
   let size = { width: 1, height: 1 };
   let farthest = 6;
   let idle = !reduceMotion;
@@ -170,6 +196,19 @@ export function startGlobe(
   const cancelMosaic = paintMosaic(mosaic, large ? [0, 2, 3] : [0, 2], () => {
     texturePending = true;
   });
+
+  // The relief comes after the first frame: the planet shows as a smooth sphere and then rises.
+  // If the file does not come, the planet stays smooth and the screen is not told otherwise.
+  fetch(RELIEF_FILE)
+    .then((response) => (response.ok ? response.arrayBuffer() : null))
+    .then((buffer) => {
+      const relief = buffer && parseGlobalRelief(buffer);
+      if (!relief || stopped) return;
+      globe.setRelief(relief);
+      dirty = true;
+      callbacks.onRelief?.();
+    })
+    .catch(() => {});
 
   function resize() {
     const width = Math.max(1, host.clientWidth);
@@ -213,7 +252,7 @@ export function startGlobe(
     direction.copy(camera.position).sub(normal).normalize();
     const facing = normal.dot(direction);
     if (facing < LABEL_EDGE) return null;
-    projected.copy(normal).multiplyScalar(1.006).project(camera);
+    projected.copy(normal).multiplyScalar(globe.markerRadius(site)).project(camera);
     return {
       x: ((projected.x + 1) / 2) * size.width,
       y: ((1 - projected.y) / 2) * size.height,
@@ -288,6 +327,12 @@ export function startGlobe(
           resumeAt = null;
         }
       }
+    }
+
+    if (now - sunAt > SUN_EVERY_MS) {
+      globe.setSun(sunOverhead());
+      sunAt = now;
+      dirty = true;
     }
 
     if (texturePending && now - textureAt > 250) {

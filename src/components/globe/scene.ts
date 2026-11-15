@@ -1,13 +1,13 @@
 /**
- * The 3D scene of the globe: Mars, a thin atmosphere, and a mark on the ground at each landing
- * site. Plain
- * three.js, with nothing that depends on a browser, so the same scene can run on a phone's
- * OpenGL context.
+ * The 3D scene of the globe: Mars with its relief, lit from where the Sun really is, a thin
+ * atmosphere and a mark on the ground at each landing site. Plain three.js, with nothing that
+ * depends on a browser, so the same scene can run on a phone's OpenGL context.
  */
 import * as THREE from 'three';
 
 import type { Site } from '@/data/sites';
 import type { LatLon } from '@/mission/geo';
+import { drawnRadius, highestRadiusNear, reliefNormals, type GlobalRelief } from '@/mission/relief';
 
 /** Vertical field of view of the camera, in degrees. */
 export const FIELD_OF_VIEW = 35;
@@ -37,6 +37,13 @@ export function fitDistance(aspect: number, room = 1.18): number {
 
 /** How far above the ground a marker lies, as a share of the radius: enough not to flicker. */
 const MARKER_LIFT = 1.006;
+/** The reach of a marker's disc, in degrees: it lies above the highest ground inside it. */
+const MARKER_REACH_DEG = 2.4;
+
+/** How far from the centre the mark of a site lies: above the ground around it. */
+function markerRadius(site: Site, relief: GlobalRelief | null): number {
+  return highestRadiusNear(relief, site.landing, MARKER_REACH_DEG) + (MARKER_LIFT - 1);
+}
 
 /**
  * The mark of a landing site: a ring with a dot in its middle on a dark disc, lying flat on the
@@ -60,7 +67,7 @@ function siteMarkers(sites: readonly Site[]): THREE.Group {
   for (const site of sites) {
     const marker = new THREE.Group();
     toVector(site.landing, 1, outward);
-    marker.position.copy(outward).multiplyScalar(MARKER_LIFT);
+    marker.position.copy(outward).multiplyScalar(markerRadius(site, null));
     // Its face looks straight up from the ground.
     marker.lookAt(outward.multiplyScalar(2));
     const shade = new THREE.Mesh(disc, backing);
@@ -152,37 +159,35 @@ function starField(pixelRatio: number): THREE.Points {
   return new THREE.Points(geometry, material);
 }
 
-/**
- * Where the light comes from, seen from the camera: from the left, a little above and in front.
- * It leaves the right edge of the planet in shadow, with the line between day and night in view.
- */
-const SUNLIGHT = new THREE.Vector3(-1.8, 0.7, 1.4);
-/** Where the planet is, seen from the camera, near enough for the direction of a light. */
-const PLANET = new THREE.Vector3(0, 0, -4);
+/** How far away the light that stands for the Sun is put; only its direction matters. */
+const SUN_DISTANCE = 50;
 
 /**
  * A soft rim of light around the planet, brighter on the day side. Mars has a thin, dusty
- * atmosphere; this is a hint of it.
+ * atmosphere; this is a hint of it. `sun` is the direction of the Sun from the planet.
  */
-function atmosphere(): THREE.Mesh {
+function atmosphere(sun: THREE.Vector3): THREE.Mesh {
   const material = new THREE.ShaderMaterial({
     uniforms: {
       tint: { value: new THREE.Color(0xd9916a) },
-      sun: { value: SUNLIGHT.clone().normalize() },
+      sun: { value: sun },
     },
     vertexShader: `
       varying vec3 vNormal;
+      varying vec3 vGround;
       void main() {
         vNormal = normalize(normalMatrix * normal);
+        vGround = normalize(mat3(modelMatrix) * normal);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }`,
     fragmentShader: `
       uniform vec3 tint;
       uniform vec3 sun;
       varying vec3 vNormal;
+      varying vec3 vGround;
       void main() {
         float rim = pow(max(0.0, 0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0))), 2.4);
-        float day = smoothstep(-0.45, 0.55, dot(vNormal, sun));
+        float day = smoothstep(-0.45, 0.55, dot(vGround, sun));
         gl_FragColor = vec4(tint, 1.0) * rim * mix(0.12, 1.0, day);
       }`,
     side: THREE.BackSide,
@@ -197,6 +202,12 @@ function atmosphere(): THREE.Mesh {
 export type GlobeScene = {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
+  /** Puts the Sun over a point of the planet: the place where it is overhead. */
+  setSun: (overhead: LatLon) => void;
+  /** Raises the surface and the marks with a grid of heights. */
+  setRelief: (relief: GlobalRelief) => void;
+  /** How far from the centre the mark of a site lies; 1 is the areoid. */
+  markerRadius: (site: Site) => number;
   dispose: () => void;
 };
 
@@ -204,6 +215,9 @@ export type GlobeScene = {
  * Builds the scene. `surface` is an equirectangular image of the planet, with longitude -180 on
  * its left edge. `pixelRatio` is how many device pixels a point of the screen has, so that the
  * stars keep their size on a dense screen.
+ *
+ * The planet stands still and the camera goes round it, so a direction in the scene is a direction
+ * on Mars: the light is where the Sun is, and stays there while the view turns.
  */
 export function createGlobeScene(
   sites: readonly Site[],
@@ -214,37 +228,79 @@ export function createGlobeScene(
   const camera = new THREE.PerspectiveCamera(FIELD_OF_VIEW, 1, 0.1, 400);
   scene.add(camera);
 
-  // The light travels with the camera, so the planet turns under it from day into night. It is
-  // not the real Sun: where it is day on Mars right now is not shown.
-  scene.add(new THREE.AmbientLight(0xffffff, 0.05));
-  const light = new THREE.DirectionalLight(0xfff1e0, 3.4);
-  // A light only has a direction: from where it is to its target, which is the planet.
-  light.position.copy(PLANET).add(SUNLIGHT);
-  camera.add(light);
-  camera.add(light.target);
-  light.target.position.copy(PLANET);
-  // A faint, cool light from the other side keeps the night side from being a black disc.
-  const night = new THREE.DirectionalLight(0x8fa6c9, 0.22);
-  night.position.copy(PLANET).add(new THREE.Vector3(2.2, -0.4, 1.2));
-  camera.add(night);
-  camera.add(night.target);
-  night.target.position.copy(PLANET);
+  // Until it is told where the Sun is, it shines on the prime meridian at the equator.
+  const sunDirection = new THREE.Vector3(1, 0, 0);
+  const sun = new THREE.DirectionalLight(0xfff1e0, 3.4);
+  sun.position.copy(sunDirection).multiplyScalar(SUN_DISTANCE);
+  scene.add(sun, sun.target);
+  // The night side is not black: a faint, cool, even light keeps the ground and the sites
+  // readable there. That part is decoration; a real night on Mars is dark.
+  scene.add(new THREE.AmbientLight(0x9fb2d0, 0.3));
 
-  const planet = new THREE.Mesh(
-    new THREE.SphereGeometry(1, 128, 96),
-    new THREE.MeshStandardMaterial({ map: surface, roughness: 1, metalness: 0 }),
-  );
-  scene.add(planet, atmosphere(), starField(pixelRatio), siteMarkers(sites));
+  const material = new THREE.MeshStandardMaterial({ map: surface, roughness: 1, metalness: 0 });
+  const planet = new THREE.Mesh(new THREE.SphereGeometry(1, 256, 128), material);
+  const markers = siteMarkers(sites);
+  scene.add(planet, atmosphere(sunDirection), starField(pixelRatio), markers);
 
-  const dispose = () => {
-    scene.traverse((object) => {
-      const item = object as Partial<THREE.Mesh>;
-      item.geometry?.dispose();
-      const material = item.material;
-      if (Array.isArray(material)) material.forEach((entry) => entry.dispose());
-      else material?.dispose();
+  let relief: GlobalRelief | null = null;
+  let normals: THREE.DataTexture | null = null;
+
+  const setSun = (overhead: LatLon) => {
+    // The atmosphere reads the same vector, so it follows.
+    toVector(overhead, 1, sunDirection);
+    sun.position.copy(sunDirection).multiplyScalar(SUN_DISTANCE);
+  };
+
+  const setRelief = (grid: GlobalRelief) => {
+    relief = grid;
+    // Each point of the sphere moves along its own radius. The texture coordinates say where on
+    // the planet it is: u runs from 180 W to 180 E and v from the south pole to the north.
+    const position = planet.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const uv = planet.geometry.getAttribute('uv') as THREE.BufferAttribute;
+    const point = new THREE.Vector3();
+    for (let index = 0; index < position.count; index += 1) {
+      const place = { lat: uv.getY(index) * 180 - 90, lon: uv.getX(index) * 360 - 180 };
+      point.fromBufferAttribute(position, index).setLength(drawnRadius(grid, place));
+      position.setXYZ(index, point.x, point.y, point.z);
+    }
+    position.needsUpdate = true;
+    planet.geometry.computeBoundingSphere();
+
+    // The shape alone is too coarse to show a slope; the shading comes from the slope of each cell.
+    normals?.dispose();
+    normals = new THREE.DataTexture(reliefNormals(grid), grid.width, grid.height, THREE.RGBAFormat);
+    normals.wrapS = THREE.RepeatWrapping;
+    normals.magFilter = THREE.LinearFilter;
+    normals.minFilter = THREE.LinearMipmapLinearFilter;
+    normals.generateMipmaps = true;
+    normals.needsUpdate = true;
+    material.normalMap = normals;
+    material.needsUpdate = true;
+
+    const outward = new THREE.Vector3();
+    sites.forEach((site, index) => {
+      toVector(site.landing, markerRadius(site, grid), outward);
+      markers.children[index].position.copy(outward);
     });
   };
 
-  return { scene, camera, dispose };
+  const dispose = () => {
+    normals?.dispose();
+    scene.traverse((object) => {
+      const item = object as Partial<THREE.Mesh>;
+      item.geometry?.dispose();
+      const used = item.material;
+      if (Array.isArray(used)) used.forEach((entry) => entry.dispose());
+      else used?.dispose();
+    });
+  };
+
+  return {
+    scene,
+    camera,
+    setSun,
+    setRelief,
+    markerRadius: (site) => markerRadius(site, relief),
+    dispose,
+  };
 }

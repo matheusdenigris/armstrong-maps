@@ -12,20 +12,23 @@ export const GLOBE_AVAILABLE = true;
 
 /**
  * Mars from orbit. Drag to turn it, pinch or use the wheel to move in, and pick a landing site.
- * The landing-site markers are the selectable regions with high-resolution mosaics.
+ * It is lit from where the Sun is over Mars now and raised with real heights. The marks are the
+ * landing sites.
  */
-export function MarsGlobe({ sites, onOpen, onHover, ref }: MarsGlobeProps) {
+export function MarsGlobe({ sites, onOpen, onHover, onRelief, ref }: MarsGlobeProps) {
   const host = useRef<ComponentRef<typeof View>>(null);
   const labels = useRef(new Map<string, HTMLElement>());
   const engine = useRef<GlobeEngine | null>(null);
   const open = useRef(onOpen);
   const hover = useRef(onHover);
+  const relief = useRef(onRelief);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     open.current = onOpen;
     hover.current = onHover;
-  }, [onOpen, onHover]);
+    relief.current = onRelief;
+  }, [onOpen, onHover, onRelief]);
 
   useImperativeHandle(ref, () => ({ flyTo: (site) => engine.current?.flyTo(site) }), []);
 
@@ -38,6 +41,7 @@ export function MarsGlobe({ sites, onOpen, onHover, ref }: MarsGlobeProps) {
         onOpen: (site) => open.current(site),
         labelOf: (id) => labels.current.get(id),
         onHover: (site) => hover.current?.(site),
+        onRelief: () => relief.current?.(),
       });
     } catch {
       // No WebGL here (an old browser, or the GPU is blocked): say so instead of a blank box.
@@ -57,7 +61,7 @@ export function MarsGlobe({ sites, onOpen, onHover, ref }: MarsGlobeProps) {
       style={styles.host}
       accessible
       accessibilityRole="image"
-      accessibilityLabel="Globe of Mars. Drag to turn it and pick a landing site, or use the list of sites.">
+      accessibilityLabel="Globe of Mars, lit where it is day on Mars now. Drag to turn it and pick a landing site, or use the list of sites.">
       {failed ? (
         <Text style={styles.failed}>
           This browser cannot draw the 3D globe. Choose a landing site from the list.
