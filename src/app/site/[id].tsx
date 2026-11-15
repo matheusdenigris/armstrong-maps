@@ -98,6 +98,7 @@ import type { MapView } from '@/mission/camera';
 import { elapsedSeconds } from '@/mission/clock';
 import { formatDistance, formatDuration, formatHeight, formatLatLon } from '@/mission/format';
 import { distance, pathLength, type LatLon } from '@/mission/geo';
+import { withPaces } from '@/mission/pace';
 import { decodePlan, encodePlan, samePlan } from '@/mission/plan-link';
 import { walkHoursPlayed, walkProgress } from '@/mission/progress';
 import { rerouteWalk } from '@/mission/reroute';
@@ -754,6 +755,20 @@ function SiteMap({ site, sharedPlan }: SiteMapProps) {
     if (useMission.persist.hasHydrated()) queueMicrotask(ready);
     return useMission.persist.onFinishHydration(ready);
   }, []);
+  // How much the slope and the sand slow each leg, kept with the plan so that the visor times
+  // the walk the same way without reading the elevation model. Worked out again whenever the
+  // route or the ground data changes; never while a walk runs or a waypoint is in hand.
+  useEffect(() => {
+    if (clock !== null || dragged !== null || savedRoute.length === 0) return;
+    const grids = [terrain.near, terrain.around].flatMap((feed) =>
+      feed.status === 'ready' ? [feed.data.heights] : [],
+    );
+    if (grids.length === 0) return;
+    const sand = dunes.status === 'ready' ? dunes.data.flatMap((field) => field.outlines) : [];
+    const paced = withPaces(site.landing, savedRoute, grids, sand);
+    if (paced !== savedRoute) setRoute(site.id, paced);
+  }, [clock, dragged, savedRoute, terrain.near, terrain.around, dunes, site, setRoute]);
+
   const sharedLoaded = useRef(false);
   useEffect(() => {
     if (!shared || !saveRead || sharedLoaded.current) return;

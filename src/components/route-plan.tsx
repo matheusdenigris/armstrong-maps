@@ -382,7 +382,7 @@ export function ElevationProfile({ profile, pending, stopsAtM, models }: Elevati
             {profile.covered < 0.995
               ? `The model has no height under ${Math.round((1 - profile.covered) * 100)}% of the route: the line breaks there. `
               : ''}
-            The climb does not slow the simulated walk.
+            Slope slows the walk: the walking time above counts it.
           </Text>
         </>
       )}

@@ -8,6 +8,7 @@ import type { IconName } from '@/components/docs/icon';
 import { CLOCK_RATES, DEFAULT_RATE } from '@/mission/clock';
 import { formatLatLon } from '@/mission/format';
 import { MARS_RADIUS_M } from '@/mission/geo';
+import { SAND_PACE } from '@/mission/pace';
 import { WORK_PLAYBACK } from '@/mission/progress';
 import { LOW_MARGIN_HOURS } from '@/mission/safety';
 import { RELIEF_EXAGGERATION, RELIEF_HEIGHT, RELIEF_WIDTH } from '@/mission/relief';
@@ -265,7 +266,7 @@ const GUIDE: DocPage[] = [
             kind: 'table',
             rows: [
               ['Distance', 'From the base through every waypoint, plus a straight line from the last one back to the base. Measured on Mars, not on the map.'],
-              ['Time outside', `The distance at ${a.walkingSpeedKmh} km/h, plus the work at each stop: the time set for it in the plan, or ${a.minutesPerStop} min when none is set.`],
+              ['Time outside', `The distance at ${a.walkingSpeedKmh} km/h on flat ground, slower where the elevation model shows a slope and in mapped dune fields, plus the work at each stop: the time set for it in the plan, or ${a.minutesPerStop} min when none is set.`],
               ['Elevation profile', 'The height of the ground along the route, out and back, with the total climb, read from the same NASA elevation models as the slope. A rise smaller than a cell of the model does not show. The climb does not slow the simulated walk.'],
               ['Avoid steep ground', 'Offered when the route crosses ground at or past the caution slope: it looks for a way round over the cells of the elevation model and adds points to pass through. The way is clear at the scale of the model only.'],
               ['Return to base', 'During a walk, one button replaces the rest of the plan with the straight way back from where the astronaut is. The distance, the time and the visor follow.'],
@@ -878,7 +879,9 @@ const GUIDE: DocPage[] = [
           {
             kind: 'table',
             rows: [
-              ['Walking speed', `${a.walkingSpeedKmh} km/h in a suit over rough ground`],
+              ['Walking speed', `${a.walkingSpeedKmh} km/h in a suit on flat, firm ground`],
+              ['On a slope', "Slower, in the shape of Tobler's hiking function (measured on Earth, without a suit); never faster than on the flat"],
+              ['In a dune field', `${Math.round(SAND_PACE * 100)}% of that speed`],
               ['Time at each waypoint', `${a.minutesPerStop} min, unless the plan sets another for the stop`],
               ['Life support', `${a.lifeSupportHours} h, with ${reserve} kept in reserve`],
               ['Walk-back limit', `${a.walkBackLimitKm} km from the base, with a warning past ${nearLimit}`],
@@ -900,7 +903,7 @@ const GUIDE: DocPage[] = [
             kind: 'table',
             rows: [
               ['Return leg', 'A straight line from the last waypoint to the base.'],
-              ['Terrain', 'Flat: slopes and obstacles do not slow the walk.'],
+              ['Terrain', 'Each leg is timed by the slope under it and the dune fields it crosses, from the elevation model; within a leg the pace is even, and ground with no height is timed as flat.'],
               ['Dose', 'The published average at every site and at every hour.'],
             ],
           },

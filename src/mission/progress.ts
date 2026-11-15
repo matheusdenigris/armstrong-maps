@@ -5,7 +5,13 @@
  * The position is simulated. It follows the plan exactly, at the assumed walking speed.
  */
 import { bearing, destination, distance, type LatLon } from './geo';
-import { WALK_ASSUMPTIONS, stopMinutes, type WalkAssumptions, type WalkStop } from './walk';
+import {
+  WALK_ASSUMPTIONS,
+  legSlow,
+  stopMinutes,
+  type WalkAssumptions,
+  type WalkStop,
+} from './walk';
 
 /**
  * How much faster than the walking the work at a stop is played back. The plan keeps the whole
@@ -30,7 +36,8 @@ export function walkHoursPlayed(
   let left = Math.max(0, playedHours);
   let walk = 0;
   for (let index = 1; index < points.length; index += 1) {
-    const legHours = distance(points[index - 1], points[index]) / speed;
+    const legHours =
+      (distance(points[index - 1], points[index]) / speed) * legSlow(waypoints, index - 1);
     if (left <= legHours) return walk + left;
     left -= legHours;
     walk += legHours;
@@ -100,7 +107,8 @@ export function walkProgress(
   const legs = points.slice(1).map((to, index) => {
     const from = points[index];
     const lengthM = distance(from, to);
-    return { from, to, lengthM, hours: lengthM / speed };
+    // A leg over a slope or over sand takes longer; within it the pace is taken as even.
+    return { from, to, lengthM, hours: (lengthM / speed) * legSlow(waypoints, index) };
   });
   const totalHours =
     waypoints.length === 0
@@ -149,7 +157,7 @@ export function walkProgress(
     const leg = legs[index];
     const lastLeg = index === legs.length - 1;
     if (counted < clock + leg.hours) {
-      const doneM = (counted - clock) * speed;
+      const doneM = leg.hours > 0 ? ((counted - clock) / leg.hours) * leg.lengthM : 0;
       const course = bearing(leg.from, leg.to);
       const position = doneM === 0 ? leg.from : destination(leg.from, course, doneM);
       return report(
@@ -213,12 +221,21 @@ export function returnPlan(
   if (progress.phase === 'working') {
     const stop = waypoints[progress.stop];
     const spentHours = stopMinutes(stop, assumptions) / 60 - progress.phaseHoursLeft;
-    return [...done, { ...stop, minutes: Math.max(0, spentHours * 60) }];
+    // The way home from here was not the plan's way home: it is timed as flat until the ship
+    // works it out.
+    const { slowBack: _planned, ...kept } = stop;
+    return [...done, { ...kept, minutes: Math.max(0, spentHours * 60) }];
   }
-  return [
-    ...done,
-    { lat: progress.position.lat, lon: progress.position.lon, minutes: 0, name: TURN_BACK_NAME },
-  ];
+  const turn: WalkStop = {
+    lat: progress.position.lat,
+    lon: progress.position.lon,
+    minutes: 0,
+    name: TURN_BACK_NAME,
+  };
+  // The part of the leg already walked keeps its pace, so the clock still reads the same.
+  const slow = legSlow(waypoints, progress.stop);
+  if (slow !== 1) turn.slow = slow;
+  return [...done, turn];
 }
 
 /** What the point where a walk turned for the base is called in the plan. */

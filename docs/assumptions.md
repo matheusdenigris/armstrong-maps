@@ -11,7 +11,9 @@ every number follows.
 
 | Value | In the app | Kind |
 |---|---|---|
-| Walking speed in a suit over rough ground | 2.5 km/h | Assumption |
+| Walking speed in a suit on flat, firm ground | 2.5 km/h | Assumption |
+| Walking speed on a slope | The flat speed times exp(-3.5 \|grade + 0.05\|) / exp(-0.175), never more than the flat speed. The shape is Tobler's hiking function (Tobler 1993, NCGIA Technical Report 93-1), measured on people walking on Earth without a suit; no measurement of a suited walk on Mars exists | Assumption |
+| Walking speed in a mapped dune field | 70% of the speed the slope allows | Assumption |
 | Time working at each waypoint | 20 min, unless the plan sets another for the stop (0 to 240 min) | Assumption |
 | Life support of the suit | 8 h | Assumption |
 | Share of life support that must be left on return | 20% | Assumption |
@@ -24,8 +26,8 @@ every number follows.
 | The Sun is low: shadows hide holes and rocks | Below 10° above the horizon | Assumption |
 | "Next morning" starts the walk when the Sun is | 15° up, on its way up | Assumption |
 | Return leg | A straight line from the last waypoint to the base | Simplification |
-| Terrain | Slopes do not slow the walk; they only change the verdict | Simplification |
-| Climb | The elevation profile gives the climb of the route; it does not slow the walk or use more life support | Simplification |
+| Terrain | Each leg is timed by the grade under it, in the direction of travel, from the elevation model (about 60 m cells near the base, 200 m around it), and by the dune fields it crosses. Within a leg the pace is taken as even. Ground the model has no height for is timed as flat | Simplification |
+| The way back during a walk | The visor's time to walk back, and the way home after Return to base, are timed as flat ground: the ground under that line is not read | Simplification |
 | A way round steep ground | Found over the cells of the elevation model (about 60 m near the base, 200 m around it), preferring ground under the caution slope and never crossing the no-go slope or ground with no data. Clear at that scale only | Simplification |
 | Return to base | A straight line from where the astronaut is, like the return leg of the plan; it is not checked against steep ground again | Simplification |
 
