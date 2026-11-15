@@ -115,7 +115,14 @@ export const SITES: readonly Site[] = [
     region: ELYSIUM,
     science: 'A smooth plain where InSight measured marsquakes and the interior of the planet.',
     photoQuery: 'InSight lander surface',
-    layers: [ctxMosaic('InSightCTXMosaic_112917', ELYSIUM, 13)],
+    layers: [
+      ctxMosaic('InSightCTXMosaic_112917', ELYSIUM, 13),
+      hiriseMosaic(
+        'ESP_058005_1845_RED_spline_rect',
+        { west: 135.5687727, south: 4.3304903, east: 135.6963018, north: 4.6680121 },
+        17,
+      ),
+    ],
   },
 ];
 

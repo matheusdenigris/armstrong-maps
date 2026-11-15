@@ -737,7 +737,7 @@ const GUIDE: DocPage[] = [
             rows: [
               ['Rover traverse', `Published live for ${sitesWithRover}, the two sites with a working rover.`],
               ['Weather', `Measured at Gale Crater only. At the other sites it is shown as a reference, with the distance to the station. A reading older than ${STALE_AFTER_DAYS} days is called out as old.`],
-              ['Close-up imagery', 'A regional mosaic everywhere; a high-resolution one at every site but Elysium Planitia.'],
+              ['Close-up imagery', 'A regional mosaic and a high-resolution one at every site. The high-resolution one covers a strip around the landing point, not the whole region.'],
               ['Visor photographs', 'Gale, Jezero and Gusev have their own. Meridiani and Elysium borrow the ones from Gale.'],
               ['Radiation', 'The same published average everywhere: it was measured at Gale.'],
             ],
