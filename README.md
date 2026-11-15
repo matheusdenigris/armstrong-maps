@@ -190,7 +190,7 @@ decoration.
 
 This project is developed with the help of Claude (Anthropic) working as a coding agent under the
 team's direction. Commits written with it carry a `Co-Authored-By` trailer. Inside the app, no
-image, map, sound or scientific data is AI-generated: all of it comes from NASA and its partners.
+image, map, sound or scientific data is AI-generated: all of it comes from NASA and its partners, except for the app logo (Armstrong Agent), that was AI-generated.
 In the demo video, the narration voice and the music are generated with ElevenLabs, and two short
 shots (an astronaut walking on Mars and the final shot) were generated from real NASA photographs;
 both carry an on-screen note that they were generated with AI.
