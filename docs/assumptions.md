@@ -133,8 +133,12 @@ NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero.
   until what is ahead is about one and a half times larger. It gives the walk depth, but it is a
   move into a still picture: nothing in the photograph shifts against anything else, as it would
   if the ground were really being covered.
-- The change of scene is a short cut: the view strides forward into a gust of dust, which clears
-  on the next photograph. The dust and the stride are drawn.
+- The change of scene is a short cut: a gust of dust rises over the view and clears on the next
+  photograph. The dust is drawn.
+- The picture does not rise and fall with the steps: at the speeds a walk is played, that reads
+  as shaking and is uncomfortable to watch. When the device asks for reduced motion the view
+  does not move into the photograph either, and the change of scene is a plain fade through the
+  dust.
 - Only one photograph has a caption that says where north is (PIA20840). The others are not lined
   up with the compass: turning turns the view by the right amount, but what is ahead in the
   picture is not what is ahead on the ground. The visor says which case it is.

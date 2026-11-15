@@ -10,10 +10,10 @@ export type PanoramaViewProps = {
   /** How far up (positive) or down the astronaut is looking, in degrees. */
   pitch: number;
   size: { width: number; height: number };
-  /** Vertical sway of a step, in pixels. Zero when standing still. */
-  sway?: number;
   /** How far through this scene's stretch of walking the astronaut is, 0 to 1. */
   advance?: number;
+  /** The person asked the system for less movement: the picture does not grow. */
+  still?: boolean;
 };
 
 /**
@@ -25,16 +25,17 @@ export function PanoramaView({
   panorama,
   heading,
   size,
-  sway = 0,
   advance = 0,
+  still = false,
 }: PanoramaViewProps) {
   const bandHeight = (panorama.band.bottom - panorama.band.top) * panorama.height;
   // The picture grows a little as the astronaut covers the stretch, as on the web.
-  const scale = (size.height / bandHeight) * (1 + Math.min(1, Math.max(0, advance)) * 0.5);
+  const grown = still ? 0 : Math.min(1, Math.max(0, advance));
+  const scale = (size.height / bandHeight) * (1 + grown * 0.5);
   const width = panorama.width * scale;
   const height = panorama.height * scale;
   const left = size.width / 2 - headingToFraction(panorama, heading) * width;
-  const top = -panorama.band.top * height + sway;
+  const top = -panorama.band.top * height;
 
   return (
     <View style={[StyleSheet.absoluteFill, styles.frame]} pointerEvents="none">

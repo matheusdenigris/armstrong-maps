@@ -1,8 +1,7 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import Head from 'expo-router/head';
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
+import { useMemo, useRef, useState, useSyncExternalStore, type ComponentRef, type ReactNode } from 'react';
 import {
-  AccessibilityInfo,
   Platform,
   Pressable,
   ScrollView,
@@ -69,6 +68,7 @@ import { WALK_ASSUMPTIONS, evaluateWalk, type WalkEvaluation } from '@/mission/w
 import { MAX_WAYPOINTS, useMission, useRoute } from '@/state/mission';
 import { useFeed } from '@/state/use-feed';
 import { useNow } from '@/state/use-now';
+import { useReducedMotion } from '@/state/use-reduced-motion';
 
 /** One page per site in the static web export. */
 export function generateStaticParams() {
@@ -137,21 +137,6 @@ const KEYFRAMES = `
   @keyframes armstrong-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
   @keyframes armstrong-sheet { from { opacity: 0; transform: translateY(32px); } to { opacity: 1; transform: none; } }
 `;
-
-/** True when the person has asked the system for less movement: then nothing here animates. */
-function useReducedMotion() {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((on) => alive && setReduced(on));
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
-    return () => {
-      alive = false;
-      subscription.remove();
-    };
-  }, []);
-  return reduced;
-}
 
 type Tab = 'map' | 'layers' | 'walk' | 'site' | 'photos';
 /** What the right-hand panel of the desktop console shows: one subject at a time. */

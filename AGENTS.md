@@ -107,7 +107,7 @@ screen needs a source or a "simulated" or "assumption" label.
 - **The sense of walking comes from depth and from changing scenes.** Within a scene
   `PanoramaView` moves the view into the photograph by its `advance` (0 to 1 through the
   stretch). `sceneForWalk` moves through the real photographs of the site as the astronaut covers
-  ground, and `PanoramaView` joins two of them with a short cut (a stride into drawn dust). Add a photograph by adding it to the catalogue,
+  ground, and `PanoramaView` joins two of them with a short cut (a fade through drawn dust). The picture never rises and falls with the steps: that reads as shaking and is uncomfortable to watch. Under reduced motion (`useReducedMotion`) it does not move at all and the cut is a plain fade. Add a photograph by adding it to the catalogue,
   with its sol and the rover's position on that sol; view it first, and pick ones whose sky has
   no black gaps where the terrain rises.
 - Do not add `src/app/+html.tsx` without checking the export: a custom shell dropped the style
