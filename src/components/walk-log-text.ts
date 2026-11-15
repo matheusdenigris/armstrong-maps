@@ -36,7 +36,9 @@ export function describeEntry(entry: LogEntry): string {
     case 'link-back':
       return 'Link back: line of sight to the base';
     case 'message-sent':
-      return `Ship: "${entry.text}"`;
+      return entry.priority === 'routine'
+        ? `Ship: "${entry.text}"`
+        : `Ship, ${entry.priority}: "${entry.text}"`;
     case 'message-shown':
       return `Shown in the visor: "${entry.text}"`;
     case 'message-acknowledged':

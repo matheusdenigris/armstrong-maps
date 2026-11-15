@@ -954,7 +954,7 @@ const GUIDE: DocPage[] = [
           },
           {
             kind: 'text',
-            text: 'The ship can send a short message. The visor shows it until the astronaut acknowledges it, and the console says when it was shown and when it was acknowledged. A message sent with no line of sight waits until the link is back.',
+            text: 'The ship can send a short message. The visor shows it until the astronaut acknowledges it, with a chime when the sound is on that is longer and higher the more serious the ship marked the message (routine, attention or urgent), and the console says when it was shown and when it was acknowledged. A message sent with no line of sight waits until the link is back.',
           },
           {
             kind: 'text',

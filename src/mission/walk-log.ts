@@ -8,7 +8,7 @@
  * the entries, each stamped with the time of the walk.
  */
 import { distance, type LatLon } from './geo';
-import type { ShipMessage } from './messages';
+import { priorityOf, type MessagePriority, type ShipMessage } from './messages';
 import { walkProgress } from './progress';
 import { walkSafety, type SafetyAlert } from './safety';
 import { WALK_ASSUMPTIONS, type WalkAssumptions } from './walk';
@@ -23,7 +23,7 @@ export type LogEntry = { atHours: number } & (
   | { kind: 'alert-over'; alert: SafetyAlert }
   | { kind: 'link-lost' }
   | { kind: 'link-back' }
-  | { kind: 'message-sent'; text: string }
+  | { kind: 'message-sent'; text: string; priority: MessagePriority }
   | { kind: 'message-shown'; text: string }
   | { kind: 'message-acknowledged'; text: string }
   /** The ship ended the walk before the astronaut was back. */
@@ -137,7 +137,12 @@ function messageEntries(messages: readonly ShipMessage[], uptoHours: number): Lo
   for (const message of messages) {
     const { text } = message;
     if (message.sentHours <= uptoHours) {
-      entries.push({ atHours: message.sentHours, kind: 'message-sent', text });
+      entries.push({
+        atHours: message.sentHours,
+        kind: 'message-sent',
+        text,
+        priority: priorityOf(message),
+      });
     }
     if (message.shownHours !== null && message.shownHours <= uptoHours) {
       entries.push({ atHours: message.shownHours, kind: 'message-shown', text });

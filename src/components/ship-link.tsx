@@ -7,9 +7,12 @@ import { formatClock, formatDistance } from '@/mission/format';
 import { LINK_ASSUMPTIONS } from '@/mission/line-of-sight';
 import {
   MESSAGE_MAX_LENGTH,
+  MESSAGE_PRIORITIES,
   QUICK_MESSAGES,
   cleanMessage,
   messageState,
+  priorityOf,
+  type MessagePriority,
   type ShipMessage,
 } from '@/mission/messages';
 import type { Sight } from '@/state/use-walk-record';
@@ -17,7 +20,19 @@ import type { Sight } from '@/state/use-walk-record';
 type ShipLinkProps = {
   sight: Sight;
   messages: readonly ShipMessage[];
-  onSend: (text: string) => void;
+  onSend: (text: string, priority: MessagePriority) => void;
+};
+
+/** How each priority is named and coloured, at the console and in the visor. */
+export const PRIORITY_LABEL: Record<MessagePriority, string> = {
+  routine: 'Routine',
+  attention: 'Attention',
+  urgent: 'Urgent',
+};
+export const PRIORITY_COLOR: Record<MessagePriority, string> = {
+  routine: Colors.nav,
+  attention: Colors.caution,
+  urgent: Colors.noGo,
 };
 
 function stateText(message: ShipMessage, linkDown: boolean): string {
@@ -40,12 +55,14 @@ function stateText(message: ShipMessage, linkDown: boolean): string {
  */
 export function ShipLink({ sight, messages, onSend }: ShipLinkProps) {
   const [draft, setDraft] = useState('');
+  // How serious the message being written is: the visor sounds and colours it by this.
+  const [priority, setPriority] = useState<MessagePriority>('routine');
   const linkDown = sight.status === 'ready' && !sight.line.clear;
   const ready = cleanMessage(draft) !== null;
 
-  const send = (text: string) => {
+  const send = (text: string, as: MessagePriority) => {
     if (cleanMessage(text) === null) return;
-    onSend(text);
+    onSend(text, as);
     setDraft('');
   };
 
@@ -76,7 +93,7 @@ export function ShipLink({ sight, messages, onSend }: ShipLinkProps) {
           <TextInput
             value={draft}
             onChangeText={setDraft}
-            onSubmitEditing={() => send(draft)}
+            onSubmitEditing={() => send(draft, priority)}
             placeholder="Message to the astronaut"
             placeholderTextColor={Colors.textFaint}
             maxLength={MESSAGE_MAX_LENGTH}
@@ -85,7 +102,7 @@ export function ShipLink({ sight, messages, onSend }: ShipLinkProps) {
             style={styles.input}
           />
           <Pressable
-            onPress={() => send(draft)}
+            onPress={() => send(draft, priority)}
             disabled={!ready}
             accessibilityRole="button"
             accessibilityLabel="Send the message to the astronaut"
@@ -99,15 +116,40 @@ export function ShipLink({ sight, messages, onSend }: ShipLinkProps) {
           </Pressable>
         </View>
 
+        <View style={styles.priorities} accessibilityRole="radiogroup">
+          <Text style={styles.priorityLabel}>Priority</Text>
+          {MESSAGE_PRIORITIES.map((option) => {
+            const chosen = option === priority;
+            return (
+              <Pressable
+                key={option}
+                onPress={() => setPriority(option)}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: chosen }}
+                accessibilityLabel={`Priority of the message: ${PRIORITY_LABEL[option]}`}
+                style={[styles.priority, chosen && styles.priorityChosen]}>
+                <View style={[styles.priorityDot, { backgroundColor: PRIORITY_COLOR[option] }]} />
+                <Text style={[styles.priorityText, chosen && styles.priorityTextChosen]}>
+                  {PRIORITY_LABEL[option]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Ready-made messages go out with the priority that suits them. */}
         <View style={styles.quick}>
-          {QUICK_MESSAGES.map((text) => (
+          {QUICK_MESSAGES.map((quick) => (
             <Pressable
-              key={text}
-              onPress={() => send(text)}
+              key={quick.text}
+              onPress={() => send(quick.text, quick.priority)}
               accessibilityRole="button"
-              accessibilityLabel={`Send: ${text}`}
+              accessibilityLabel={`Send, ${PRIORITY_LABEL[quick.priority]}: ${quick.text}`}
               style={({ pressed }) => [styles.chip, pressed && styles.pressed]}>
-              <Text style={styles.chipText}>{text}</Text>
+              <View
+                style={[styles.priorityDot, { backgroundColor: PRIORITY_COLOR[quick.priority] }]}
+              />
+              <Text style={styles.chipText}>{quick.text}</Text>
             </Pressable>
           ))}
         </View>
@@ -117,9 +159,17 @@ export function ShipLink({ sight, messages, onSend }: ShipLinkProps) {
             {/* The newest first: it is the one whose state is changing. */}
             {[...messages].reverse().map((message) => (
               <View key={message.id} style={styles.message}>
-                <Text style={styles.messageText}>{message.text}</Text>
+                <View style={styles.messageHead}>
+                  <View
+                    style={[
+                      styles.priorityDot,
+                      { backgroundColor: PRIORITY_COLOR[priorityOf(message)] },
+                    ]}
+                  />
+                  <Text style={styles.messageText}>{message.text}</Text>
+                </View>
                 <Text style={styles.messageState}>
-                  {`Sent ${formatClock(message.sentHours)} · ${stateText(message, linkDown)}`}
+                  {`${PRIORITY_LABEL[priorityOf(message)]} · sent ${formatClock(message.sentHours)} · ${stateText(message, linkDown)}`}
                 </Text>
               </View>
             ))}
@@ -222,7 +272,52 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.one + Spacing.half,
   },
+  priorities: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: Spacing.one + Spacing.half,
+  },
+  priorityLabel: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+    marginRight: Spacing.one,
+  },
+  priority: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one + Spacing.half,
+    minHeight: 32,
+    paddingHorizontal: Spacing.two + Spacing.one,
+    borderRadius: Radius.pill,
+    backgroundColor: Colors.glassLight,
+  },
+  priorityChosen: {
+    backgroundColor: Colors.text,
+  },
+  priorityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  priorityText: {
+    color: Colors.textSoft,
+    fontFamily: Fonts.sans,
+    fontSize: 12,
+  },
+  priorityTextChosen: {
+    color: Colors.background,
+  },
+  messageHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.one + Spacing.half,
     minHeight: 32,
     justifyContent: 'center',
     paddingHorizontal: Spacing.two + Spacing.one,
@@ -242,6 +337,7 @@ const styles = StyleSheet.create({
     gap: Spacing.half,
   },
   messageText: {
+    flex: 1,
     color: Colors.text,
     fontFamily: Fonts.sans,
     fontSize: 14,

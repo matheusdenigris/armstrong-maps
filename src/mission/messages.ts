@@ -6,9 +6,19 @@
  * cannot be shown while the link is down: it waits, and the console says so.
  */
 
+/**
+ * How serious a message is, as the ship marks it. The visor sounds and colours it by this, so
+ * the astronaut knows before reading whether it can wait.
+ */
+export type MessagePriority = 'routine' | 'attention' | 'urgent';
+
+export const MESSAGE_PRIORITIES: readonly MessagePriority[] = ['routine', 'attention', 'urgent'];
+
 export type ShipMessage = {
   id: string;
   text: string;
+  /** Absent on a message saved before messages had one: it reads as routine. */
+  priority?: MessagePriority;
   /** Walk time when the ship sent it, in hours. */
   sentHours: number;
   /** Walk time when the visor first showed it, or null while it has not. */
@@ -21,12 +31,25 @@ export type ShipMessage = {
 export const MESSAGE_MAX_LENGTH = 120;
 
 /** What the ship most often has to say, one press away. */
-export const QUICK_MESSAGES = [
-  'Return to the base',
-  'Hold your position',
-  'Check your life support',
-  'All clear, carry on',
-] as const;
+export const QUICK_MESSAGES: readonly { text: string; priority: MessagePriority }[] = [
+  { text: 'Return to the base', priority: 'urgent' },
+  { text: 'Hold your position', priority: 'attention' },
+  { text: 'Check your life support', priority: 'attention' },
+  { text: 'All clear, carry on', priority: 'routine' },
+];
+
+export const priorityOf = (message: ShipMessage): MessagePriority => message.priority ?? 'routine';
+
+const RANK: Record<MessagePriority, number> = { routine: 0, attention: 1, urgent: 2 };
+
+/** The most serious of several priorities, or null of none. */
+export function worstPriority(priorities: readonly MessagePriority[]): MessagePriority | null {
+  let worst: MessagePriority | null = null;
+  for (const priority of priorities) {
+    if (worst === null || RANK[priority] > RANK[worst]) worst = priority;
+  }
+  return worst;
+}
 
 /** The text as it will be sent: one line, trimmed, cut to length. Null when nothing is left. */
 export function cleanMessage(text: string): string | null {
@@ -40,10 +63,14 @@ export function withMessage(
   id: string,
   text: string,
   atHours: number,
+  priority: MessagePriority = 'routine',
 ): readonly ShipMessage[] {
   const line = cleanMessage(text);
   if (line === null) return list;
-  return [...list, { id, text: line, sentHours: atHours, shownHours: null, ackHours: null }];
+  return [
+    ...list,
+    { id, text: line, priority, sentHours: atHours, shownHours: null, ackHours: null },
+  ];
 }
 
 /** The list with every message not yet shown marked as shown now. The same list if none was. */
@@ -69,9 +96,17 @@ export function withAcknowledged(
   );
 }
 
-/** The message the visor is asking the crew member to acknowledge: the oldest one waiting. */
+/**
+ * The message the visor is asking the crew member to acknowledge: of the ones waiting, the most
+ * serious, and of those the oldest. An urgent message does not queue behind a routine one.
+ */
 export function messageToAcknowledge(list: readonly ShipMessage[]): ShipMessage | null {
-  return list.find((message) => message.shownHours !== null && message.ackHours === null) ?? null;
+  let chosen: ShipMessage | null = null;
+  for (const message of list) {
+    if (message.shownHours === null || message.ackHours !== null) continue;
+    if (chosen === null || RANK[priorityOf(message)] > RANK[priorityOf(chosen)]) chosen = message;
+  }
+  return chosen;
 }
 
 export type MessageState =

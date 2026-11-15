@@ -6,7 +6,7 @@ import { describeEntry, logFilename, logText } from './walk-log-text';
 
 const entries: LogEntry[] = [
   { atHours: 0, kind: 'start' },
-  { atHours: 0.05, kind: 'message-sent', text: 'Hold your position' },
+  { atHours: 0.05, kind: 'message-sent', text: 'Hold your position', priority: 'attention' },
   { atHours: 0.07, kind: 'message-shown', text: 'Hold your position' },
   { atHours: 0.09, kind: 'message-acknowledged', text: 'Hold your position' },
   { atHours: 0.275, kind: 'link-lost' },
@@ -23,7 +23,7 @@ describe('describeEntry', () => {
   it('writes a sentence for every kind of entry', () => {
     expect(entries.map(describeEntry)).toEqual([
       'Left the base',
-      'Ship: "Hold your position"',
+      'Ship, attention: "Hold your position"',
       'Shown in the visor: "Hold your position"',
       'Acknowledged: "Hold your position"',
       'Link lost: no line of sight to the base',
@@ -36,6 +36,12 @@ describe('describeEntry', () => {
       'Ended by the ship before the return',
     ]);
     expect(describeEntry({ atHours: 3, kind: 'back-at-base' })).toBe('Back at the base');
+    expect(
+      describeEntry({ atHours: 1, kind: 'message-sent', text: 'All clear', priority: 'routine' }),
+    ).toBe('Ship: "All clear"');
+    expect(
+      describeEntry({ atHours: 1, kind: 'message-sent', text: 'Return', priority: 'urgent' }),
+    ).toBe('Ship, urgent: "Return"');
   });
 });
 

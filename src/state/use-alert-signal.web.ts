@@ -1,14 +1,22 @@
 import { useEffect, useRef } from 'react';
 
-import { ALERT_SIGNALS, signalFor, type SignalLevel } from '@/mission/alert-signal';
+import {
+  ALERT_SIGNALS,
+  messageSignal,
+  signalFor,
+  type SignalKind,
+} from '@/mission/alert-signal';
+import type { MessagePriority } from '@/mission/messages';
 import type { SafetyAlert } from '@/mission/safety';
 
 export const ALERT_SIGNAL_AVAILABLE = true;
 
+const NO_MESSAGES: readonly MessagePriority[] = [];
+
 /** How loud the tone is, from 0 to 1: enough to hear over the wind, not enough to startle. */
 const VOLUME = 0.22;
 
-function play(context: AudioContext, level: SignalLevel) {
+function play(context: AudioContext, level: SignalKind) {
   let at = context.currentTime + 0.02;
   for (const tone of ALERT_SIGNALS[level].tones) {
     const length = tone.ms / 1000;
@@ -30,13 +38,18 @@ function play(context: AudioContext, level: SignalLevel) {
 }
 
 /**
- * A tone and a vibration when an alert appears, once for each time it appears. Nothing is heard
+ * A tone and a vibration when an alert appears or a message from the ship arrives, once each. Nothing is heard
  * unless `enabled`: the screen ties it to its sound switch, so switching the sound off silences
  * the alerts too. A browser only lets sound start from a press, so the screen calls `arm` from
  * the press that switches the sound on. The tone goes through the audio of the page, which a
  * phone mutes with its silent switch; vibration runs only where the browser offers it.
  */
-export function useAlertSignal(alerts: readonly SafetyAlert[], enabled: boolean) {
+export function useAlertSignal(
+  alerts: readonly SafetyAlert[],
+  enabled: boolean,
+  /** The priority of each message from the ship the visor has shown so far, oldest first. */
+  shown: readonly MessagePriority[] = NO_MESSAGES,
+) {
   const context = useRef<AudioContext | null>(null);
   const before = useRef<readonly SafetyAlert[]>(alerts);
   // The list is a new array on every draw; its text changes only when the alerts do.
@@ -55,6 +68,22 @@ export function useAlertSignal(alerts: readonly SafetyAlert[], enabled: boolean)
       // No vibration here: the tone and the display carry the alert.
     }
   }, [key, enabled]);
+
+  // A message from the ship has its own sound, which says how serious the ship marked it.
+  const shownKey = shown.join(' ');
+  const shownBefore = useRef(shown.length);
+  useEffect(() => {
+    const now = shownKey === '' ? [] : (shownKey.split(' ') as MessagePriority[]);
+    const kind = messageSignal(shownBefore.current, now);
+    shownBefore.current = now.length;
+    if (!enabled || kind === null) return;
+    if (context.current) play(context.current, kind);
+    try {
+      navigator.vibrate?.([...ALERT_SIGNALS[kind].vibration]);
+    } catch {
+      // No vibration here: the chime and the card carry the message.
+    }
+  }, [shownKey, enabled]);
 
   useEffect(
     () => () => {

@@ -17,6 +17,7 @@ import Svg, { Path } from 'react-native-svg';
 import { HeadingTape, turnTo } from '@/components/heading-tape';
 import { MiniMap } from '@/components/mini-map';
 import { PanoramaView } from '@/components/panorama-view';
+import { PRIORITY_COLOR, PRIORITY_LABEL } from '@/components/ship-link';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { VIKING_GLOBAL } from '@/data/layers';
 import {
@@ -33,7 +34,7 @@ import { MARS_WIND } from '@/data/sounds';
 import { REMS_CREDIT, REMS_FEED, parseWeather, readingAgeDays } from '@/data/weather';
 import { elapsedSeconds } from '@/mission/clock';
 import { LINK_ASSUMPTIONS } from '@/mission/line-of-sight';
-import { messageToAcknowledge } from '@/mission/messages';
+import { messageToAcknowledge, priorityOf } from '@/mission/messages';
 import {
   formatClock,
   formatDistance,
@@ -197,8 +198,6 @@ function Visor({ site }: { site: Site }) {
     : 0;
   const progress = walkProgress(site.landing, route, elapsedHours, SURFACE_RADIATION.msvPerDay);
   const safety = walkSafety(progress);
-  // A new alert is heard as well as shown, once, while the sound is on.
-  const alertSignal = useAlertSignal(safety.alerts, sound.playing);
 
   // The link with the ship. The ship works out whether it sees the astronaut over the
   // ground; while it does not, nothing it sends gets through.
@@ -208,6 +207,12 @@ function Visor({ site }: { site: Site }) {
   const acknowledgeMessage = useMission((state) => state.acknowledgeMessage);
   const linkDown = clock !== null && linkState === 'blocked';
   const unshown = messages.filter((message) => message.shownHours === null).length;
+  // A new alert and a new message are heard as well as shown, once each, while the sound is on.
+  // A message sounds by the priority the ship gave it: the more serious, the more insistent.
+  const shownPriorities = messages
+    .filter((message) => message.shownHours !== null)
+    .map(priorityOf);
+  const alertSignal = useAlertSignal(safety.alerts, sound.playing, shownPriorities);
   const walkHours = progress.elapsedHours;
   useEffect(() => {
     // A message is marked as shown the moment the visor can show it. This and the
@@ -489,7 +494,7 @@ function Visor({ site }: { site: Site }) {
           </View>
           {AMBIENT_SOUND_AVAILABLE ? (
             <Toggle
-              label="Sound of the wind on Mars, recorded by Perseverance, and a tone when an alert appears"
+              label="Sound of the wind on Mars, recorded by Perseverance, and a tone for an alert or a message"
               text={sound.failed ? 'No sound' : sound.playing ? 'Sound on' : 'Sound off'}
               on={sound.playing}
               onPress={() => {
@@ -532,6 +537,7 @@ function Visor({ site }: { site: Site }) {
               offTarget={offTarget}
               etaHours={etaHours}
               stops={route.length}
+              compact={!wide && toAcknowledge !== null}
             />
           </View>
         ) : null}
@@ -539,10 +545,26 @@ function Visor({ site }: { site: Site }) {
         {/* A message from the ship, until the astronaut says it was read. */}
         {toAcknowledge ? (
           <View style={[styles.side, { marginLeft: insets.left + Spacing.three }]}>
-            <View style={[styles.message, GLASS]} accessibilityRole="alert">
-              <Text style={styles.messageFrom}>
-                From the ship · {formatClock(toAcknowledge.sentHours)}
-              </Text>
+            <View
+              style={[
+                styles.message,
+                GLASS,
+                // An urgent message is outlined in its colour, like a warning.
+                priorityOf(toAcknowledge) === 'urgent' && styles.messageUrgent,
+              ]}
+              accessibilityRole="alert">
+              <View style={styles.messageHead}>
+                <View
+                  style={[
+                    styles.alertDot,
+                    { backgroundColor: PRIORITY_COLOR[priorityOf(toAcknowledge)] },
+                  ]}
+                />
+                <Text style={styles.messageFrom}>
+                  From the ship · {PRIORITY_LABEL[priorityOf(toAcknowledge)]} ·{' '}
+                  {formatClock(toAcknowledge.sentHours)}
+                </Text>
+              </View>
               <Text style={styles.messageText}>{toAcknowledge.text}</Text>
               <Pressable
                 onPress={() => acknowledgeMessage(site.id, toAcknowledge.id, walkHours)}
@@ -670,8 +692,10 @@ function Visor({ site }: { site: Site }) {
             Sound: real wind recorded by the SuperCam microphone of Perseverance at Jezero Crater on{' '}
             {MARS_WIND.when}, on a loop and played louder than published
             {site.id === MARS_WIND.site ? '' : '; it was not recorded at this site'}.{' '}
-            {MARS_WIND.credit}. With the sound on, a short tone marks each alert when it appears,
-            with a vibration where the phone allows it. The tone is drawn, not recorded.
+            {MARS_WIND.credit}. With the sound on, a short tone marks each alert when it appears
+            and each message from the ship when it arrives, longer and higher the more serious
+            the ship marked it, with a vibration where the phone allows it. The tones are
+            drawn, not recorded.
           </Text>
           {phone.available ? (
             <Text style={styles.sourcesText}>
@@ -742,13 +766,37 @@ type TargetProps = {
   etaHours: number;
   /** How many waypoints the route has. */
   stops: number;
+  /**
+   * One line instead of a card: on a narrow screen a message from the ship needs the room, and
+   * the two must not reach the instruments on the rim.
+   */
+  compact?: boolean;
 };
 
 /**
  * The next point to reach: how far, which way, and when. At a stop it is the work in hand
  * instead: how long is left of it, and where the walk goes afterwards.
  */
-function Target({ progress, offTarget, etaHours, stops }: TargetProps) {
+function Target({ progress, offTarget, etaHours, stops, compact = false }: TargetProps) {
+  if (compact) {
+    const working = progress.phase === 'working';
+    return (
+      <View style={[styles.targetLine, GLASS]}>
+        <Text style={styles.targetLabel} numberOfLines={1}>
+          {working
+            ? `Working at waypoint ${(progress.stop ?? 0) + 1}`
+            : progress.stop === null
+              ? 'Base'
+              : `Waypoint ${progress.stop + 1}`}
+        </Text>
+        <Text style={styles.targetLineValue} numberOfLines={1}>
+          {working
+            ? formatClock(progress.phaseHoursLeft)
+            : `${formatDistance(progress.distanceToTargetM)} · ${bearingText(progress.bearingToTarget)}`}
+        </Text>
+      </View>
+    );
+  }
   if (progress.phase === 'working') {
     const stop = progress.stop ?? 0;
     const stopHours = WALK_ASSUMPTIONS.minutesPerStop / 60;
@@ -932,10 +980,19 @@ const styles = StyleSheet.create({
     borderColor: Colors.glassBorder,
     backgroundColor: Colors.visorPlate,
   },
+  messageHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
   messageFrom: {
     color: Colors.textSoft,
     fontFamily: Fonts.sans,
     fontSize: 12,
+  },
+  messageUrgent: {
+    borderWidth: 1,
+    borderColor: Colors.noGo,
   },
   messageText: {
     color: Colors.text,
@@ -1055,6 +1112,22 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.glassBorder,
     backgroundColor: Colors.visorPlate,
+  },
+  targetLine: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    borderRadius: Radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.glassBorder,
+    backgroundColor: Colors.visorPlate,
+  },
+  targetLineValue: {
+    color: Colors.text,
+    fontFamily: Fonts.mono,
+    fontSize: 16,
   },
   targetLabel: {
     color: Colors.textSoft,

@@ -1,3 +1,4 @@
+import type { MessagePriority } from '@/mission/messages';
 import type { SafetyAlert } from '@/mission/safety';
 
 /**
@@ -7,6 +8,10 @@ import type { SafetyAlert } from '@/mission/safety';
  */
 export const ALERT_SIGNAL_AVAILABLE = false;
 
-export function useAlertSignal(_alerts: readonly SafetyAlert[], _enabled: boolean) {
+export function useAlertSignal(
+  _alerts: readonly SafetyAlert[],
+  _enabled: boolean,
+  _shown: readonly MessagePriority[] = [],
+) {
   return { arm: () => {} };
 }

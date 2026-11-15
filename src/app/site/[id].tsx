@@ -685,7 +685,9 @@ function SiteMap({ site }: { site: Site }) {
         <ShipLink
           sight={record.sight}
           messages={messages}
-          onSend={(text) => sendMessage(site.id, text, progress.elapsedHours)}
+          onSend={(text, priority) =>
+            sendMessage(site.id, text, progress.elapsedHours, priority)
+          }
         />
       ) : desktopConsole ? (
         <ShipLinkIdle />

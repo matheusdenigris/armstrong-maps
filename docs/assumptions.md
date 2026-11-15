@@ -194,7 +194,12 @@ about the radio itself (power, frequency, reflections).
 No delay is simulated. Between a ship and an astronaut a few kilometres away a signal takes
 microseconds. The delay people know from Mars is to the Earth, which this app does not model.
 
-A message from the ship is shown in the visor until it is acknowledged. While there is no line of
+A message from the ship is shown in the visor until it is acknowledged. With the sound of the
+visor on, it arrives with a sound that follows the priority the ship gave it: two rising notes
+for a routine message, the pair twice for one that needs attention, and the pair followed by
+three high notes for an urgent one, each with a vibration to match. Every message starts with
+the same two notes, so none is taken for an alert. The ready-made messages carry a priority
+(Return to the base is urgent); a typed one takes the priority chosen beside it. While there is no line of
 sight it waits. The walk log is worked out from the plan (start, waypoints, alerts, the link),
 looked at every half minute of walk time, so an alert or a loss of link is stamped to within
 that; only the messages are recorded as they happen. The record of the last walk at a site is

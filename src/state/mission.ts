@@ -18,6 +18,7 @@ import {
   withAcknowledged,
   withMessage,
   withShown,
+  type MessagePriority,
   type ShipMessage,
 } from '@/mission/messages';
 import type { LogEntry } from '@/mission/walk-log';
@@ -72,7 +73,12 @@ type MissionState = {
    * them shown and acknowledged, which is the one thing it writes.
    */
   messages: Record<string, readonly ShipMessage[]>;
-  sendMessage: (siteId: string, text: string, atHours: number) => void;
+  sendMessage: (
+    siteId: string,
+    text: string,
+    atHours: number,
+    priority?: MessagePriority,
+  ) => void;
   showMessages: (siteId: string, atHours: number) => void;
   acknowledgeMessage: (siteId: string, id: string, atHours: number) => void;
   /**
@@ -177,13 +183,13 @@ export const useMission = create<MissionState>()(
         }),
       started: {},
       messages: {},
-      sendMessage: (siteId, text, atHours) =>
+      sendMessage: (siteId, text, atHours, priority) =>
         set((state) => {
           // Only a walk in progress has anyone to talk to.
           if (!state.clocks[siteId]) return state;
           const list = state.messages[siteId] ?? NO_MESSAGES;
           const id = `${Date.now().toString(36)}-${list.length}`;
-          const next = withMessage(list, id, text, atHours);
+          const next = withMessage(list, id, text, atHours, priority);
           return next === list ? state : { messages: { ...state.messages, [siteId]: next } };
         }),
       showMessages: (siteId, atHours) =>

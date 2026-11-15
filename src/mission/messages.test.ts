@@ -5,6 +5,8 @@ import {
   cleanMessage,
   messageState,
   messageToAcknowledge,
+  priorityOf,
+  worstPriority,
   withAcknowledged,
   withMessage,
   withShown,
@@ -34,6 +36,7 @@ describe('a message from the ship', () => {
     expect(message).toEqual({
       id: 'a',
       text: 'Hold your position',
+      priority: 'routine',
       sentHours: 0.5,
       shownHours: null,
       ackHours: null,
@@ -93,5 +96,46 @@ describe('messageToAcknowledge', () => {
 
     list = withAcknowledged(list, 'b', 1.4);
     expect(messageToAcknowledge(list)).toBeNull();
+  });
+});
+
+describe('several messages waiting', () => {
+  it('puts an urgent one ahead of a routine one that came first', () => {
+    let list = withMessage(none, 'a', 'All clear, carry on', 1, 'routine');
+    list = withMessage(list, 'b', 'Hold your position', 1.1, 'attention');
+    list = withMessage(list, 'c', 'Return to the base', 1.2, 'urgent');
+    list = withShown(list, 1.3);
+
+    expect(messageToAcknowledge(list)?.id).toBe('c');
+    list = withAcknowledged(list, 'c', 1.4);
+    expect(messageToAcknowledge(list)?.id).toBe('b');
+    list = withAcknowledged(list, 'b', 1.5);
+    expect(messageToAcknowledge(list)?.id).toBe('a');
+  });
+
+  it('keeps the order they came in among messages of the same priority', () => {
+    let list = withMessage(none, 'a', 'Hold your position', 1, 'attention');
+    list = withMessage(list, 'b', 'Check your life support', 1.1, 'attention');
+    list = withShown(list, 1.2);
+    expect(messageToAcknowledge(list)?.id).toBe('a');
+  });
+});
+
+describe('the priority of a message', () => {
+  it('is what the ship marked it with', () => {
+    const [message] = withMessage(none, 'a', 'Return to the base', 1, 'urgent');
+    expect(priorityOf(message)).toBe('urgent');
+  });
+
+  it('is routine for a message saved before messages had one', () => {
+    expect(
+      priorityOf({ id: 'old', text: 'Hello', sentHours: 0, shownHours: null, ackHours: null }),
+    ).toBe('routine');
+  });
+
+  it('picks the most serious of several', () => {
+    expect(worstPriority(['routine', 'urgent', 'attention'])).toBe('urgent');
+    expect(worstPriority(['routine', 'attention'])).toBe('attention');
+    expect(worstPriority([])).toBeNull();
   });
 });
