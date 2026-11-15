@@ -80,14 +80,14 @@ Mars Trek. It maps fields between 65° S and 65° N from orbit; small patches of
   app shows it as a reference with the distance to InSight.
 - **Not available:** Curiosity's wind sensor was damaged at landing (the REMS feed reports no
   wind), and the public MEDA feed of Perseverance carries temperature and pressure only, up to
-  April 2024.
+  April 2024 (the Site tab of Jezero shows them, dated).
 - **Written in the dunes:** the slip faces of a dune field face downwind; the dune database gives
   their direction, which the map draws as arrows. It is the prevailing wind of the last time the
   dunes changed much, not today's.
 - **Why wind does not enter the verdict:** the air of Mars is about 75 times thinner than the
   Earth's (NASA fact sheets: about 0.016 against 1.217 kg/m³), so the strongest gust InSight
   measured in the feed pushes like a light breeze on Earth. The dust it lifts is the risk, and
-  opacity is not served yet.
+  no opacity feed is published (see "Not available yet").
 
 ## The Mars clock and daylight
 
@@ -128,10 +128,21 @@ been timed on a physical phone.
 
 ## Not available yet
 
-- **Dust opacity (#42):** NASA serves no public opacity feed. The REMS feed gives the sky as a
-  word ("Sunny"), which the Site tab shows as it is. A dust storm does not enter the verdict.
-- **Weather at Jezero (#41):** the public MEDA feed of Perseverance stops in April 2024 and carries
-  no wind and no opacity, so Jezero shows the Gale weather as a reference.
+- **Dust opacity (#42):** NASA serves no public feed of atmospheric opacity for any site. The
+  REMS feed has a word for the sky, and it is not a measurement of dust: counted over the whole
+  feed on 2026-11-14, it said "Sunny" on 4,742 of 4,745 sols, the 81 sols of the global dust
+  storm of 2018 (10 June to 31 August) included. The Site tab shows it as "Sky, as the feed words
+  it". With no measurement, the app shows nothing about dust and **dust does not enter the
+  verdict**: a card built on the season alone was tried and taken out, because a season is not a
+  reading. Other places opacity exists,
+  none of them a feed: the calibrated REMS and MEDA files in the PDS, and the weekly Mars weather
+  reports of MSSS from the MARCI camera, which are written text.
+- **Weather at Jezero (#41):** the public MEDA feed of Perseverance held seven sols on 2026-11-14,
+  1127 to 1133 (April 2024), three of them without a temperature, and had not moved since. The
+  Site tab of Jezero shows its last sol with a reading as a dated measurement at Jezero (air
+  temperature, pressure, sunrise and sunset), marked as not the weather of today, above the Gale
+  reference. The feed has no ground temperature, ultraviolet, wind or sky. The calibrated MEDA
+  data is in the PDS as instrument files: an archive to process, not a feed.
 
 Weather does not change the verdict yet. The dose stays the published average; a CME
 only adds a caution, because DONKI forecasts its arrival, not the dose it brings. When DONKI does

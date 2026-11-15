@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import { ROVERS, parseRoverTrack } from './rover';
-import { REMS_FEED, describeAge, parseWeather, readingAgeDays } from './weather';
+import {
+  MEDA_FEED,
+  REMS_FEED,
+  SKY_WORD_CHECK,
+  describeAge,
+  latestMeasured,
+  parseMedaWeather,
+  parseWeather,
+  readingAgeDays,
+} from './weather';
 
 /** A waypoint shaped like the ones in the feed. */
 const waypoint = (sol: number, lat: number, lon: number, km: number) => ({
@@ -173,5 +182,55 @@ describe('parseWeather', () => {
 
   it('reads from mars.nasa.gov', () => {
     expect(REMS_FEED).toMatch(/^https:\/\/mars\.nasa\.gov\//);
+  });
+});
+
+describe('the Perseverance weather feed', () => {
+  // The shape the feed had on 2026-11-14: oldest sol first, numbers or "--".
+  const feed = {
+    sols: [
+      { terrestrial_date: '2024-04-21', sol: '1127', ls: '240.202', season: 'late autumn', min_temp: '--', max_temp: '--', pressure: '--', sunrise: '06:13:15', sunset: '17:11:36' },
+      { terrestrial_date: '2024-04-26', sol: '1132', ls: '243.455', season: 'late autumn', min_temp: -77.9, max_temp: -23.4, pressure: 774.1, sunrise: '06:17:18', sunset: '17:13:27' },
+      { terrestrial_date: '2024-04-27', sol: '1133', ls: '244.106', season: 'late autumn', min_temp: '--', max_temp: '--', pressure: '--', sunrise: '06:18:07', sunset: '17:13:51' },
+    ],
+  };
+
+  it('is asked from mars.nasa.gov', () => {
+    expect(MEDA_FEED).toContain('category=mars2020');
+    expect(MEDA_FEED).not.toBe(REMS_FEED);
+  });
+
+  it('reads the sols newest first, with what the station does not report left empty', () => {
+    const sols = parseMedaWeather(feed);
+    expect(sols.map((sol) => sol.sol)).toEqual([1133, 1132, 1127]);
+    expect(sols[1]).toMatchObject({
+      earthDate: '2024-04-26',
+      minAirC: -77.9,
+      maxAirC: -23.4,
+      pressurePa: 774.1,
+      sunrise: '06:17',
+      sunset: '17:13',
+      minGroundC: null,
+      sky: null,
+      uvIndex: null,
+    });
+    expect(sols[1].solarLongitude).toBeCloseTo(243.455, 3);
+  });
+
+  it('takes the newest sol that has a reading, not the newest sol', () => {
+    expect(latestMeasured(parseMedaWeather(feed))?.sol).toBe(1132);
+    expect(latestMeasured(parseMedaWeather({ sols: [feed.sols[0]] }))).toBeUndefined();
+  });
+
+  it('gives nothing for an answer that is not the feed', () => {
+    expect(parseMedaWeather(null)).toEqual([]);
+    expect(parseMedaWeather({ soles: [] })).toEqual([]);
+  });
+});
+
+describe('the sky word of the Curiosity feed', () => {
+  it('is recorded as saying the same through the dust storm of 2018', () => {
+    expect(SKY_WORD_CHECK.sunnyInStorm2018).toBe(SKY_WORD_CHECK.stormSols2018);
+    expect(SKY_WORD_CHECK.sunny / SKY_WORD_CHECK.sols).toBeGreaterThan(0.99);
   });
 });

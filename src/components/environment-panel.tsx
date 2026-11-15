@@ -12,9 +12,11 @@ import {
   type SepEvent,
 } from '@/data/space-weather';
 import {
+  MEDA_CREDIT,
   REMS_CREDIT,
   STALE_AFTER_DAYS,
   describeAge,
+  latestMeasured,
   readingAgeDays,
   type SolWeather,
 } from '@/data/weather';
@@ -26,6 +28,11 @@ type EnvironmentPanelProps = {
   /** How far the site is from Gale crater, where the weather is measured, in metres. */
   distanceFromGaleM: number;
   weather: Feed<SolWeather[]>;
+  /**
+   * The site's own weather station, when NASA serves one: Perseverance's at Jezero. Its feed
+   * stopped in 2024, so it is a dated measurement beside the Gale reference, not instead of it.
+   */
+  ownStation?: Feed<SolWeather[]> | null;
   /** The rover of this site and its traverse, when the site has one. */
   rover: { name: string; track: Feed<RoverTrack> } | null;
   /** Space weather from NASA DONKI, and the moment it is judged at. */
@@ -41,6 +48,7 @@ export function EnvironmentPanel({
   siteName,
   distanceFromGaleM,
   weather,
+  ownStation = null,
   rover,
   space,
 }: EnvironmentPanelProps) {
@@ -54,6 +62,7 @@ export function EnvironmentPanel({
   return (
     <View style={styles.panel}>
       <PanelHeading title="Site conditions" />
+      {ownStation ? <OwnStationCard siteName={siteName} feed={ownStation} now={space.now} /> : null}
       <SectionHeading title="WEATHER · MEASURED AT GALE CRATER" color={Colors.nav} />
       {!local ? (
         <Text style={styles.warning}>
@@ -94,7 +103,7 @@ export function EnvironmentPanel({
               label="Pressure"
               value={latest.pressurePa === null ? 'No reading' : `${latest.pressurePa} Pa`}
             />
-            <Reading label="Sky" value={latest.sky ?? 'No reading'} />
+            <Reading label="Sky, as the feed words it" value={latest.sky ?? 'No reading'} />
             <Reading label="Ultraviolet" value={latest.uvIndex ?? 'No reading'} />
             <Reading
               label="Sunrise and sunset"
@@ -157,6 +166,99 @@ export function EnvironmentPanel({
         </>
       ) : null}
     </View>
+  );
+}
+
+/**
+ * What the site's own station measured, on the last sol its feed has a reading for. The feed of
+ * Perseverance stopped in 2024, so the card leads with the date.
+ */
+function OwnStationCard({
+  siteName,
+  feed,
+  now,
+}: {
+  siteName: string;
+  feed: Feed<SolWeather[]>;
+  now: Date;
+}) {
+  const sols = feed.status === 'ready' ? feed.data : [];
+  const measured = latestMeasured(sols);
+  const age = measured ? readingAgeDays(measured.earthDate, now) : null;
+  const stale = age !== null && age > STALE_AFTER_DAYS;
+  const first = sols.length > 0 ? sols[sols.length - 1].sol : null;
+  const last = sols.length > 0 ? sols[0].sol : null;
+  return (
+    <>
+      <SectionHeading
+        title={`WEATHER · MEASURED AT ${siteName.toUpperCase()}`}
+        color={Colors.nav}
+      />
+      {feed.status === 'loading' || feed.status === 'idle' ? (
+        <StatusNote text="Fetching what Perseverance measured here." color={Colors.nav} />
+      ) : null}
+      {feed.status === 'failed' ? (
+        <StatusNote
+          text="The Perseverance weather feed failed. No reading from this site to show."
+          color={Colors.noGo}
+        />
+      ) : null}
+      {feed.status === 'ready' && !measured ? (
+        <StatusNote
+          text="The Perseverance weather feed has no sol with a reading."
+          color={Colors.caution}
+        />
+      ) : null}
+      {measured ? (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>
+            Sol {measured.sol} · {measured.earthDate} on Earth
+          </Text>
+          {age !== null ? (
+            <View style={styles.age}>
+              <View
+                style={[styles.ageDot, { backgroundColor: stale ? Colors.caution : Colors.go }]}
+              />
+              <Text style={[styles.ageText, stale && styles.ageTextStale]}>
+                {stale
+                  ? `Measured ${describeAge(age)}: not the weather of today`
+                  : `Measured ${describeAge(age)}`}
+              </Text>
+            </View>
+          ) : null}
+          <View style={styles.grid}>
+            <Reading label="Air temperature" value={range(measured.minAirC, measured.maxAirC)} />
+            <Reading
+              label="Pressure"
+              value={measured.pressurePa === null ? 'No reading' : `${measured.pressurePa} Pa`}
+            />
+            <Reading
+              label="Sunrise and sunset"
+              value={
+                measured.sunrise && measured.sunset
+                  ? `${measured.sunrise} to ${measured.sunset}`
+                  : 'No reading'
+              }
+            />
+            <Reading
+              label="Season then"
+              value={
+                measured.solarLongitude === null
+                  ? 'No reading'
+                  : `Ls ${Math.round(measured.solarLongitude)}°`
+              }
+            />
+          </View>
+          <Text style={styles.source}>
+            {MEDA_CREDIT}.{' '}
+            {first !== null && last !== null
+              ? `The public feed holds sols ${first} to ${last} and has not moved since. `
+              : ''}
+            It has no ground temperature, ultraviolet, wind or sky.
+          </Text>
+        </View>
+      ) : null}
+    </>
   );
 }
 
