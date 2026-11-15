@@ -333,7 +333,9 @@ NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero.
   circle the visor needs.
 - No source gives a photograph for every stretch of a walk. The Perseverance traverse names a
   panorama for each waypoint, but those files are not public (they answer 403); the Curiosity
-  feed names none.
+  feed names none. At Jezero the visor can show the view from a stop of the rover instead (see
+  below).
+
 
 | Photograph | Where and when | Source |
 |---|---|---|
@@ -351,6 +353,28 @@ NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero.
 
 The place of each Gale and Jezero photograph is the rover's published position on the sol it was
 taken.
+
+### Views from the stops of Perseverance
+
+At Jezero the visor can show the ground of the place itself instead of a photograph of the site.
+Perseverance stops after every drive, and at many stops its navigation camera looks all the way
+round. NASA publishes the stops with their coordinates and, with every raw frame, the stop it
+was taken at, the camera model (CAHVORE) and the orientation of the rover. When the walk passes
+within 150 m of a stop whose frames go all the way round, the visor puts each frame back where
+the camera pointed (`src/data/place-views.ts`, `src/mission/cahvore.ts`). Of the stops within
+reach, the nearest whose view ahead is clear of the rover is taken.
+
+| What | Kind |
+|---|---|
+| Where the stop is, which frames were taken there, where each one pointed | Measured, published with the frames |
+| North in the view is north on the ground | Follows from the pointing |
+| Where the rover shows in its own frames | Set by eye once, on the frames of sol 20 |
+| The sky above the frames, the soft joins between two frames, and the evening out of their exposure | Drawn, by copying colours from the frames: the frames allow no reading of their pixels from another site |
+
+The stop can be some way from the simulated position, and the visor says how far. Away from such
+a stop the scenery goes back to the photographs of the site. Gale has no such views: the feed of
+Curiosity leaves the stop of a frame empty. The limits left open (web only, a quarter of the
+sensor's resolution, the rover's shadow, not tried on a real phone) are in issue 148.
 
 ## Decoration
 
