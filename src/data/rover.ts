@@ -29,7 +29,22 @@ export type RoverTrack = {
     /** Total distance driven, in km, as the feed reports it. */
     drivenKm: number | null;
   } | null;
+  /** Every waypoint that has a sol, in the order of the drive: where the rover stopped, and when. */
+  stops: { sol: number; point: LatLon }[];
 };
+
+/**
+ * Where the rover stood on a sol: the end of its last drive on or before that sol. Null before
+ * its first waypoint.
+ */
+export function positionOnSol(track: RoverTrack, sol: number): LatLon | null {
+  let found: LatLon | null = null;
+  for (const stop of track.stops) {
+    if (stop.sol > sol) break;
+    found = stop.point;
+  }
+  return found;
+}
 
 const finite = (value: unknown): number | null => {
   const number = typeof value === 'number' ? value : Number.NaN;
@@ -42,7 +57,7 @@ const finite = (value: unknown): number | null => {
  */
 export function parseRoverTrack(raw: unknown, maxPoints = 600): RoverTrack {
   const features = (raw as { features?: unknown } | null)?.features;
-  if (!Array.isArray(features)) return { path: [], latest: null };
+  if (!Array.isArray(features)) return { path: [], latest: null, stops: [] };
 
   const waypoints: { point: LatLon; sol: number | null; drivenKm: number | null }[] = [];
   for (const feature of features) {
@@ -56,7 +71,7 @@ export function parseRoverTrack(raw: unknown, maxPoints = 600): RoverTrack {
       drivenKm: finite(properties?.dist_km),
     });
   }
-  if (waypoints.length === 0) return { path: [], latest: null };
+  if (waypoints.length === 0) return { path: [], latest: null, stops: [] };
 
   const step = Math.max(1, Math.ceil(waypoints.length / maxPoints));
   const path = waypoints
@@ -67,5 +82,10 @@ export function parseRoverTrack(raw: unknown, maxPoints = 600): RoverTrack {
   return {
     path,
     latest: last.sol === null ? null : { point: last.point, sol: last.sol, drivenKm: last.drivenKm },
+    stops: waypoints
+      .flatMap((waypoint) =>
+        waypoint.sol === null ? [] : [{ sol: waypoint.sol, point: waypoint.point }],
+      )
+      .sort((one, other) => one.sol - other.sol),
   };
 }

@@ -90,6 +90,11 @@ export type MapCard = {
 
 /** How close to a mark, in pixels, a press or a pointer counts as on it. */
 const POINT_REACH = 18;
+/** How close to a marker a press has to land to take hold of it, in pixels: a 44 pt target. */
+const DRAG_REACH = 22;
+/** A hold that travels less than this is a press on the marker, not a drag. */
+const DRAG_MIN_TRAVEL = 4;
+const NO_IDS: readonly string[] = [];
 const CARD_WIDTH = 264;
 const CARD_GAP = 14;
 const CARD_MARGIN = 8;
@@ -157,6 +162,13 @@ type SurfaceMapProps = {
   onViewChange?: (view: MapView) => void;
   /** A single tap on the map (not a drag, not a double tap). */
   onPress?: (point: LatLon) => void;
+  /** The markers that can be dragged to another place, by id. */
+  draggable?: readonly string[];
+  /**
+   * A marker is being dragged (`done` false) or has been let go (`done` true) at this place. The
+   * map does not move the marker itself: the screen that owns it does.
+   */
+  onMarkerDrag?: (id: string, point: LatLon, done: boolean) => void;
   /** Shown under a mouse pointer, where there is one. Null when a press would add nothing. */
   preview?: MapPreview | null;
   accessibilityLabel: string;
@@ -207,6 +219,8 @@ export function SurfaceMap({
   arrows = [],
   onViewChange,
   onPress,
+  draggable = NO_IDS,
+  onMarkerDrag,
   preview = null,
   probe,
   accessibilityLabel,
@@ -224,6 +238,8 @@ export function SurfaceMap({
   const mounted = useRef(true);
 
   const node = useRef<ComponentRef<typeof View>>(null);
+  // The marker in hand, where the hold began and where it is now.
+  const held = useRef<{ id: string; from: Pixel; moved: boolean; at: LatLon | null } | null>(null);
   const controller = useRef<MapController | null>(null);
   const origin = useRef<Pixel>({ x: 0, y: 0 });
   const frameLimits = useMemo(
@@ -397,11 +413,52 @@ export function SurfaceMap({
       onResponderTerminationRequest={() => false}
       onResponderGrant={(event) => {
         locate();
-        controller.current?.begin(touchesOf(event));
+        const touches = touchesOf(event);
+        held.current = null;
+        // One finger or the mouse, down on a marker that can move: it takes the marker, not the map.
+        if (touches.length === 1 && onMarkerDrag && draggable.length > 0 && size) {
+          const now = controller.current?.currentCamera().view ?? view;
+          let reach = DRAG_REACH;
+          for (const marker of markers) {
+            if (!draggable.includes(marker.id)) continue;
+            const at = project(now, size, marker.point);
+            const away = Math.hypot(at.x - touches[0].x, at.y - touches[0].y);
+            if (away <= reach) {
+              reach = away;
+              held.current = { id: marker.id, from: touches[0], moved: false, at: null };
+            }
+          }
+        }
+        if (!held.current) controller.current?.begin(touches);
       }}
-      onResponderMove={(event) => controller.current?.move(touchesOf(event))}
-      onResponderRelease={() => controller.current?.end()}
-      onResponderTerminate={() => controller.current?.end()}>
+      onResponderMove={(event) => {
+        const touches = touchesOf(event);
+        const hold = held.current;
+        if (!hold) {
+          controller.current?.move(touches);
+          return;
+        }
+        const touch = touches[0];
+        if (!touch || !size) return;
+        if (!hold.moved && Math.hypot(touch.x - hold.from.x, touch.y - hold.from.y) < DRAG_MIN_TRAVEL) {
+          return;
+        }
+        hold.moved = true;
+        hold.at = unproject(controller.current?.currentCamera().view ?? view, size, touch);
+        onMarkerDrag?.(hold.id, hold.at, false);
+      }}
+      onResponderRelease={() => {
+        const hold = held.current;
+        held.current = null;
+        if (!hold) controller.current?.end();
+        else if (hold.moved && hold.at) onMarkerDrag?.(hold.id, hold.at, true);
+      }}
+      onResponderTerminate={() => {
+        const hold = held.current;
+        held.current = null;
+        if (!hold) controller.current?.end();
+        else if (hold.moved && hold.at) onMarkerDrag?.(hold.id, hold.at, true);
+      }}>
       {size && planeStyle && (
         <View style={[StyleSheet.absoluteFill, planeStyle]} pointerEvents="none">
           <TilePlane

@@ -24,17 +24,31 @@ type WalkControlsProps = {
   onResume: () => void;
   onEnd: () => void;
   onRate: (rate: number) => void;
+  /** The stops of the walk, for the name of the one being walked to or worked at. */
+  plan: readonly { name?: string }[];
+  /** The walk was turned for the base before its plan was done. */
+  turnedBack?: boolean;
+  /** Replaces the rest of the walk with the shortest way back. */
+  onReturn?: () => void;
 };
 
-function describe(phase: WalkPhase, progress: WalkProgress, over: boolean): string {
+function describe(
+  phase: WalkPhase,
+  progress: WalkProgress,
+  over: boolean,
+  place: string,
+  turnedBack: boolean,
+): string {
   if (over) return 'Back at the base. The walk is over.';
   switch (phase) {
     case 'walking':
-      return `Walking to waypoint ${(progress.stop ?? 0) + 1}, ${formatDistance(progress.distanceToTargetM)} to go.`;
+      return `Walking to ${place}, ${formatDistance(progress.distanceToTargetM)} to go.`;
     case 'working':
-      return `Working at waypoint ${(progress.stop ?? 0) + 1}, ${formatDuration(progress.phaseHoursLeft)} of work left, played fast.`;
+      return `Working at ${place}, ${formatDuration(progress.phaseHoursLeft)} of work left, played fast.`;
     case 'returning':
-      return `Returning to the base, ${formatDistance(progress.distanceToTargetM)} to go.`;
+      return turnedBack
+        ? `Turned back: returning to the base by the shortest way, ${formatDistance(progress.distanceToTargetM)} to go. The rest of the plan was dropped.`
+        : `Returning to the base, ${formatDistance(progress.distanceToTargetM)} to go.`;
     case 'at-base':
       return 'At the base.';
   }
@@ -56,9 +70,15 @@ export function WalkControls({
   onResume,
   onEnd,
   onRate,
+  plan,
+  turnedBack = false,
+  onReturn,
 }: WalkControlsProps) {
   const over = clock !== null && progress.totalHours > 0 && progress.elapsedHours >= progress.totalHours;
   const share = progress.totalHours > 0 ? progress.elapsedHours / progress.totalHours : 0;
+  // What the stop in hand is called inside a sentence: its name, or its place in the walk.
+  const at = progress.stop;
+  const place = at === null || !plan[at] ? 'the base' : (plan[at].name ?? `waypoint ${at + 1}`);
 
   // Starting the walk also opens the visor, in its own tab: it is the other half of the walk, and
   // easy to miss as a link. The walk itself begins when that tab has loaded and said so, so that
@@ -157,7 +177,7 @@ export function WalkControls({
       ) : (
         <View style={styles.card}>
           <Text style={styles.status} accessibilityLiveRegion="polite">
-            {describe(progress.phase, progress, over)}
+            {describe(progress.phase, progress, over, place, turnedBack)}
           </Text>
           <View
             style={styles.meter}
@@ -180,6 +200,15 @@ export function WalkControls({
             )}
             <Button label="End the walk and unlock the route" text="End" onPress={onEnd} />
           </View>
+          {over || progress.phase === 'returning' || progress.phase === 'at-base' || !onReturn ? null : (
+            <View style={styles.row}>
+              <Button
+                label="Return to base now: replace the rest of the walk with the shortest way back"
+                text="Return to base"
+                onPress={onReturn}
+              />
+            </View>
+          )}
 
           <View style={styles.rates} accessibilityRole="radiogroup">
             <Text style={styles.rateLabel}>Speed</Text>

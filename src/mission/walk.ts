@@ -46,6 +46,34 @@ export const WALK_ASSUMPTIONS: WalkAssumptions = {
   lowSunDeg: 10,
 };
 
+/**
+ * A waypoint of the plan. The time of the work there and what the work is belong to the stop;
+ * a stop without a time takes the assumed one.
+ */
+export type WalkStop = LatLon & {
+  /** Minutes of work at the stop. Zero is a point the walk only passes through. */
+  minutes?: number;
+  /** What the place is called: a science target, or a name the crew gave it. */
+  name?: string;
+  /** What is done there. */
+  task?: string;
+  /** Where the place and what is known about it come from, when it is a published one. */
+  source?: string;
+};
+
+/** The longest a single stop may last, in minutes: half the life support of the suit. */
+export const MAX_STOP_MINUTES = 240;
+
+/** The minutes of work at a waypoint: its own, or the assumed time when it has none. */
+export function stopMinutes(
+  point: WalkStop,
+  assumptions: WalkAssumptions = WALK_ASSUMPTIONS,
+): number {
+  const own = point.minutes;
+  if (typeof own !== 'number' || !Number.isFinite(own)) return assumptions.minutesPerStop;
+  return Math.min(MAX_STOP_MINUTES, Math.max(0, own));
+}
+
 export type Verdict = 'go' | 'caution' | 'no-go';
 
 /** Why a walk is not a plain go. */
@@ -127,7 +155,7 @@ export type WalkEvaluation = {
  */
 export function evaluateWalk(
   base: LatLon,
-  waypoints: readonly LatLon[],
+  waypoints: readonly WalkStop[],
   doseRateMsvPerDay: number,
   assumptions: WalkAssumptions = WALK_ASSUMPTIONS,
   conditions: WalkConditions = {},
@@ -139,7 +167,8 @@ export function evaluateWalk(
   const farthestM = waypoints.reduce((far, point) => Math.max(far, distance(base, point)), 0);
 
   const walkingHours = totalM / 1000 / assumptions.walkingSpeedKmh;
-  const stopHours = (waypoints.length * assumptions.minutesPerStop) / 60;
+  const stopHours =
+    waypoints.reduce((sum, point) => sum + stopMinutes(point, assumptions), 0) / 60;
   const durationHours = walkingHours + stopHours;
   const lifeSupportUsed = durationHours / assumptions.lifeSupportHours;
   const doseMsv = (doseRateMsvPerDay * durationHours) / 24;

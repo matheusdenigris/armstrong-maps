@@ -11,7 +11,7 @@ import { distance, type LatLon } from './geo';
 import { priorityOf, type MessagePriority, type ShipMessage } from './messages';
 import { walkProgress } from './progress';
 import { walkSafety, type SafetyAlert } from './safety';
-import { WALK_ASSUMPTIONS, type WalkAssumptions } from './walk';
+import { WALK_ASSUMPTIONS, stopMinutes, type WalkAssumptions, type WalkStop } from './walk';
 
 export type LogEntry = { atHours: number } & (
   | { kind: 'start' }
@@ -50,14 +50,13 @@ export type LogOptions = {
 /** Start, each waypoint and the return, from the plan, up to `uptoHours`. */
 function planEntries(
   base: LatLon,
-  waypoints: readonly LatLon[],
+  waypoints: readonly WalkStop[],
   uptoHours: number,
   doseRate: number,
   assumptions: WalkAssumptions,
 ): LogEntry[] {
   const entries: LogEntry[] = [{ atHours: 0, kind: 'start' }];
   const total = walkProgress(base, waypoints, 0, doseRate, assumptions).totalHours;
-  const stopHours = assumptions.minutesPerStop / 60;
   const metresPerHour = assumptions.walkingSpeedKmh * 1000;
   // The time each waypoint is reached is the time the work there starts.
   let clock = 0;
@@ -65,8 +64,13 @@ function planEntries(
   waypoints.forEach((_, stop) => {
     clock += distance(points[stop], points[stop + 1]) / metresPerHour;
     if (clock <= uptoHours) entries.push({ atHours: clock, kind: 'waypoint-reached', stop });
+    // Each stop lasts as long as the plan gives it. A point the walk only passes through has no
+    // work to finish.
+    const stopHours = stopMinutes(waypoints[stop], assumptions) / 60;
     clock += stopHours;
-    if (clock <= uptoHours) entries.push({ atHours: clock, kind: 'work-done', stop });
+    if (stopHours > 0 && clock <= uptoHours) {
+      entries.push({ atHours: clock, kind: 'work-done', stop });
+    }
   });
   if (waypoints.length > 0 && total <= uptoHours) {
     entries.push({ atHours: total, kind: 'back-at-base' });

@@ -216,6 +216,7 @@ const GUIDE: DocPage[] = [
               { title: 'Open a site', text: 'Pick Gale Crater on the globe or in the bar of sites. The view flies down and the map opens on the landing point, where the base stands.' },
               { title: 'Mark waypoints', text: `Click or tap the map: each press adds a waypoint, and the leg under the pointer is previewed before you press. Stay inside the dashed ring: it is the ${a.walkBackLimitKm} km walk-back limit.` },
               { title: 'Read the verdict', text: 'The Walk panel gives the verdict with its reasons, the distance out and back, the time outside, the life support used and the dose. Undo removes the last waypoint and Clear removes them all.' },
+              { title: 'Plan each stop', text: `Under the verdict the plan lists every stop: set how long the work there takes and what it is, or remove the stop. Drag a waypoint on the map to move it. A science target added from its card on the map brings its name, a suggested task and its source. Share the plan copies a link that opens the same plan on another device.` },
               { title: 'Add layers', text: 'In the Layers panel, switch on relief or infrared to see the ground the route crosses. Each layer has an opacity, and a colour key appears on the map. The pin button on the map reads the height and the slope of any point you press.' },
               { title: 'Start the walk', text: 'Press Start the walk. The astronaut visor opens in a new tab and the walk starts when it has loaded. Pause in the console and the visor holds.' },
             ],
@@ -263,7 +264,10 @@ const GUIDE: DocPage[] = [
             kind: 'table',
             rows: [
               ['Distance', 'From the base through every waypoint, plus a straight line from the last one back to the base. Measured on Mars, not on the map.'],
-              ['Time outside', `The distance at ${a.walkingSpeedKmh} km/h, plus ${a.minutesPerStop} min of work at each waypoint.`],
+              ['Time outside', `The distance at ${a.walkingSpeedKmh} km/h, plus the work at each stop: the time set for it in the plan, or ${a.minutesPerStop} min when none is set.`],
+              ['Elevation profile', 'The height of the ground along the route, out and back, with the total climb, read from the same NASA elevation models as the slope. A rise smaller than a cell of the model does not show. The climb does not slow the simulated walk.'],
+              ['Avoid steep ground', 'Offered when the route crosses ground at or past the caution slope: it looks for a way round over the cells of the elevation model and adds points to pass through. The way is clear at the scale of the model only.'],
+              ['Return to base', 'During a walk, one button replaces the rest of the plan with the straight way back from where the astronaut is. The distance, the time and the visor follow.'],
               ['Life support used', `The time outside as a share of the ${a.lifeSupportHours} h the suit lasts.`],
               ['Radiation dose', `The time outside at ${SURFACE_RADIATION.msvPerDay} mSv a day.`],
               ['Farthest from base', 'The greatest straight-line distance between a waypoint and the base.'],
@@ -866,7 +870,7 @@ const GUIDE: DocPage[] = [
             kind: 'table',
             rows: [
               ['Walking speed', `${a.walkingSpeedKmh} km/h in a suit over rough ground`],
-              ['Time at each waypoint', `${a.minutesPerStop} min`],
+              ['Time at each waypoint', `${a.minutesPerStop} min, unless the plan sets another for the stop`],
               ['Life support', `${a.lifeSupportHours} h, with ${reserve} kept in reserve`],
               ['Walk-back limit', `${a.walkBackLimitKm} km from the base, with a warning past ${nearLimit}`],
               ['Low time to spare', `A caution under ${lowMarginMinutes} min before the turn-back point`],

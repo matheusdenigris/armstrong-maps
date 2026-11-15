@@ -77,6 +77,8 @@ describe('docs pages', () => {
     expect(searchDocs('  ')).toEqual([]);
     expect(searchDocs('thermal inertia').map((page) => page.id)).toContain('layers');
     expect(searchDocs('visor')[0].title.toLowerCase()).toContain('visor');
-    expect(searchDocs('no page says this at all')).toEqual([]);
+    // The search matches parts of words, so the miss has to be a word no page can hold.
+    expect(searchDocs('zzqxj')).toEqual([]);
+    expect(searchDocs('visor zzqxj')).toEqual([]);
   });
 });

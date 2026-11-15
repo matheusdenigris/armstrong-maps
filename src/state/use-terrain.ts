@@ -18,7 +18,10 @@ import type { Feed } from './use-feed';
 /** The slope of one area of a site, and the picture that marks its dangerous ground. */
 export type TerrainLayer = {
   area: TerrainArea;
-  /** The heights the slopes were worked out from: the line of sight of the link reads them. */
+  /**
+   * The heights the slopes were worked out from: the profile of a route and the line of sight of
+   * the link read them.
+   */
   heights: ElevationGrid;
   slopes: SlopeGrid;
   /** A PNG over `area.bounds`: clear where the ground is walkable, coloured where it is not. */

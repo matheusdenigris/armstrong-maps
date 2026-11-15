@@ -11,9 +11,12 @@ import {
   resumeClock,
   startClock,
   withRate,
+  elapsedSeconds,
   type WalkClock,
 } from '@/mission/clock';
 import type { LatLon } from '@/mission/geo';
+import { returnPlan, walkHoursPlayed } from '@/mission/progress';
+import { MAX_STOP_MINUTES, type WalkStop } from '@/mission/walk';
 import {
   withAcknowledged,
   withMessage,
@@ -38,10 +41,25 @@ export type SavedLog = {
 
 type MissionState = {
   /** The waypoints of the planned walk at each site, in walking order. */
-  routes: Record<string, LatLon[]>;
-  addWaypoint: (siteId: string, point: LatLon) => void;
+  routes: Record<string, WalkStop[]>;
+  addWaypoint: (siteId: string, point: WalkStop) => void;
   removeLastWaypoint: (siteId: string) => void;
+  /** Takes one waypoint out of the route, wherever it is in it. */
+  removeWaypoint: (siteId: string, index: number) => void;
+  /** Puts a waypoint somewhere else. A place with a published name is no longer that place. */
+  moveWaypoint: (siteId: string, index: number, point: LatLon) => void;
+  /** Changes the work at a stop: how long it takes and what it is. */
+  updateWaypoint: (siteId: string, index: number, change: StopChange) => void;
+  /** Replaces the whole route: a plan opened from a link, or a way round steep ground. */
+  setRoute: (siteId: string, stops: readonly WalkStop[]) => void;
   clearRoute: (siteId: string) => void;
+  /**
+   * The sites whose walk in progress has been turned for the base. The rest of the plan was
+   * replaced by the way back, and the console and the visor say so.
+   */
+  returning: Record<string, true>;
+  /** Replaces the rest of the walk in progress with the shortest way back from where it is. */
+  returnToBase: (siteId: string, base: LatLon) => void;
   /** Opacity (0..1) of each overlay layer that is on, by layer id. A layer that is off is absent. */
   overlays: Record<string, number>;
   toggleOverlay: (layerId: string) => void;
@@ -91,14 +109,22 @@ type MissionState = {
   logs: Record<string, SavedLog>;
 };
 
+/** What can be changed about the work at a stop. An empty task takes the task away. */
+export type StopChange = { minutes?: number; task?: string };
+
+/** A step of the buttons that lengthen and shorten a stop, in minutes. */
+export const STOP_STEP_MINUTES = 5;
+
 /** An overlay comes on see-through enough to keep the ground visible under it. */
 export const DEFAULT_OVERLAY_OPACITY = 0.5;
 
 /** More waypoints than this is a mistake, not a plan. */
 export const MAX_WAYPOINTS = 24;
 
-const NO_WAYPOINTS: readonly LatLon[] = [];
+const NO_WAYPOINTS: readonly WalkStop[] = [];
 const NO_MESSAGES: readonly ShipMessage[] = [];
+/** The longest task a stop keeps, in characters. */
+const LONGEST_TASK = 200;
 
 /** A record without one of its keys. */
 function without<Value>(record: Record<string, Value>, key: string): Record<string, Value> {
@@ -123,10 +149,74 @@ export const useMission = create<MissionState>()(
             ? state
             : { routes: { ...state.routes, [siteId]: (state.routes[siteId] ?? []).slice(0, -1) } },
         ),
+      removeWaypoint: (siteId, index) =>
+        set((state) => {
+          const route = state.routes[siteId] ?? [];
+          if (state.clocks[siteId] || index < 0 || index >= route.length) return state;
+          return {
+            routes: { ...state.routes, [siteId]: route.filter((_, at) => at !== index) },
+          };
+        }),
+      moveWaypoint: (siteId, index, point) =>
+        set((state) => {
+          const route = state.routes[siteId] ?? [];
+          const stop = route[index];
+          if (state.clocks[siteId] || !stop) return state;
+          // The time and the task go with the stop. The name and the source belonged to the place
+          // it was on, so they stay behind.
+          const moved: WalkStop = { lat: point.lat, lon: point.lon };
+          if (stop.minutes !== undefined) moved.minutes = stop.minutes;
+          if (stop.task !== undefined) moved.task = stop.task;
+          return {
+            routes: {
+              ...state.routes,
+              [siteId]: route.map((entry, at) => (at === index ? moved : entry)),
+            },
+          };
+        }),
+      updateWaypoint: (siteId, index, change) =>
+        set((state) => {
+          const route = state.routes[siteId] ?? [];
+          const stop = route[index];
+          if (state.clocks[siteId] || !stop) return state;
+          const next: WalkStop = { ...stop };
+          if (change.minutes !== undefined && Number.isFinite(change.minutes)) {
+            next.minutes = Math.min(MAX_STOP_MINUTES, Math.max(0, Math.round(change.minutes)));
+          }
+          if (change.task !== undefined) {
+            const task = change.task.slice(0, LONGEST_TASK);
+            if (task.trim() === '') delete next.task;
+            else next.task = task;
+          }
+          return {
+            routes: {
+              ...state.routes,
+              [siteId]: route.map((entry, at) => (at === index ? next : entry)),
+            },
+          };
+        }),
+      setRoute: (siteId, stops) =>
+        set((state) =>
+          state.clocks[siteId]
+            ? state
+            : { routes: { ...state.routes, [siteId]: stops.slice(0, MAX_WAYPOINTS) } },
+        ),
       clearRoute: (siteId) =>
         set((state) =>
           state.clocks[siteId] ? state : { routes: { ...state.routes, [siteId]: [] } },
         ),
+      returning: {},
+      returnToBase: (siteId, base) =>
+        set((state) => {
+          const clock = state.clocks[siteId];
+          const route = state.routes[siteId] ?? [];
+          if (!clock || route.length === 0 || state.returning[siteId]) return state;
+          const hours = walkHoursPlayed(base, route, elapsedSeconds(clock, Date.now()) / 3600);
+          return {
+            routes: { ...state.routes, [siteId]: returnPlan(base, route, hours) },
+            returning: { ...state.returning, [siteId]: true },
+          };
+        }),
       clocks: {},
       startWalk: (siteId) =>
         set((state) =>
@@ -134,6 +224,7 @@ export const useMission = create<MissionState>()(
             ? state
             : {
                 clocks: { ...state.clocks, [siteId]: startClock(Date.now()) },
+                returning: without(state.returning, siteId),
                 started: { ...state.started, [siteId]: Date.now() },
                 // A new walk starts with nothing said and nothing known about the link.
                 messages: without(state.messages, siteId),
@@ -168,6 +259,7 @@ export const useMission = create<MissionState>()(
             clocks: without(state.clocks, siteId),
             started: without(state.started, siteId),
             links: without(state.links, siteId),
+            returning: without(state.returning, siteId),
             logs: entries
               ? {
                   ...state.logs,
@@ -242,6 +334,7 @@ export const useMission = create<MissionState>()(
         overlays: state.overlays,
         hiddenPoints: state.hiddenPoints,
         clocks: state.clocks,
+        returning: state.returning,
         started: state.started,
         messages: state.messages,
         links: state.links,
@@ -268,6 +361,6 @@ export function useMessages(siteId: string): readonly ShipMessage[] {
 }
 
 /** The waypoints of one site. The empty list is always the same object, so nothing re-renders. */
-export function useRoute(siteId: string): readonly LatLon[] {
+export function useRoute(siteId: string): readonly WalkStop[] {
   return useMission((state) => state.routes[siteId] ?? NO_WAYPOINTS);
 }
