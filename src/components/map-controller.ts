@@ -78,6 +78,8 @@ export class MapController {
   private frame: number | null = null;
   private tween: number | null = null;
   private tapTimer: ReturnType<typeof setTimeout> | null = null;
+  /** A tap that waits to see whether it is the first half of a double tap. */
+  private pendingTap: Pixel | null = null;
   private settleTimer: ReturnType<typeof setTimeout> | null = null;
 
   private options: MapOptions;
@@ -157,18 +159,31 @@ export class MapController {
       now - previous.at <= DOUBLE_TAP_MS &&
       Math.hypot(previous.on.x - gesture.last.x, previous.on.y - gesture.last.y) <=
         DOUBLE_TAP_REACH;
-    if (this.tapTimer) clearTimeout(this.tapTimer);
     if (isDouble) {
+      // The two taps are one gesture: the first one is not a press on the ground.
+      if (this.tapTimer) clearTimeout(this.tapTimer);
+      this.tapTimer = null;
+      this.pendingTap = null;
       this.lastTap = null;
       this.zoomBy(ZOOM_STEP, gesture.last);
       return;
     }
+    // A tap somewhere else is not the second half of a double tap: the one before stands,
+    // and is reported now instead of being lost.
+    this.reportTap();
     this.lastTap = { at: now, on: gesture.last };
     // Wait to see whether a second tap follows before reporting a single one.
-    const on = gesture.last;
-    this.tapTimer = setTimeout(() => {
-      if (this.size) this.options.onPress?.(unproject(this.camera.view, this.size, on));
-    }, DOUBLE_TAP_MS);
+    this.pendingTap = gesture.last;
+    this.tapTimer = setTimeout(() => this.reportTap(), DOUBLE_TAP_MS);
+  }
+
+  /** Reports the tap that was waiting, if there is one. */
+  private reportTap() {
+    if (this.tapTimer) clearTimeout(this.tapTimer);
+    this.tapTimer = null;
+    const on = this.pendingTap;
+    this.pendingTap = null;
+    if (on && this.size) this.options.onPress?.(unproject(this.camera.view, this.size, on));
   }
 
   /** The mouse wheel: zooms around the pointer. `delta` is in pixels, positive away from the user. */
