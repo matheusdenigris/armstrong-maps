@@ -167,7 +167,7 @@ const GUIDE: DocPage[] = [
           {
             kind: 'cards',
             items: [
-              { icon: 'globe', title: 'Globe', text: 'Mars from orbit, in the daylight it has now, with its relief, the landing sites and a pale patch on every area with close-up imagery. Choose a site and fly down to it.', page: 'globe' },
+              { icon: 'globe', title: 'Globe', text: 'Mars from orbit, in the daylight it has now, with its relief and the landing sites. Choose a site and fly down to it.', page: 'globe' },
               { icon: 'map', title: 'Ship console', text: 'The map of a site with its layers, the route, the verdict and the live data.', page: 'console' },
               { icon: 'helmet', title: 'Astronaut visor', text: 'First person: life support, the way back, the next waypoint and alerts over a real rover panorama.', page: 'visor' },
               { icon: 'satellite', title: 'NASA data', text: 'Every map, rover, weather and space weather source, with the address the app calls.', page: 'data-overview' },
@@ -354,7 +354,6 @@ const GUIDE: DocPage[] = [
             rows: [
               ['Day and night', 'The lit side is where it is day on Mars at this moment. The place where the Sun is overhead comes from the Mars24 algorithm of NASA GISS, the same one behind the Mars clock of a site, and it is worked out again every minute.'],
               ['Relief', `The surface is raised with the MOLA and HRSC blended elevation model, on a grid of ${RELIEF_WIDTH} by ${RELIEF_HEIGHT} heights (about ${reliefCellKm} km a cell at the equator). It is drawn ${RELIEF_EXAGGERATION} times taller than it is: at true scale Olympus Mons would be a pixel or two.`],
-              ['Pale patches', `Each soft, pale patch on the ground is an area where Mars Trek publishes a regional image mosaic: ${COVERAGE.length} of them, from CTX, HiRISE and HRSC, read from the Mars Trek catalogue on ${COVERAGE_READ_ON} by a script. The five landing sites are among them. A patch fades towards its edge, and an area under 1.6° across is drawn that wide so it can be seen.`],
             ],
           },
           {
@@ -362,6 +361,12 @@ const GUIDE: DocPage[] = [
             tone: 'note',
             title: 'If the heights do not arrive',
             text: 'The globe stays a smooth sphere, and the line under it no longer names the relief.',
+          },
+          {
+            kind: 'callout',
+            tone: 'note',
+            title: 'Not on the globe',
+            text: `Mars Trek publishes ${COVERAGE.length} regional image mosaics besides those of the landing sites (read from its catalogue on ${COVERAGE_READ_ON}). The globe does not mark them: it shows the landing sites only.`,
           },
         ],
       },

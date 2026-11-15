@@ -95,7 +95,7 @@ export const SOURCES: readonly DataSource[] = [
     nasa: true,
     kind: 'catalogue',
     gives: `The area of every regional image mosaic Mars Trek publishes: ${COVERAGE.length} areas from CTX, HiRISE and HRSC.`,
-    usedIn: 'The pale patches on the globe (src/data/coverage.ts).',
+    usedIn: 'The count of regional mosaics in the docs (src/data/coverage.ts). The globe does not mark these areas.',
     endpoint:
       'https://trek.nasa.gov/mars/TrekServices/ws/index/eq/searchItems?proj=urn:ogc:def:crs:EPSG::104905&start=0&rows=1000&facetKeys=itemType&facetValues=product',
     key: 'None',

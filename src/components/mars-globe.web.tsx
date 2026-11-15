@@ -12,8 +12,8 @@ export const GLOBE_AVAILABLE = true;
 
 /**
  * Mars from orbit. Drag to turn it, pinch or use the wheel to move in, and pick a landing site.
- * It is lit from where the Sun is over Mars now, raised with real heights, and outlines every
- * area that has a regional mosaic on Mars Trek. The marks are the landing sites.
+ * It is lit from where the Sun is over Mars now and raised with real heights. The marks are the
+ * landing sites.
  */
 export function MarsGlobe({ sites, onOpen, onHover, onRelief, ref }: MarsGlobeProps) {
   const host = useRef<ComponentRef<typeof View>>(null);

@@ -1,12 +1,10 @@
 /**
  * The 3D scene of the globe: Mars with its relief, lit from where the Sun really is, a thin
- * atmosphere, a soft patch on every area with a regional mosaic and a mark on the ground at each
- * landing site. Plain three.js, with nothing that depends on a browser, so the same scene can run
- * on a phone's OpenGL context.
+ * atmosphere and a mark on the ground at each landing site. Plain three.js, with nothing that
+ * depends on a browser, so the same scene can run on a phone's OpenGL context.
  */
 import * as THREE from 'three';
 
-import type { CoverageArea } from '@/data/coverage';
 import type { Site } from '@/data/sites';
 import type { LatLon } from '@/mission/geo';
 import { drawnRadius, highestRadiusNear, reliefNormals, type GlobalRelief } from '@/mission/relief';
@@ -41,12 +39,6 @@ export function fitDistance(aspect: number, room = 1.18): number {
 const MARKER_LIFT = 1.006;
 /** The reach of a marker's disc, in degrees: it lies above the highest ground inside it. */
 const MARKER_REACH_DEG = 2.4;
-/** How far above the ground a patch of coverage is drawn. */
-const PATCH_LIFT = 0.0015;
-/** A patch bends with the planet: it has a point at least this often, in degrees. */
-const PATCH_STEP_DEG = 1;
-/** An area narrower than this is drawn this wide, or it would be less than a pixel. */
-const PATCH_SMALLEST_DEG = 1.6;
 
 /** How far from the centre the mark of a site lies: above the ground around it. */
 function markerRadius(site: Site, relief: GlobalRelief | null): number {
@@ -81,120 +73,9 @@ function siteMarkers(sites: readonly Site[]): THREE.Group {
     const shade = new THREE.Mesh(disc, backing);
     shade.position.z = -0.0006;
     marker.add(shade, new THREE.Mesh(ring, white), new THREE.Mesh(dot, white));
-    // Drawn after the patches of coverage, which would otherwise cover the mark.
-    marker.traverse((part) => {
-      part.renderOrder = 2;
-    });
     group.add(marker);
   }
   return group;
-}
-
-/**
- * The areas as one mesh: each a patch of ground, cut into cells small enough to bend with the
- * planet and to lie on the relief as the globe draws it. `across` says where a point is inside
- * its patch, from 0 to 1 each way, so the edge can be faded. Areas with the same bounds (two
- * products of one place) are drawn once, and an area too small to see is widened to a speck.
- */
-function patchGeometry(
-  areas: readonly CoverageArea[],
-  relief: GlobalRelief | null,
-): THREE.BufferGeometry {
-  const seen = new Set<string>();
-  const positions: number[] = [];
-  const across: number[] = [];
-  const indices: number[] = [];
-  const at = new THREE.Vector3();
-  for (const { bounds } of areas) {
-    // An area that crosses 180 degrees has its east edge counted on from its west one.
-    const eastEdge = bounds.east < bounds.west ? bounds.east + 360 : bounds.east;
-    const key = [bounds.west, bounds.south, eastEdge, bounds.north]
-      .map((value) => value.toFixed(2))
-      .join();
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    const lat = (bounds.south + bounds.north) / 2;
-    const lon = (bounds.west + eastEdge) / 2;
-    const widen = 1 / Math.max(0.2, Math.cos(lat * RAD));
-    const halfNorth = Math.max((bounds.north - bounds.south) / 2, PATCH_SMALLEST_DEG / 2);
-    const halfEast = Math.max((eastEdge - bounds.west) / 2, (PATCH_SMALLEST_DEG / 2) * widen);
-    const south = Math.max(-90, lat - halfNorth);
-    const north = Math.min(90, lat + halfNorth);
-    const columns = Math.max(1, Math.ceil((halfEast * 2) / PATCH_STEP_DEG));
-    const rows = Math.max(1, Math.ceil((north - south) / PATCH_STEP_DEG));
-    const first = positions.length / 3;
-    for (let row = 0; row <= rows; row += 1) {
-      for (let column = 0; column <= columns; column += 1) {
-        const place = {
-          lat: south + ((north - south) * row) / rows,
-          lon: lon - halfEast + (halfEast * 2 * column) / columns,
-        };
-        toVector(place, drawnRadius(relief, place) + PATCH_LIFT, at);
-        positions.push(at.x, at.y, at.z);
-        across.push(column / columns, row / rows);
-      }
-    }
-    for (let row = 0; row < rows; row += 1) {
-      for (let column = 0; column < columns; column += 1) {
-        const corner = first + row * (columns + 1) + column;
-        const above = corner + columns + 1;
-        indices.push(corner, corner + 1, above, corner + 1, above + 1, above);
-      }
-    }
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-  geometry.setAttribute('across', new THREE.BufferAttribute(new Float32Array(across), 2));
-  geometry.setIndex(indices);
-  return geometry;
-}
-
-/**
- * The areas with a regional mosaic, as soft patches of light on the ground: no outline, round at
- * the corners and fading to nothing at the edge. They are not hidden by depth, which would break
- * them where the relief rises between two of their points; instead a patch fades out as its
- * ground turns over the edge of the planet.
- */
-function coveragePatches(areas: readonly CoverageArea[]): THREE.Mesh {
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      tint: { value: new THREE.Color(0xffe9d6) },
-      strength: { value: 0.3 },
-    },
-    vertexShader: `
-      attribute vec2 across;
-      varying vec2 vAcross;
-      varying vec3 vPlace;
-      void main() {
-        vAcross = across;
-        vPlace = (modelMatrix * vec4(position, 1.0)).xyz;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }`,
-    // A glow measured from the middle of the patch: full there, gone at the edge, round at the corners. A point of a
-    // unit sphere is on the near side when it lies beyond the tangent plane of the eye.
-    fragmentShader: `
-      uniform vec3 tint;
-      uniform float strength;
-      varying vec2 vAcross;
-      varying vec3 vPlace;
-      void main() {
-        vec2 from = abs(vAcross - 0.5) * 2.0;
-        float corner = length(max(from - 0.2, 0.0)) / 0.8;
-        float body = 1.0 - smoothstep(0.15, 1.0, corner);
-        float near = smoothstep(1.0, 1.12, dot(normalize(vPlace), cameraPosition));
-        float shown = body * near * strength;
-        if (shown <= 0.003) discard;
-        gl_FragColor = vec4(tint, shown);
-      }`,
-    transparent: true,
-    depthTest: false,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-  });
-  const patches = new THREE.Mesh(patchGeometry(areas, null), material);
-  patches.renderOrder = 1;
-  return patches;
 }
 
 /** A small repeatable random generator, so the star field is the same on every visit. */
@@ -323,7 +204,7 @@ export type GlobeScene = {
   camera: THREE.PerspectiveCamera;
   /** Puts the Sun over a point of the planet: the place where it is overhead. */
   setSun: (overhead: LatLon) => void;
-  /** Raises the surface, the patches of coverage and the marks with a grid of heights. */
+  /** Raises the surface and the marks with a grid of heights. */
   setRelief: (relief: GlobalRelief) => void;
   /** How far from the centre the mark of a site lies; 1 is the areoid. */
   markerRadius: (site: Site) => number;
@@ -333,7 +214,7 @@ export type GlobeScene = {
 /**
  * Builds the scene. `surface` is an equirectangular image of the planet, with longitude -180 on
  * its left edge. `pixelRatio` is how many device pixels a point of the screen has, so that the
- * stars keep their size on a dense screen. `areas` are marked on the ground.
+ * stars keep their size on a dense screen.
  *
  * The planet stands still and the camera goes round it, so a direction in the scene is a direction
  * on Mars: the light is where the Sun is, and stays there while the view turns.
@@ -342,7 +223,6 @@ export function createGlobeScene(
   sites: readonly Site[],
   surface: THREE.Texture,
   pixelRatio = 1,
-  areas: readonly CoverageArea[] = [],
 ): GlobeScene {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(FIELD_OF_VIEW, 1, 0.1, 400);
@@ -360,8 +240,7 @@ export function createGlobeScene(
   const material = new THREE.MeshStandardMaterial({ map: surface, roughness: 1, metalness: 0 });
   const planet = new THREE.Mesh(new THREE.SphereGeometry(1, 256, 128), material);
   const markers = siteMarkers(sites);
-  const patches = coveragePatches(areas);
-  scene.add(planet, atmosphere(sunDirection), starField(pixelRatio), patches, markers);
+  scene.add(planet, atmosphere(sunDirection), starField(pixelRatio), markers);
 
   let relief: GlobalRelief | null = null;
   let normals: THREE.DataTexture | null = null;
@@ -403,8 +282,6 @@ export function createGlobeScene(
       toVector(site.landing, markerRadius(site, grid), outward);
       markers.children[index].position.copy(outward);
     });
-    patches.geometry.dispose();
-    patches.geometry = patchGeometry(areas, grid);
   };
 
   const dispose = () => {

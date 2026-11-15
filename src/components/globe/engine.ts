@@ -5,7 +5,6 @@
  */
 import * as THREE from 'three';
 
-import { COVERAGE } from '@/data/coverage';
 import { VIKING_GLOBAL, tileUrl } from '@/data/layers';
 import type { Site } from '@/data/sites';
 import { marsTime } from '@/mission/mars-time';
@@ -163,7 +162,7 @@ export function startGlobe(
   surface.colorSpace = THREE.SRGBColorSpace;
   surface.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-  const globe = createGlobeScene(sites, surface, renderer.getPixelRatio(), COVERAGE);
+  const globe = createGlobeScene(sites, surface, renderer.getPixelRatio());
   const { scene, camera, dispose } = globe;
   const noon = sunOverhead();
   globe.setSun(noon);

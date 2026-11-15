@@ -110,7 +110,7 @@ which moves sunrise and sunset by under a minute.
 | Day and night | The lit side is where it is day on Mars at this moment. The point with the Sun overhead comes from the Mars24 algorithm of NASA GISS (`src/mission/mars-time.ts`), worked out again every minute | Computed from a published algorithm |
 | Relief | MOLA and HRSC blended elevation model (Fergason et al. 2018), resampled by the Mars Trek image service to 512 by 256 heights and kept as `public/globe/relief.bin` by `scripts/build-globe-relief.mjs` | Measured, coarse: about 42 km a cell at the equator |
 | How tall the relief is drawn | 6 times taller than it is (`RELIEF_EXAGGERATION` in `src/mission/relief.ts`). At true scale Olympus Mons is 0.6% of the radius of Mars, a pixel or two | Assumption |
-| Pale patches | The area of each regional image mosaic in the Mars Trek catalogue (CTX, HiRISE, HRSC), written to `src/data/coverage.ts` by `scripts/build-coverage.mjs` | Read from the catalogue, not drawn by hand. A patch fades towards its edge, and an area under 1.6° across is drawn that wide so it can be seen |
+| Regional mosaics | The area of each regional image mosaic in the Mars Trek catalogue (CTX, HiRISE, HRSC) is written to `src/data/coverage.ts` by `scripts/build-coverage.mjs`. The globe does not mark them: outlines and soft patches were both tried and taken off as visual noise | Read from the catalogue; not shown |
 
 The line under the globe names each of these. The relief is named only once the heights have
 arrived; if they do not, the globe is a smooth sphere.

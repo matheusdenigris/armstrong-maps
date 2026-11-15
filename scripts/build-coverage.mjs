@@ -1,6 +1,6 @@
 /**
  * Writes `src/data/coverage.ts`: the area of every regional image mosaic that NASA's Mars Trek
- * publishes, read from its own catalogue. The globe marks these areas.
+ * publishes, read from its own catalogue. The docs count these areas; the globe does not mark them.
  *
  *   node scripts/build-coverage.mjs
  *

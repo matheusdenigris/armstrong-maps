@@ -39,7 +39,6 @@ function globeCredit(relief: boolean): string {
     IMAGE_CREDIT,
     'Day and night: the Sun over Mars now (Mars24, NASA GISS)',
     relief ? `Relief: MOLA and HRSC, drawn ${RELIEF_EXAGGERATION}× taller` : null,
-    'Pale patches: regional mosaics on NASA Mars Trek',
     PROJECT_CREDIT,
   ]
     .filter(Boolean)
