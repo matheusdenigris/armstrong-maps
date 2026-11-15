@@ -17,12 +17,10 @@ import Svg, { Path } from 'react-native-svg';
 import { HeadingTape, turnTo } from '@/components/heading-tape';
 import { MiniMap } from '@/components/mini-map';
 import { PanoramaView } from '@/components/panorama-view';
-import { SuitView } from '@/components/suit-view';
 import { PRIORITY_COLOR, PRIORITY_LABEL } from '@/components/ship-link';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { VIKING_GLOBAL } from '@/data/layers';
 import {
-  depressionOf,
   eyeDistance,
   lowestPitch,
   lowestPitchOver,
@@ -31,7 +29,7 @@ import {
   sceneStretch,
   scenesOf,
 } from '@/data/panoramas';
-import { PLACE_FEEDS, PLACE_FLOOR_DEG, PLACE_GALLERY, placeGaps } from '@/data/place-views';
+import { PLACE_FEEDS, PLACE_GALLERY, placeGaps } from '@/data/place-views';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { SITES, findSite, type Site } from '@/data/sites';
 import { MARS_WIND } from '@/data/sounds';
@@ -74,13 +72,9 @@ const LOOK_PER_PIXEL = 0.22;
 const LOOK_PER_KEY = 6;
 /** The head starts tilted a little down, at the ground ahead. */
 const RESTING_PITCH = -4;
-/**
- * How far up and down the head can tilt, in degrees. Up, the photographs are bands, not spheres.
- * Down, the astronaut can look at their own boots: below the last row a photograph has ground
- * for, the view is their suit, which is drawn.
- */
+/** How far up and down the head can tilt, in degrees: the photographs are bands, not spheres. */
 const PITCH_UP = 22;
-const PITCH_DOWN = -46;
+const PITCH_DOWN = -14;
 /** The minimap shows about 300 m around the astronaut. */
 const MINIMAP_PIXELS_PER_DEGREE = 26_000;
 /** From this width the instruments sit in one row along the rim of the helmet. */
@@ -498,21 +492,6 @@ function Visor({ site }: { site: Site }) {
         />
       ) : null}
 
-      {/* The astronaut's own suit, where the photograph has no more ground: drawn, and only on the
-          web, where the view tilts. */}
-      {size && eye && Platform.OS === 'web' ? (
-        <SuitView
-          size={size}
-          eye={eye}
-          pitch={pitch}
-          // The frames of a place are shown down to the same row all the way round.
-          groundEndsDeg={
-            place ? -PLACE_FLOOR_DEG : depressionOf(panorama, panorama.band.bottom)
-          }
-          rim={rim}
-        />
-      ) : null}
-
       {/* The glass of the helmet: darker towards the rim. */}
       <View
         style={[
@@ -693,9 +672,9 @@ function Visor({ site }: { site: Site }) {
             pointerEvents="none">
             {place && placeAwayM !== null
               ? wide
-                ? `Simulated mission · real view from the rover stop nearest to here, ${formatDistance(placeAwayM)} away · drawn suit · sound of Mars`
-                : `Simulated mission · real view, rover stop ${formatDistance(placeAwayM)} away · drawn suit`
-              : `Simulated mission · real photo ${scene.index + 1}/${scene.count} · drawn suit · sound of Mars`}
+                ? `Simulated mission · real view from the rover stop nearest to here, ${formatDistance(placeAwayM)} away · sound of Mars`
+                : `Simulated mission · real view, rover stop ${formatDistance(placeAwayM)} away`
+              : `Simulated mission · real photo ${scene.index + 1}/${scene.count} and sound of Mars`}
           </Text>
           {phone.available ? (
             <Toggle

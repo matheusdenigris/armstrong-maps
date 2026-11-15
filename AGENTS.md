@@ -109,12 +109,6 @@ screen needs a source or a "simulated" or "assumption" label.
   waypoint, alerts. Safety numbers and alert codes come from `src/mission/safety.ts`; the screen
   only writes the sentences. The lower rim of the helmet holds the instruments and hides the
   bottom of the photograph, where the rover that took it shows.
-- **Looking down shows the astronaut's own suit, and it is drawn.** Below the last row a
-  photograph has ground for there is no ground to show, and ground is never drawn in. What stands
-  there is the astronaut's body: `src/components/suit-view.tsx` draws the boots, the legs and the
-  chest pack from that row down, across the whole view, so no dark edge shows. It is a plain suit
-  of no maker: no badge, flag, lettering or NASA insignia. The visor says it is drawn. Where a
-  photograph has no ground at all (`groundGaps`), the view is still held up instead.
 - **The visor shows real photographs, not a drawn scene.** A 3D terrain with a painted sky was
   tried and rejected as game-like: do not bring it back. `src/components/panorama-view.web.tsx`
   wraps a real 360-degree mosaic round the astronaut with plain strips, because the NASA image

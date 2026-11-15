@@ -59,18 +59,6 @@ export const Colors = {
    */
   visorPlate: 'rgba(4, 6, 10, 0.82)',
   visorRim: 'rgba(4, 6, 10, 0.96)',
-  /**
-   * The astronaut's own suit in the visor, which is drawn: the cloth in the light, in the shade
-   * and close to the body, its seams, the boots, the dust of Mars on them and the shade the
-   * body casts.
-   */
-  suit: '#D8D2C8',
-  suitShade: '#A9A298',
-  suitDeep: '#5F5A54',
-  suitSeam: '#3B3733',
-  suitBoot: '#8C867D',
-  suitDust: '#A8704E',
-  suitShadow: '#140C08',
   /** A warning that is not an alarm. */
   cautionTint: 'rgba(251, 191, 36, 0.1)',
   /** Secondary and tertiary text, on the globe and in the panels. */

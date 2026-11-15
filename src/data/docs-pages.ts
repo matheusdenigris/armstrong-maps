@@ -846,7 +846,6 @@ const GUIDE: DocPage[] = [
           {
             kind: 'list',
             items: [
-              "The astronaut's own suit in the visor, seen when looking down, is drawn: a plain suit of no maker. The ground is never drawn.",
               'The stars behind the globe are not a star catalogue.',
               'The night side of the globe is lit faintly so the ground and the sites can be read; a real night on Mars is dark.',
               'The glow round the planet is a hint of its thin atmosphere, not a measurement.',

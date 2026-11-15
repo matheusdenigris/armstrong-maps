@@ -356,9 +356,6 @@ taken.
 
 ## Decoration
 
-- The astronaut's own suit in the visor (boots, legs and chest pack, seen when looking down) is
-  drawn. It covers the part of the view below the last row a photograph has ground for. It is a
-  plain suit of no maker, with no badge, flag or lettering. The ground itself is never drawn.
 - The stars behind the globe are not a star catalogue.
 - The night side of the globe is lit faintly so the ground and the sites can be read; a real night
   on Mars is dark.
