@@ -250,17 +250,29 @@ NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero.
   as shaking and is uncomfortable to watch. When the device asks for reduced motion the view
   does not move into the photograph either, and the change of scene is a plain fade through the
   dust.
-- Only one photograph has a caption that says where north is (PIA20840). The others are not lined
-  up with the compass: turning turns the view by the right amount, but what is ahead in the
-  picture is not what is ahead on the ground. The visor says which case it is.
+- Two photographs have a caption that says where north is (PIA20840 at Gale and PIA11754 at
+  Meridiani). The others are not lined up with the compass: turning turns the view by the right
+  amount, but what is ahead in the picture is not what is ahead on the ground. The visor says
+  which case it is. Every caption was read in the NASA library and on the JPL Photojournal on
+  2026-11-15; the other nine do not say where north is, and no pointing comes with the mosaics.
 - Three things were set by eye for each photograph: the row of the horizon, the band that is free
   of the black gaps at the top and bottom of the mosaic, and the colour that continues the sky
   above that band. Black areas inside the band are where the camera took no frame.
 - Where the mosaic has no frame for a patch of sky inside that band (PIA20840 has one beside its
   first butte), the visor draws the sky there, in the colours the photograph has on either side.
   The ground is never filled in: a gap in it stays black.
-- Gale has five photographs, Jezero four and Gusev one, so a walk at Gusev stays in the same
-  scene. Meridiani and Elysium borrow the ones from Gale, and the visor says so.
+- Where a photograph has no ground to show in one direction, the view is held a little higher
+  while it faces that way, so the gap stays under the rim of the helmet. PIA20840 has no frames
+  to the north from a little below the horizon (the rover deck was masked out), and in PIA11754
+  the top of the rover's antenna stands in the foreground. How far up is worked out from the row
+  where the gap starts, set by eye on the picture.
+- Gale has five photographs, Jezero four, Gusev one and Meridiani one, so a walk at Gusev or
+  Meridiani stays in the same scene. Elysium borrows the ones from Gale, and the visor says so:
+  the widest photograph NASA publishes from InSight (PIA23140) covers 290 degrees, not the full
+  circle the visor needs.
+- No source gives a photograph for every stretch of a walk. The Perseverance traverse names a
+  panorama for each waypoint, but those files are not public (they answer 403); the Curiosity
+  feed names none.
 
 | Photograph | Where and when | Source |
 |---|---|---|
@@ -274,6 +286,7 @@ NASA/JPL-Caltech/LANL/CNES/CNRS/ISAE-Supaero.
 | Perseverance Mastcam-Z at Falbreen | Jezero, sol 1516 (2025) | [PIA26644](https://images.nasa.gov/details/PIA26644), NASA/JPL-Caltech/ASU/MSSS |
 | Curiosity Mastcam at the Ubajara sampling site | Gale, sol 3815 (2023) | [PIA26554](https://images.nasa.gov/details/PIA26554), NASA/JPL-Caltech/MSSS |
 | Spirit Pancam, the McMurdo panorama | Gusev, Low Ridge, 2006 | [PIA16440](https://images.nasa.gov/details/PIA16440), NASA/JPL-Caltech/Cornell |
+| Opportunity Pancam, the Santorini panorama | Meridiani, about 1 km southwest of Victoria Crater, sols 1716 to 1719 (2008) | [PIA11754](https://images.nasa.gov/details/PIA11754), NASA/JPL/Cornell University |
 
 The place of each Gale and Jezero photograph is the rover's published position on the sol it was
 taken.

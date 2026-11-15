@@ -4,7 +4,9 @@ import {
   PANORAMAS,
   SCENE_EVERY_M,
   SCENE_MIN_SECONDS,
+  depressionOf,
   headingToFraction,
+  lowestPitch,
   panoramaNear,
   panoramaUrl,
   sceneForWalk,
@@ -191,5 +193,77 @@ describe('headingToFraction', () => {
     expect(headingToFraction(aligned, 360)).toBeCloseTo(0, 9);
     expect(headingToFraction(aligned, -90)).toBeCloseTo(0.75, 9);
     expect(headingToFraction(aligned, 450)).toBeCloseTo(0.25, 9);
+  });
+});
+
+describe('ground gaps', () => {
+  const murray = PANORAMAS.find((panorama) => panorama.nasaId === 'PIA20840')!;
+  const santorini = PANORAMAS.find((panorama) => panorama.nasaId === 'PIA11754')!;
+  // A desktop view: 20 degrees down to the rim, 45 to each side.
+  const reach = { downDeg: 20, sideDeg: 45, lowest: -14 };
+
+  it('lie inside the band of their picture, below its horizon', () => {
+    for (const panorama of PANORAMAS) {
+      for (const gap of panorama.groundGaps ?? []) {
+        expect(gap.left).toBeLessThan(gap.right);
+        expect(gap.left).toBeGreaterThanOrEqual(0);
+        expect(gap.right).toBeLessThanOrEqual(1);
+        expect(gap.top).toBeGreaterThan(panorama.horizon);
+        expect(gap.top).toBeLessThan(panorama.band.bottom);
+      }
+    }
+  });
+
+  it('measures how far below the horizon a row is', () => {
+    expect(depressionOf(murray, murray.horizon)).toBeCloseTo(0, 6);
+    // 0.16 of the height below the horizon of a picture 0.2848 as tall as it is wide.
+    expect(depressionOf(murray, 0.4)).toBeCloseTo(15.98, 1);
+    expect(depressionOf(murray, 0.5)).toBeGreaterThan(depressionOf(murray, 0.4));
+  });
+
+  it('holds the view up while it faces a stretch with no ground', () => {
+    // North, where the frames of the Murray Buttes picture stop below the horizon.
+    const north = lowestPitch(murray, 0, reach)!;
+    // The row where the gap starts sits on the lower edge of the view, or under it.
+    expect(north).toBeCloseTo(20 - depressionOf(murray, 0.4), 6);
+    expect(north).toBeGreaterThan(-4);
+  });
+
+  it('leaves the view alone where the ground is whole', () => {
+    // South is the middle of that picture, far from both gaps.
+    expect(lowestPitch(murray, 180, reach)).toBeNull();
+    // The Gusev picture has no such stretch within reach of the view.
+    const gusev = PANORAMAS.find((panorama) => panorama.site === 'gusev')!;
+    expect(lowestPitch(gusev, 0, reach)).toBeNull();
+  });
+
+  it('brings the tilt in gradually as the gap nears the edge of the view', () => {
+    // North is the middle of that picture, and the antenna is 60 to 74 degrees east of it.
+    const tilts = [-20, 0, 4, 8, 12, 16, 40].map(
+      (heading) => lowestPitch(santorini, heading, reach) ?? reach.lowest,
+    );
+    // Turning towards the antenna of the Santorini picture, the view never drops.
+    for (let i = 1; i < tilts.length; i += 1) expect(tilts[i]).toBeGreaterThanOrEqual(tilts[i - 1]);
+    expect(tilts[0]).toBe(reach.lowest);
+    expect(tilts[tilts.length - 1]).toBeGreaterThan(tilts[0]);
+  });
+
+  it('asks for less tilt where the rim of the helmet already hides more', () => {
+    // A phone: the instruments take more of the screen, so the view reaches less far down.
+    const phone = { downDeg: 10, sideDeg: 24, lowest: -14 };
+    expect(lowestPitch(murray, 0, phone)!).toBeLessThan(lowestPitch(murray, 0, reach)!);
+  });
+});
+
+describe('the Meridiani photograph', () => {
+  it('is its own, and is lined up with the compass as its caption says', () => {
+    const meridiani = findSite('meridiani')!;
+    const scene = sceneForWalk('meridiani', meridiani.landing, meridiani.landing, 0, true);
+
+    expect(scene.borrowed).toBe(false);
+    expect(scene.panorama.nasaId).toBe('PIA11754');
+    // "North is in the center of the panorama."
+    expect(headingToFraction(scene.panorama, 0)).toBeCloseTo(0.5, 6);
+    expect(headingToFraction(scene.panorama, 180)).toBeCloseTo(0, 6);
   });
 });

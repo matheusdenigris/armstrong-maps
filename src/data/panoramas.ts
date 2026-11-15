@@ -8,8 +8,13 @@
  * What is measured: the picture, the sol it was taken on, and (for Gale and Jezero) the place,
  * read from the rover's published traverse for that sol. What was set by eye for this app: the
  * row of the horizon, the band of the picture that is free of the black gaps of the mosaic, the
- * colour used to continue the sky above that band, and the patches of sky the mosaic has no frame
- * for inside it.
+ * colour used to continue the sky above that band, the patches of sky the mosaic has no frame
+ * for inside it, and the stretches where it has no ground.
+ *
+ * North: the caption of each picture was read in the NASA library and on the JPL Photojournal
+ * (photojournal.jpl.nasa.gov/catalog/<nasaId>) on 2026-11-15. Two say where north is, PIA20840
+ * and PIA11754, and only those are lined up with the compass. The others do not say, and no
+ * pointing comes with the mosaics, so they are left as they are and the visor says so.
  */
 import { distance, type LatLon } from '@/mission/geo';
 
@@ -28,6 +33,20 @@ export type SkyGap = {
   sky: readonly [string, string];
 };
 
+/**
+ * A stretch of the picture with nothing to show below `top`: the mosaic has no frame for the
+ * ground there, or the rover that took the picture stands in the way. The astronaut is not the
+ * rover, so the rover is kept out of the view like a gap. Ground is never drawn in. The visor
+ * tilts the view up instead while it faces the stretch, so that what is missing stays under
+ * the rim of the helmet. Fractions of the picture.
+ */
+export type GroundGap = {
+  left: number;
+  right: number;
+  /** The row from which there is nothing to show. */
+  top: number;
+};
+
 export type Panorama = {
   nasaId: string;
   /** Size of the full picture, in pixels. The smaller renditions keep the same shape. */
@@ -41,6 +60,8 @@ export type Panorama = {
   sky: string;
   /** Patches of sky inside the band with no frame, where the mosaic has any. */
   skyGaps?: readonly SkyGap[];
+  /** Stretches with no ground to show inside the band, where the picture has any. */
+  groundGaps?: readonly GroundGap[];
   /**
    * Where north is, as a fraction of the width, when the caption of the picture says so. Null
    * when it does not: then the picture is real but is not lined up with the compass.
@@ -70,6 +91,16 @@ export const PANORAMAS: readonly Panorama[] = [
     horizon: 0.24,
     band: { top: 0.185, bottom: 0.74 },
     sky: '#e6dccb',
+    // The rover and the black steps of the mosaic, at the left and the right of the picture. Set by eye on the picture.
+    groundGaps: [
+      { left: 0, right: 0.03, top: 0.285 },
+      { left: 0.03, right: 0.124, top: 0.32 },
+      { left: 0.124, right: 0.155, top: 0.39 },
+      { left: 0.155, right: 0.26, top: 0.55 },
+      { left: 0.26, right: 0.355, top: 0.49 },
+      { left: 0.936, right: 0.968, top: 0.55 },
+      { left: 0.968, right: 1, top: 0.32 },
+    ],
     north: null,
     caption: 'Curiosity Mastcam, the landing site with Mount Sharp, August 2012',
     credit: 'NASA/JPL-Caltech/MSSS',
@@ -90,6 +121,13 @@ export const PANORAMAS: readonly Panorama[] = [
       { left: 0.765, right: 0.885, bottomLeft: 0.162, bottomRight: 0.18, sky: ['#eff1f2', '#d9d7d6'] },
       { left: 0.885, right: 1, bottomLeft: 0.18, bottomRight: 0.164, sky: ['#d9d7d6', '#cdc5c0'] },
     ],
+    // Measured on the picture: the rover deck was masked out, and to the north the frames stop
+    // a little below the horizon.
+    groundGaps: [
+      { left: 0, right: 0.045, top: 0.4 },
+      { left: 0.045, right: 0.285, top: 0.5 },
+      { left: 0.94, right: 1, top: 0.415 },
+    ],
     // "North is at both ends and south is in the center."
     north: 0,
     caption: 'Curiosity Mastcam amid the Murray Buttes, sol 1451 (2016)',
@@ -104,6 +142,13 @@ export const PANORAMAS: readonly Panorama[] = [
     horizon: 0.15,
     band: { top: 0.11, bottom: 0.8 },
     sky: '#a98463',
+    // The rover is in this picture: its mast, its deck and its arm. Set by eye on the picture.
+    groundGaps: [
+      { left: 0.175, right: 0.245, top: 0.43 },
+      { left: 0.245, right: 0.4, top: 0.2 },
+      { left: 0.4, right: 0.44, top: 0.44 },
+      { left: 0.44, right: 0.615, top: 0.21 },
+    ],
     north: null,
     caption: 'Curiosity Mastcam on Vera Rubin Ridge during a dust storm, sol 2137 (2018)',
     credit: 'NASA/JPL-Caltech/MSSS',
@@ -117,6 +162,11 @@ export const PANORAMAS: readonly Panorama[] = [
     horizon: 0.27,
     band: { top: 0.17, bottom: 0.72 },
     sky: '#9db3c6',
+    // The rover at both ends of the picture. Set by eye on the picture.
+    groundGaps: [
+      { left: 0, right: 0.055, top: 0.54 },
+      { left: 0.94, right: 1, top: 0.44 },
+    ],
     north: null,
     caption: 'Curiosity Mastcam below Gediz Vallis Ridge, sol 3928 (2023)',
     credit: 'NASA/JPL-Caltech/MSSS',
@@ -130,6 +180,11 @@ export const PANORAMAS: readonly Panorama[] = [
     horizon: 0.23,
     band: { top: 0.17, bottom: 0.72 },
     sky: '#6b7b8d',
+    // The rover and a black step of the mosaic, left of the middle. Set by eye on the picture.
+    groundGaps: [
+      { left: 0.355, right: 0.44, top: 0.4 },
+      { left: 0.44, right: 0.475, top: 0.51 },
+    ],
     north: null,
     caption: 'Curiosity Mastcam at the Ubajara sampling site, sol 3815 (2023)',
     credit: 'NASA/JPL-Caltech/MSSS',
@@ -143,6 +198,14 @@ export const PANORAMAS: readonly Panorama[] = [
     horizon: 0.07,
     band: { top: 0.02, bottom: 0.62 },
     sky: '#a3835f',
+    // The rover is in this picture: its mast and its deck, right of the middle. Set by eye on the picture.
+    groundGaps: [
+      { left: 0.44, right: 0.485, top: 0.39 },
+      { left: 0.485, right: 0.53, top: 0.13 },
+      { left: 0.53, right: 0.64, top: 0.19 },
+      { left: 0.64, right: 0.745, top: 0.36 },
+      { left: 0.745, right: 0.86, top: 0.285 },
+    ],
     north: null,
     caption: 'Perseverance Mastcam-Z at its landing site, sol 3 (2021)',
     credit: 'NASA/JPL-Caltech/MSSS/ASU',
@@ -156,6 +219,13 @@ export const PANORAMAS: readonly Panorama[] = [
     horizon: 0.22,
     band: { top: 0, bottom: 0.62 },
     sky: '#bcd2e4',
+    // The rover at the left, and its mast and deck at the right. Set by eye on the picture.
+    groundGaps: [
+      { left: 0.085, right: 0.19, top: 0.48 },
+      { left: 0.76, right: 0.825, top: 0.56 },
+      { left: 0.825, right: 0.855, top: 0.29 },
+      { left: 0.855, right: 0.965, top: 0.36 },
+    ],
     north: null,
     caption: 'Perseverance Mastcam-Z at Bright Angel, sol 1178 (2024), colour enhanced',
     credit: 'NASA/JPL-Caltech/ASU/MSSS',
@@ -169,6 +239,14 @@ export const PANORAMAS: readonly Panorama[] = [
     horizon: 0.2,
     band: { top: 0, bottom: 0.62 },
     sky: '#f0eeec',
+    // The rover at the left, and its mast and deck at the right. Set by eye on the picture.
+    groundGaps: [
+      { left: 0.04, right: 0.155, top: 0.43 },
+      { left: 0.755, right: 0.8, top: 0.5 },
+      { left: 0.8, right: 0.83, top: 0.225 },
+      { left: 0.83, right: 0.925, top: 0.29 },
+      { left: 0.925, right: 0.975, top: 0.4 },
+    ],
     north: null,
     caption: 'Perseverance Mastcam-Z at Rio Chiquito, sol 1337 (2024), colour enhanced',
     credit: 'NASA/JPL-Caltech/ASU/MSSS',
@@ -182,6 +260,15 @@ export const PANORAMAS: readonly Panorama[] = [
     horizon: 0.25,
     band: { top: 0, bottom: 0.6 },
     sky: '#3e73b4',
+    // The arm of the rover at the left, and its mast and deck at the right. Set by eye on the picture.
+    groundGaps: [
+      { left: 0.13, right: 0.215, top: 0.49 },
+      { left: 0.8, right: 0.84, top: 0.56 },
+      { left: 0.84, right: 0.86, top: 0.41 },
+      { left: 0.86, right: 0.89, top: 0.29 },
+      { left: 0.89, right: 0.965, top: 0.36 },
+      { left: 0.965, right: 0.995, top: 0.49 },
+    ],
     north: null,
     caption: 'Perseverance Mastcam-Z at Falbreen, sol 1516 (2025), colour enhanced',
     credit: 'NASA/JPL-Caltech/ASU/MSSS',
@@ -201,6 +288,26 @@ export const PANORAMAS: readonly Panorama[] = [
     // Spirit has no published traverse feed here, so the place is not given.
     point: null,
     site: 'gusev',
+  },
+  {
+    // The Santorini panorama: approximate true colour, 276 exposures of the panoramic camera.
+    nasaId: 'PIA11754',
+    width: 23123,
+    height: 4000,
+    horizon: 0.114,
+    // Under 0.57 the rover deck is masked out in black.
+    band: { top: 0, bottom: 0.57 },
+    sky: '#dbba6b',
+    // The top of the rover's low-gain antenna stands in the foreground here.
+    groundGaps: [{ left: 0.668, right: 0.705, top: 0.415 }],
+    // "North is in the center of the panorama."
+    north: 0.5,
+    caption: 'Opportunity Pancam, the Santorini panorama, sols 1716 to 1719 (2008)',
+    credit: 'NASA/JPL/Cornell University',
+    // About a kilometre southwest of the south rim of Victoria Crater, the caption says.
+    // Opportunity has no published traverse feed here, so the place is not given.
+    point: null,
+    site: 'meridiani',
   },
 ];
 
@@ -303,4 +410,69 @@ export function sceneForWalk(
 export function headingToFraction(panorama: Panorama, heading: number): number {
   const turn = (((heading % 360) + 360) % 360) / 360;
   return (((panorama.north ?? 0.5) + turn) % 1 + 1) % 1;
+}
+
+const RAD = Math.PI / 180;
+
+/** The lens of the visor, in degrees from top to bottom. A tall phone gets a wider one. */
+export const lensDeg = (size: { width: number; height: number }) =>
+  size.width < size.height ? 82 : 58;
+
+/** Distance from the eye to the picture, in pixels, for a lens that suits the shape of the screen. */
+export function eyeDistance(size: { width: number; height: number }): number {
+  return size.height / 2 / Math.tan((lensDeg(size) * RAD) / 2);
+}
+
+/**
+ * How far below the horizon a row of the picture is, in degrees, seen from the middle of it. The
+ * picture is wrapped round the eye, so its width is the whole circle.
+ */
+export function depressionOf(panorama: Panorama, row: number): number {
+  const drop = (row - panorama.horizon) * (panorama.height / panorama.width) * 2 * Math.PI;
+  return Math.atan(drop) / RAD;
+}
+
+/** Beyond the edge of the view, the tilt eases off over this many degrees of heading. */
+const GAP_EASE_DEG = 14;
+
+export type ViewReach = {
+  /** How far below its centre the view shows, down to the rim of the helmet, in degrees. */
+  downDeg: number;
+  /** How far to each side of its centre the view shows, in degrees. */
+  sideDeg: number;
+  /** The lowest the view tilts anywhere, in degrees. */
+  lowest: number;
+};
+
+/**
+ * The lowest the view may tilt while it faces `heading`, so that a stretch with no ground stays
+ * under the rim of the helmet. Null when the picture has no such stretch near the view. The tilt
+ * comes in gradually as a stretch nears the edge of the view, so turning does not jolt it.
+ */
+export function lowestPitch(panorama: Panorama, heading: number, reach: ViewReach): number | null {
+  const centre = headingToFraction(panorama, heading);
+  let floor = reach.lowest;
+  for (const gap of panorama.groundGaps ?? []) {
+    // How far the stretch is from the centre of the view, the short way round, in degrees.
+    const inside =
+      gap.left <= gap.right
+        ? centre >= gap.left && centre <= gap.right
+        : centre >= gap.left || centre <= gap.right;
+    const away = (edge: number) => {
+      const turn = Math.abs(centre - edge);
+      return Math.min(turn, 1 - turn) * 360;
+    };
+    const distance = inside ? 0 : Math.min(away(gap.left), away(gap.right));
+    const weight =
+      distance <= reach.sideDeg
+        ? 1
+        : Math.max(0, 1 - (distance - reach.sideDeg) / GAP_EASE_DEG);
+    if (weight === 0) continue;
+    // At this tilt the row where the gap starts sits on the lower edge of the view.
+    const needed = reach.downDeg - depressionOf(panorama, gap.top);
+    // Smooth at both ends of the ramp.
+    const eased = weight * weight * (3 - 2 * weight);
+    floor = Math.max(floor, reach.lowest + (needed - reach.lowest) * eased);
+  }
+  return floor > reach.lowest ? floor : null;
 }

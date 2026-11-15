@@ -19,7 +19,14 @@ import { MiniMap } from '@/components/mini-map';
 import { PanoramaView } from '@/components/panorama-view';
 import { Colors, Fonts, Radius, Spacing } from '@/constants/theme';
 import { VIKING_GLOBAL } from '@/data/layers';
-import { panoramaUrl, sceneForWalk, sceneStretch, scenesOf } from '@/data/panoramas';
+import {
+  eyeDistance,
+  lowestPitch,
+  panoramaUrl,
+  sceneForWalk,
+  sceneStretch,
+  scenesOf,
+} from '@/data/panoramas';
 import { SURFACE_RADIATION } from '@/data/radiation';
 import { SITES, findSite, type Site } from '@/data/sites';
 import { MARS_WIND } from '@/data/sounds';
@@ -228,6 +235,20 @@ function Visor({ site }: { site: Site }) {
   // where the rover that took it shows, out of the astronaut's view.
   const rim = (wide ? 214 : 318) + insets.bottom;
 
+  // Where the photograph has no ground to show (a mosaic without frames there, or the rover in
+  // the way), the view is held a little higher, so that what is missing stays under the rim.
+  const RAD = Math.PI / 180;
+  const eye = size ? eyeDistance(size) : null;
+  const floor =
+    size && eye
+      ? lowestPitch(panorama, heading, {
+          downDeg: Math.atan((size.height / 2 - rim) / eye) / RAD,
+          sideDeg: Math.atan(size.width / 2 / eye) / RAD,
+          lowest: PITCH_DOWN,
+        })
+      : null;
+  const pitch = floor === null ? look.pitch : Math.max(look.pitch, Math.min(PITCH_UP, floor));
+
   const onLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
     setSize((previous) =>
@@ -376,7 +397,7 @@ function Visor({ site }: { site: Site }) {
         <PanoramaView
           panorama={panorama}
           heading={heading}
-          pitch={look.pitch}
+          pitch={pitch}
           size={size}
           advance={advance}
           still={calm}
@@ -555,6 +576,9 @@ function Visor({ site }: { site: Site }) {
               ? 'It is not lined up with the compass.'
               : 'It is lined up with the compass.'}{' '}
             Black areas are where the camera took no frame; the sky above the frames, and any gap in it, is filled in.
+            {panorama.groundGaps
+              ? ' Where this photograph has no ground to show, the view is held a little higher: ground is never drawn in.'
+              : ''}
             {scene.count > 1
               ? ` The scenery changes every ${formatDistance(stretch)} walked, through the ${scene.count} photographs of this site, to give the sense of ground being covered. Within a scene the view moves slowly into the still photograph. No camera filmed the way between two of them, and the dust in the cut from one to the next is drawn.`
               : ''}
